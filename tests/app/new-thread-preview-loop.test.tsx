@@ -6,7 +6,7 @@ import { useComposer } from "@get-bb/plugin-sdk/app";
 import { NewThreadRouting } from "../../src/app/composer/NewThreadRouting.tsx";
 import { fakeWorld } from "../server/fake-bb.ts";
 import { openDatabase } from "../../src/server/db.ts";
-import { TopicStore } from "../../src/server/topics.ts";
+import { WorkstreamStore } from "../../src/server/topics.ts";
 
 let world: Awaited<ReturnType<typeof fakeWorld>> | null = null;
 beforeAll(() => {
@@ -49,20 +49,20 @@ async function mount() {
       prompt.includes("You name one new agent thread")
         ? JSON.stringify({
             goal: "Fix Alpha parser",
-            subjectId: seededAlphaId,
+            workstreamId: seededAlphaId,
             proposed: null,
           })
         : JSON.stringify({ recap: "r", state: "complete" }),
   });
   const w = world;
   const alpha = w.addSection("Alpha");
-  const corpus = new TopicStore(openDatabase(w.bb));
-  seededAlphaId = corpus.create("Alpha", "Alpha effort").id;
-  corpus.edit(seededAlphaId, { projectId: "proj_1", projectSource: "manual" });
-  corpus.bindGroup(alpha.id, seededAlphaId);
+  const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
+  seededAlphaId = workstreamStore.create("Alpha", "Alpha effort").id;
+  workstreamStore.edit(seededAlphaId, { projectId: "proj_1", projectSource: "manual" });
+  workstreamStore.bindGroup(alpha.id, seededAlphaId);
   w.addThread("a1", { sectionId: alpha.id, title: "Alpha task" });
   await w.harness.behavior.callRpc("refresh", null);
-  const methods = ["prefs", "state", "catalog", "preview", "previewCancel"];
+  const methods = ["prefs", "state", "tree", "preview", "previewCancel"];
   const rpc = Object.fromEntries(
     methods.map((method) => [
       method,
@@ -91,7 +91,7 @@ it("resolves the chip after typing stops, even with a mid-flight remount", async
   await act(() =>
     slot.behavior.setComposerText("Fix the parser in Alpha so it handles tabs"),
   );
-  await screen.findByRole("button", { name: "Topic: Alpha" });
+  await screen.findByRole("button", { name: "Workstream: Alpha" });
 
   // Remount the banner mid-flight, as the host's scopeKey remount does when
   // the composer project changes: the fresh model must still resolve.
@@ -101,7 +101,7 @@ it("resolves the chip after typing stops, even with a mid-flight remount", async
     ),
   );
   slot.rerender(<RootComposer key="remounted" />);
-  await screen.findByRole("button", { name: "Topic: Alpha" });
+  await screen.findByRole("button", { name: "Workstream: Alpha" });
 });
 
 it("stops previewing once the text settles (no classify loop)", async () => {
@@ -114,7 +114,7 @@ it("stops previewing once the text settles (no classify loop)", async () => {
     slot.behavior.setComposerText("Fix the parser in Alpha so it handles tabs"),
   );
   await act(() => vi.advanceTimersByTimeAsync(1000));
-  expect(screen.getByRole("button", { name: "Topic: Alpha" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Workstream: Alpha" })).toBeTruthy();
   const previewCalls = () =>
     slot.inspection.rpcCalls.filter((call) => call.method === "preview").length;
   const before = previewCalls();
@@ -135,10 +135,10 @@ it("shares one routing model across banners for the same draft", async () => {
   await act(() =>
     slot.behavior.setComposerText("Fix the parser in Alpha so it handles tabs"),
   );
-  await screen.findAllByRole("button", { name: "Topic: Alpha" });
+  await screen.findAllByRole("button", { name: "Workstream: Alpha" });
   expect(previewCalls()).toBe(1);
   // Both views show the one model's resolved identity.
-  expect(screen.getAllByRole("button", { name: "Topic: Alpha" })).toHaveLength(
+  expect(screen.getAllByRole("button", { name: "Workstream: Alpha" })).toHaveLength(
     2,
   );
 
@@ -149,5 +149,5 @@ it("shares one routing model across banners for the same draft", async () => {
     ),
   );
   await waitFor(() => expect(previewCalls()).toBe(2));
-  await screen.findAllByRole("button", { name: "Topic: Alpha" });
+  await screen.findAllByRole("button", { name: "Workstream: Alpha" });
 });

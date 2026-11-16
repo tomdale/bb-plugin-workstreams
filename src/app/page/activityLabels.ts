@@ -7,40 +7,35 @@
 import type { JournalEntry } from "../../server/journal.ts";
 
 export const ACTION_LABEL: Record<JournalEntry["action"], string> = {
-  move: "Move",
-  "create-workstream": "New workstream",
-  "rename-workstream": "Rename",
-  "delete-workstream": "Delete",
-  undo: "Undo",
-  batch: "Reorganize",
-  categories: "Categories",
-  "edit-workstream": "Edit",
-  "project-association": "Project",
-  route: "New thread",
-  retitle: "Updated title",
-  "remove-topic": "Removed topic",
-  suggestion: "Suggestion",
+  "thread-started": "Thread started",
+  "thread-moved": "Thread moved",
+  "title-updated": "Title updated",
+  "workstream-created": "Workstream created",
+  "workstream-renamed": "Workstream renamed",
+  "workstream-removed": "Workstream removed",
+  "categories-updated": "Categories updated",
+  "suggestion-accepted": "Suggestion accepted",
+  "project-learned": "Project learned",
+  "change-undone": "Change undone",
 };
 
 export const ACTION_HELP: Record<JournalEntry["action"], string> = {
-  move: "A thread was moved to another workstream.",
-  "create-workstream": "A workstream was created to group related threads.",
-  "rename-workstream": "A workstream’s name was changed.",
-  "delete-workstream": "A workstream was removed. Its threads are not deleted.",
-  undo: "A previous Workstreams change was reversed.",
-  batch: "Several organization changes were applied together.",
-  categories:
-    "The current thread collection's categories changed without changing topic assignments.",
-  "edit-workstream": "A workstream’s description or settings were changed.",
-  "project-association":
-    "A topic’s associated project was learned, changed, or reviewed.",
-  route: "A new request was placed in a thread and workstream.",
-  retitle:
-    "A thread was given its goal as its title, from its opening request or after a turn.",
-  "remove-topic":
-    "Topics Workstreams had discovered were removed because no thread or workstream used them.",
-  suggestion:
-    "You accepted an organizing suggestion, which changed the topic tree or a thread's topic.",
+  "thread-started":
+    "A thread started from New thread, in the workstream Workstreams chose for it.",
+  "thread-moved":
+    "One or more threads moved to another workstream, by you, by Workstreams, or outside Workstreams.",
+  "title-updated":
+    "A thread was given its title, from its opening request or after a turn.",
+  "workstream-created": "A workstream was added to the sidebar.",
+  "workstream-renamed": "A workstream’s name changed.",
+  "workstream-removed":
+    "A workstream left the sidebar, or one Workstreams had found was removed because nothing used it. Its threads are not deleted.",
+  "categories-updated":
+    "A workstream's categories changed. No thread changed workstream.",
+  "suggestion-accepted":
+    "You accepted an organizing suggestion, which changed your workstreams and groups or moved a thread.",
+  "project-learned": "A workstream’s project was learned, set, or kept.",
+  "change-undone": "A previous change was reversed.",
 };
 
 export const ENTRY_STATUS: Record<
@@ -66,17 +61,14 @@ export const ENTRY_STATUS: Record<
     label: "Undone",
     description: "This change was reversed by a later undo event.",
   },
-  dismissed: {
-    label: "Dismissed",
+  declined: {
+    label: "Declined",
     description: "This suggestion was declined without applying the change.",
   },
 };
 
 export const SOURCE_LABEL: Record<JournalEntry["source"], string> = {
-  user: "you",
-  external: "outside Workstreams",
-  router: "router",
-  handoff: "handoff",
-  auto: "automatic",
-  bootstrap: "bootstrap",
+  you: "You",
+  workstreams: "Workstreams",
+  outside: "Outside Workstreams",
 };

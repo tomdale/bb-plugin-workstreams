@@ -9,31 +9,31 @@
  *
  * - After a new request from you, the call settles the title and goal,
  *   describes the turn when the agent didn't report, and for a root decides
- *   its topic in the same answer. It keeps a title Workstreams wrote unless
+ *   its workstream in the same answer. It keeps a title Workstreams wrote unless
  *   the goal changed, and never names over one you gave.
- * - A root that only lacks a topic (an earlier turn was analyzed before it
+ * - A root that only lacks a workstream (an earlier turn was analyzed before it
  *   had one) gets a placement call alone (see `Placement`).
  * - After a turn with no new request (a waiting check, a bare "continue"),
  *   only the turn's status is new: with an agent report nothing is asked and
  *   the settled title carries forward; without one, only the status is asked.
  *
  * The title reaches BB only through `onResult` and the retitle policy; the
- * topic only through `topics.apply`.
+ * workstream only through `workstreams.apply`.
  */
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { createHash } from "node:crypto";
 import type {
   AgentReport,
-  FullAnalysisInput,
+  DescriptionInput,
   StoredAnalysis,
   ThreadListing,
   TitledBy,
 } from "../domain/analysis.ts";
-import type { PlacementOutput } from "../domain/placement.ts";
+import type { WorkstreamChoiceOutput } from "../domain/placement.ts";
 import type { TurnEndInput } from "../domain/turnEnd.ts";
-import type { PlacementQuestion, PlacementThread } from "./placement.ts";
-import type { Entity } from "../domain/classify.ts";
-import type { TopicAssignment } from "../domain/topics.ts";
+import type { ChoiceQuestion, ChoiceThread } from "./placement.ts";
+import type { Workstream } from "../domain/classify.ts";
+import type { WorkstreamAssignment } from "../domain/topics.ts";
 import type { ModelChoice } from "../domain/prefs.ts";
 import type { Database } from "./db.ts";
 import { displayTitle, type InventoryThread } from "./inventory.ts";
@@ -90,8 +90,8 @@ export class Analyzer {
     string,
     { revision: number; text: string | null }
   >();
-  /** Roots with no topic yet, queued for a run despite a current result. */
-  private readonly settleTopic = new Set<string>();
+  /** Roots with no workstream yet, queued for a run despite a current result. */
+  private readonly settleWorkstream = new Set<string>();
   private disposed = false;
   lastError: string | null = null;
 
@@ -109,14 +109,14 @@ export class Analyzer {
         report: AgentReport;
         status: Pick<StoredAnalysis, "recap" | "state" | "ask">;
       } | null;
-      /** Topics, for settling a root's topic with its goal. */
-      topics?: {
-        entities(): Entity[];
-        assignment(threadId: string): TopicAssignment;
+      /** Workstreams, for settling a root's workstream with its goal. */
+      workstreams?: {
+        workstreams(): Workstream[];
+        assignment(threadId: string): WorkstreamAssignment;
         project(projectId: string): Promise<string | null>;
         apply(
           threadId: string,
-          answer: PlacementOutput,
+          answer: WorkstreamChoiceOutput,
           basis: string,
           traceId: string | null,
         ): void;
@@ -127,17 +127,17 @@ export class Analyzer {
         parentThreadId?: string | null;
       }) => ThreadListing;
       /** Asks where a root belongs (see `Placement`). */
-      placement?: {
+      workstreamChoice?: {
         question(
-          thread: PlacementThread,
+          thread: ChoiceThread,
           requests: readonly string[],
           options?: { force?: boolean; digest?: string | null },
-        ): Promise<PlacementQuestion | null>;
+        ): Promise<ChoiceQuestion | null>;
         ask(
           threadId: string,
-          question: PlacementQuestion,
+          question: ChoiceQuestion,
           options: { label: string },
-        ): Promise<{ answer: PlacementOutput; traceId: string | null }>;
+        ): Promise<{ answer: WorkstreamChoiceOutput; traceId: string | null }>;
       };
       /** A thread's stored analysis changed. */
       onChange: (threadId: string) => void;
@@ -258,7 +258,7 @@ export class Analyzer {
           row.thread_id,
           {
             revision: row.revision,
-            needsTopicRetry: Boolean(result?.topicError),
+            needsWorkstreamRetry: Boolean(result?.workstreamError),
             needsGoal: result?.goal === undefined,
           },
         ] as const;
@@ -268,18 +268,18 @@ export class Analyzer {
     let queued = 0;
     for (const thread of idle) {
       const previous = stored.get(thread.id);
-      // A root that never had a topic is settled even when its latest turn
+      // A root that never had a workstream is settled even when its latest turn
       // was analyzed, for example after the plugin first loads.
-      const untopiced =
-        this.deps.topics !== undefined &&
+      const unworkstreamed =
+        this.deps.workstreams !== undefined &&
         thread.parentThreadId === null &&
-        this.deps.topics.assignment(thread.id).provenance === null;
+        this.deps.workstreams.assignment(thread.id).provenance === null;
       if (
         previous &&
         previous.revision >= thread.latestAttentionAt &&
-        !previous.needsTopicRetry &&
+        !previous.needsWorkstreamRetry &&
         !previous.needsGoal &&
-        !untopiced
+        !unworkstreamed
       )
         continue;
       const failed = this.failures.get(thread.id);
@@ -292,7 +292,7 @@ export class Analyzer {
         continue;
       if (this.timers.has(thread.id) || this.running.has(thread.id)) continue;
       if (this.waiting.includes(thread.id)) continue;
-      if (untopiced) this.settleTopic.add(thread.id);
+      if (unworkstreamed) this.settleWorkstream.add(thread.id);
       this.waiting.push(thread.id);
       queued++;
     }
@@ -302,7 +302,7 @@ export class Analyzer {
 
   /**
    * Settles one thread now with a full run, regardless of its stored
-   * revision: `bb workstreams analyze`, and handing a topic back to
+   * revision: `bb workstreams analyze`, and handing a workstream back to
    * Workstreams ("Automatic").
    */
   async analyzeNow(threadId: string): Promise<StoredAnalysis | null> {
@@ -310,22 +310,22 @@ export class Analyzer {
   }
 
   /** A placement preview shares production evidence and parsing but writes no facts. */
-  async previewTopic(threadId: string, options: { within?: string } = {}) {
+  async previewWorkstream(threadId: string, options: { within?: string } = {}) {
     const sdk = this.deps.sdk();
     const thread = await sdk.threads.get({ threadId });
-    const topics = this.deps.topics;
-    const placement = this.deps.placement;
+    const workstreams = this.deps.workstreams;
+    const placement = this.deps.workstreamChoice;
     if (
-      !topics ||
+      !workstreams ||
       !placement ||
       thread.archivedAt !== null ||
       thread.visibility === "hidden"
     )
       throw new Error("That thread is unavailable for classification.");
     const evidence = threadEvidence(thread);
-    const assignment = topics.assignment(threadId);
+    const assignment = workstreams.assignment(threadId);
     if (assignment.provenance === "manual" && !options.within)
-      throw new Error("Manual topics are preserved.");
+      throw new Error("A workstream you chose stays.");
     const assignmentKey = assignmentEvidence(assignment);
     const context = await this.context(thread);
     const question = await placement.question(
@@ -336,7 +336,7 @@ export class Analyzer {
     if (!question) throw new Error("The thread has no request to place.");
     const title = displayTitle(thread);
     const { answer, traceId } = await placement.ask(threadId, question, {
-      label: `Topic preview: ${title}`,
+      label: `Workstream choice: ${title}`,
     });
     this.deps.inference.annotate(traceId, {
       application: "preview only: no facts changed",
@@ -408,26 +408,26 @@ export class Analyzer {
         return null;
       revision = thread.latestAttentionAt ?? thread.updatedAt;
       const evidence = threadEvidence(thread);
-      const assignment = this.deps.topics
-        ? assignmentEvidence(this.deps.topics.assignment(threadId))
+      const assignment = this.deps.workstreams
+        ? assignmentEvidence(this.deps.workstreams.assignment(threadId))
         : null;
-      const catalog = this.deps.topics
-        ? JSON.stringify(this.deps.topics.entities())
+      const tree = this.deps.workstreams
+        ? JSON.stringify(this.deps.workstreams.workstreams())
         : null;
       const previous = this.get(threadId);
       if (
         !force &&
         previous &&
         previous.revision >= revision &&
-        !previous.topicError &&
+        !previous.workstreamError &&
         previous.goal !== undefined &&
-        !this.settleTopic.has(threadId)
+        !this.settleWorkstream.has(threadId)
       )
         return previous;
-      // A run only to give an already-analyzed root its first topic leaves
+      // A run only to give an already-analyzed root its first workstream leaves
       // the turn's goal and status as they were.
-      const topicOnly =
-        this.settleTopic.delete(threadId) &&
+      const workstreamOnly =
+        this.settleWorkstream.delete(threadId) &&
         !force &&
         previous !== undefined &&
         previous.goal !== undefined &&
@@ -440,25 +440,25 @@ export class Analyzer {
       // Requests already titled from need no second look at the title.
       const settled = previous?.requestsKey === context.requestsKey;
       const placing =
-        this.deps.placement && this.placement(thread.id).isTask
-          ? await this.deps.placement.question(
+        this.deps.workstreamChoice && this.placement(thread.id).isTask
+          ? await this.deps.workstreamChoice.question(
               { ...thread, sourceThreadId: context.sourceThreadId },
               context.requests.map((r) => r.text),
               { digest: previous?.digest ?? null },
             )
           : null;
       const full = force || !settled || previous?.goal === undefined;
-      // Whether the turn needs describing, or only its topic (a root's first
-      // topic after an earlier analysis), or nothing new at all.
+      // Whether the turn needs describing, or only its workstream (a root's first
+      // workstream after an earlier analysis), or nothing new at all.
       const describe =
-        !(topicOnly && previous) && !(!full && reported && previous);
-      // One call per turn: the description settles the topic with it. Only a
-      // turn that needs no description asks the topic on its own.
+        !(workstreamOnly && previous) && !(!full && reported && previous);
+      // One call per turn: the description settles the workstream with it. Only a
+      // turn that needs no description asks the workstream on its own.
       const joint = describe && placing && !placing.settled ? placing : null;
       const placed =
         placing && !joint
           ? this.deps
-              .placement!.ask(threadId, placing, {
+              .workstreamChoice!.ask(threadId, placing, {
                 label: displayTitle(thread),
               })
               .then(
@@ -470,12 +470,12 @@ export class Analyzer {
               )
           : null;
       let result: StoredAnalysis;
-      /** Why this run's own answer gave no usable topic, when it didn't. */
-      let invalidTopic: string | undefined;
-      let topicAnswer: PlacementOutput | null = null;
-      let topicTraceId: string | null = null;
-      if (!describe && topicOnly && previous) {
-        // Only the topic was missing; the turn's goal and status stand.
+      /** Why this run's own answer gave no usable workstream, when it didn't. */
+      let invalidWorkstream: string | undefined;
+      let workstreamAnswer: WorkstreamChoiceOutput | null = null;
+      let workstreamTraceId: string | null = null;
+      if (!describe && workstreamOnly && previous) {
+        // Only the workstream was missing; the turn's goal and status stand.
         result = { ...previous };
       } else if (!describe && previous && reported) {
         // Nothing new to settle, and the agent said how the turn ended.
@@ -510,12 +510,12 @@ export class Analyzer {
           lastAssistantText: context.lastAssistantText,
           report: reported?.report ?? null,
           mode: full ? "full" : "status",
-          placement: joint?.input ?? null,
+          choice: joint?.input ?? null,
         };
         const model = await this.deps.model();
         const asked = this.now();
         const { value: output, traceId } = await this.deps.inference.run(
-          "full-analysis",
+          "turn-end",
           input,
           {
             model,
@@ -555,29 +555,31 @@ export class Analyzer {
           model: modelLabel(model),
           traceId,
         };
-        invalidTopic = output.topicError;
-        if (joint && output.topic) {
-          topicAnswer = output.topic;
-          topicTraceId = traceId;
+        invalidWorkstream = output.workstreamError;
+        if (joint && output.workstream) {
+          workstreamAnswer = output.workstream;
+          workstreamTraceId = traceId;
         }
       }
-      const placement = await placed;
-      // A failed or invalid topic is retried with backoff; a result carried
+      const workstreamChoice = await placed;
+      // A failed or invalid workstream is retried with backoff; a result carried
       // over keeps no older failure.
-      const { topicError: _carried, ...current } = result;
+      const { workstreamError: _carried, ...current } = result;
       void _carried;
-      const topicError =
-        placement && !placement.ok ? placement.error : invalidTopic;
-      result = topicError ? { ...current, topicError } : current;
-      if (placement?.ok) {
-        topicAnswer = placement.answer;
-        topicTraceId = placement.traceId;
+      const workstreamError =
+        workstreamChoice && !workstreamChoice.ok
+          ? workstreamChoice.error
+          : invalidWorkstream;
+      result = workstreamError ? { ...current, workstreamError } : current;
+      if (workstreamChoice?.ok) {
+        workstreamAnswer = workstreamChoice.answer;
+        workstreamTraceId = workstreamChoice.traceId;
       }
       if (this.disposed || this.forgotten.has(threadId)) return null;
       const projectIsCurrent =
         !placing ||
-        !this.deps.topics ||
-        (await this.deps.topics.project(thread.projectId)) ===
+        !this.deps.workstreams ||
+        (await this.deps.workstreams.project(thread.projectId)) ===
           placing.input.project;
       const live = await sdk.threads.get({ threadId }).catch(() => null);
       if (
@@ -587,12 +589,12 @@ export class Analyzer {
         this.forgotten.has(threadId) ||
         this.epochs.get(threadId) !== epoch ||
         threadEvidence(live) !== evidence ||
-        (this.deps.topics &&
-          (assignmentEvidence(this.deps.topics.assignment(threadId)) !==
+        (this.deps.workstreams &&
+          (assignmentEvidence(this.deps.workstreams.assignment(threadId)) !==
             assignment ||
-            JSON.stringify(this.deps.topics.entities()) !== catalog))
+            JSON.stringify(this.deps.workstreams.workstreams()) !== tree))
       ) {
-        for (const id of [result.traceId, topicTraceId])
+        for (const id of [result.traceId, workstreamTraceId])
           this.deps.inference.annotate(id, {
             application:
               "discarded: thread, assignment, or catalog evidence changed",
@@ -622,21 +624,21 @@ export class Analyzer {
           ? { storedForRevision: revision, evidenceRevision: revision }
           : { stored: "no: a newer turn's analysis was already stored" },
       );
-      if (stored.changes > 0 && topicAnswer && placing)
-        // Settling the topic from these requests records them as its basis,
+      if (stored.changes > 0 && workstreamAnswer && placing)
+        // Settling the workstream from these requests records them as its basis,
         // so a later turn without a new request doesn't ask again.
-        this.deps.topics?.apply(
+        this.deps.workstreams?.apply(
           threadId,
-          topicAnswer,
+          workstreamAnswer,
           placing.basis,
-          topicTraceId,
+          workstreamTraceId,
         );
-      if (result.topicError) {
+      if (result.workstreamError) {
         const failed = this.failures.get(threadId);
         const count = failed?.revision === revision ? failed.count + 1 : 1;
         this.failures.set(threadId, { revision, count, at: this.now() });
         this.deps.inference.annotate(result.traceId, {
-          topic: "not settled: placement failed; bounded backoff retry",
+          workstream: "not settled: placement failed; bounded backoff retry",
         });
         if (count < MAX_ATTEMPTS)
           this.schedule(threadId, RETRY_AFTER_MS * 2 ** (count - 1));
@@ -645,7 +647,7 @@ export class Analyzer {
         this.lastText.delete(threadId);
       this.lastError = null;
       this.deps.onChange(threadId);
-      if (stored.changes > 0 && !topicOnly)
+      if (stored.changes > 0 && !workstreamOnly)
         this.deps.onResult?.(threadId, result);
       return result;
     } catch (error) {
@@ -671,7 +673,7 @@ export class Analyzer {
   private async context(
     thread: Awaited<ReturnType<Sdk["threads"]["get"]>>,
   ): Promise<{
-    requests: FullAnalysisInput["requests"];
+    requests: DescriptionInput["requests"];
     requestsKey: string;
     sourceThreadId: string | null;
     lastAssistantText: string | null;
@@ -728,7 +730,7 @@ export class Analyzer {
   private async continuation(
     threadId: string,
     sourceThreadId: string | null,
-    requests: FullAnalysisInput["requests"],
+    requests: DescriptionInput["requests"],
   ): Promise<string | null> {
     const referenced = continuationThreadId(
       sourceThreadId,

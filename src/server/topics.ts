@@ -1,27 +1,30 @@
-import { topicPath } from "../domain/topic-path.ts";
+import { PATH_MARK, workstreamPath } from "../domain/topic-path.ts";
 import {
-  topicAncestors,
-  assertTopicLevels,
+  workstreamAncestors,
+  assertWorkstreamLevels,
   assertProposalLevels,
   resolveProposal,
   type AssignmentProvenance,
-  type TopicAssignment,
-  type TopicState,
-  type Topic,
-  type DraftSubjectProposal,
+  type WorkstreamAssignment,
+  type WorkstreamState,
+  type Workstream,
+  type DraftWorkstreamProposal,
 } from "../domain/topics.ts";
 import { createHash, randomUUID } from "node:crypto";
 import { getMeta, setMeta, type Database } from "./db.ts";
 
-/** Bump to settle every thread's topic again with changed classification rules. */
+/**
+ * Bump to choose every thread's workstream again under changed rules. Stored
+ * bases hash this value, so its text stays as first written.
+ */
 const CLASSIFICATION_VERSION = "topics-v6";
 
 /**
- * The basis of an automatic topic: what it was placed from. Only the user's
- * requests and the project decide a topic, so a retitle, a topic edit, or a
+ * The basis of an automatic workstream: what it was placed from. Only the user's
+ * requests and the project decide a workstream, so a retitle, a workstream edit, or a
  * model change never makes one stale; a new request does.
  */
-export function topicBasis(input: {
+export function workstreamBasis(input: {
   version?: string;
   requests?: readonly unknown[];
   project?: string | null;
@@ -38,9 +41,9 @@ export function topicBasis(input: {
 }
 
 const readSource = (source: string): AssignmentProvenance =>
-  source === "manual" || source === "inherited" || source === "quick"
+  source === "manual" || source === "inherited" || source === "composer"
     ? source
-    : "full";
+    : "automatic";
 
 const normalize = (value: string) => value.trim().toLowerCase();
 const cleanAliases = (aliases: readonly string[]) => [
@@ -49,21 +52,21 @@ const cleanAliases = (aliases: readonly string[]) => [
 
 type Row = Record<string, unknown>;
 
-const TOPIC_COLUMNS =
+const WORKSTREAM_COLUMNS =
   "id, name, description, parent_id, aliases, project_id, project_source, project_revision";
 
-type TopicRow = {
+type WorkstreamRow = {
   id: string;
   name: string;
   description: string;
   parent_id: string | null;
   aliases: string;
   project_id: string | null;
-  project_source: Topic["projectSource"];
+  project_source: Workstream["projectSource"];
   project_revision: number;
 };
 
-const toTopic = (row: TopicRow): Topic => ({
+const toWorkstream = (row: WorkstreamRow): Workstream => ({
   id: row.id,
   name: row.name,
   description: row.description,
@@ -74,31 +77,31 @@ const toTopic = (row: TopicRow): Topic => ({
   projectRevision: row.project_revision,
 });
 
-type SubjectRow = {
-  entity_id: string | null;
+type AssignmentRow = {
+  workstream_id: string | null;
   evidence: string | null;
   source: string;
 };
 
 /**
  * The assignment `threadId` has through its root's subject row. `entities`
- * holds at least the assigned topic and its ancestors.
+ * holds at least the assigned workstream and its ancestors.
  */
 function resolveAssignment(
   threadId: string,
   rootId: string,
-  subject: SubjectRow | undefined,
-  entities: readonly Topic[],
-): TopicAssignment {
+  subject: AssignmentRow | undefined,
+  workstreams: readonly Workstream[],
+): WorkstreamAssignment {
   const inheritedFrom = rootId !== threadId ? rootId : null;
-  const entity = subject?.entity_id
-    ? entities.find((e) => e.id === subject.entity_id)
+  const workstream = subject?.workstream_id
+    ? workstreams.find((e) => e.id === subject.workstream_id)
     : undefined;
-  if (!subject || !entity)
+  if (!subject || !workstream)
     return {
       threadId,
-      entityId: null,
-      status: "unresolved",
+      workstreamId: null,
+      status: "none",
       provenance: subject ? readSource(subject.source) : null,
       label: null,
       ancestorIds: [],
@@ -107,11 +110,11 @@ function resolveAssignment(
     };
   return {
     threadId,
-    entityId: entity.id,
+    workstreamId: workstream.id,
     status: "assigned",
     provenance: readSource(subject.source),
-    label: topicPath(entity.id, entities),
-    ancestorIds: topicAncestors(entity.id, entities),
+    label: workstreamPath(workstream.id, workstreams),
+    ancestorIds: workstreamAncestors(workstream.id, workstreams),
     evidence: subject.evidence ?? null,
     inheritedFrom,
   };
@@ -128,38 +131,36 @@ function insertRows(db: Database, table: string, rows: readonly Row[]) {
 }
 
 /**
- * Records the topic tree and every topic assignment, so an accepted
+ * Records the workstreams and groups and every workstream assignment, so an accepted
  * suggestion can be undone. The latest 50 are kept.
  */
-export function snapshotTopics(db: Database, at: number): string {
+export function snapshotWorkstreams(db: Database, at: number): string {
   const id = randomUUID();
   db.prepare(
-    "INSERT INTO ws_topic_snapshot(id, at, entities, subjects) VALUES (?, ?, ?, ?)",
+    "INSERT INTO ws_backup(id, at, workstreams, assignments) VALUES (?, ?, ?, ?)",
   ).run(
     id,
     at,
-    JSON.stringify(db.prepare("SELECT * FROM ws_corpus_entity").all()),
-    JSON.stringify(db.prepare("SELECT * FROM ws_corpus_subject").all()),
+    JSON.stringify(db.prepare("SELECT * FROM ws_workstream").all()),
+    JSON.stringify(db.prepare("SELECT * FROM ws_thread_workstream").all()),
   );
   db.prepare(
-    "DELETE FROM ws_topic_snapshot WHERE id NOT IN (SELECT id FROM ws_topic_snapshot ORDER BY at DESC LIMIT 50)",
+    "DELETE FROM ws_backup WHERE id NOT IN (SELECT id FROM ws_backup ORDER BY at DESC LIMIT 50)",
   ).run();
   return id;
 }
 
 /**
- * The topic tree, manual project choices, and every topic assignment, hashed.
- * Workstream bindings, the catalog revision, and learned project choices are
+ * The workstreams and groups, manual project choices, and every workstream assignment, hashed.
+ * Workstream bindings, the workstream tree revision, and learned project choices are
  * left out so automatic organization cannot immediately invalidate Undo.
  */
-export function topicsFingerprint(db: Database): string {
+export function workstreamsFingerprint(db: Database): string {
   return createHash("sha256")
     .update(
       JSON.stringify([
         (
-          db
-            .prepare("SELECT * FROM ws_corpus_entity ORDER BY id")
-            .all() as Row[]
+          db.prepare("SELECT * FROM ws_workstream ORDER BY id").all() as Row[]
         ).map((row) =>
           row.project_source === "learned" || row.project_source === null
             ? {
@@ -170,104 +171,112 @@ export function topicsFingerprint(db: Database): string {
               }
             : row,
         ),
-        db.prepare("SELECT * FROM ws_corpus_subject ORDER BY thread_id").all(),
+        db
+          .prepare("SELECT * FROM ws_thread_workstream ORDER BY thread_id")
+          .all(),
       ]),
     )
     .digest("hex");
 }
 
 /**
- * Puts back the topic tree and assignments a snapshot recorded, while they
- * still match `fingerprint`: any later topic or assignment change means
+ * Puts back the workstreams and groups and assignments a snapshot recorded, while they
+ * still match `fingerprint`: any later workstream or assignment change means
  * undoing would discard it, so nothing is restored. Workstreams bound to
- * topics the snapshot lacks are unbound. Returns whether it restored.
+ * workstreams the snapshot lacks are unbound. Returns whether it restored.
  *
  * Rows are updated in place rather than replaced, so foreign keys from
- * workstream bindings and parent links hold at every step, and every topic
+ * workstream bindings and parent links hold at every step, and every workstream
  * takes a placeholder name first so no intermediate state repeats a name
  * within one parent.
  */
-export function restoreTopics(
+export function restoreWorkstreams(
   db: Database,
   snapshotId: string,
   fingerprint: string,
 ): boolean {
   return db.transaction(() => {
     const row = db
-      .prepare("SELECT entities, subjects FROM ws_topic_snapshot WHERE id = ?")
-      .get(snapshotId) as { entities: string; subjects: string } | undefined;
-    if (!row || topicsFingerprint(db) !== fingerprint) return false;
-    const current = parseInt(getMeta(db, "catalog_revision") ?? "1", 10) || 1;
-    const entities = JSON.parse(row.entities) as Row[];
+      .prepare("SELECT workstreams, assignments FROM ws_backup WHERE id = ?")
+      .get(snapshotId) as
+      { workstreams: string; assignments: string } | undefined;
+    if (!row || workstreamsFingerprint(db) !== fingerprint) return false;
+    const current = parseInt(getMeta(db, "tree_revision") ?? "1", 10) || 1;
+    const workstreams = JSON.parse(row.workstreams) as Row[];
     try {
-      assertTopicLevels(
-        entities.map((entity) => ({
-          id: entity.id as string,
-          parentId: entity.parent_id as string | null,
+      assertWorkstreamLevels(
+        workstreams.map((workstream) => ({
+          id: workstream.id as string,
+          parentId: workstream.parent_id as string | null,
         })),
       );
     } catch {
       return false;
     }
-    const kept = new Set(entities.map((entity) => entity.id as string));
+    const kept = new Set(
+      workstreams.map((workstream) => workstream.id as string),
+    );
     const now = new Map(
       (
-        db.prepare("SELECT id, parent_id FROM ws_corpus_entity").all() as {
+        db.prepare("SELECT id, parent_id FROM ws_workstream").all() as {
           id: string;
           parent_id: string | null;
         }[]
       ).map((r) => [r.id, r.parent_id]),
     );
-    db.prepare("UPDATE ws_corpus_entity SET name = char(0) || id").run();
-    db.prepare("DELETE FROM ws_corpus_subject").run();
+    db.prepare("UPDATE ws_workstream SET name = char(0) || id").run();
+    db.prepare("DELETE FROM ws_thread_workstream").run();
     for (const group of db
-      .prepare("SELECT section_id, entity_id FROM ws_corpus_group")
-      .all() as { section_id: string; entity_id: string }[])
-      if (!kept.has(group.entity_id))
-        db.prepare("DELETE FROM ws_corpus_group WHERE section_id = ?").run(
-          group.section_id,
-        );
-    // Missing topics come back unattached; the next step attaches them.
+      .prepare("SELECT section_id, workstream_id FROM ws_workstream_section")
+      .all() as { section_id: string; workstream_id: string }[])
+      if (!kept.has(group.workstream_id))
+        db.prepare(
+          "DELETE FROM ws_workstream_section WHERE section_id = ?",
+        ).run(group.section_id);
+    // Missing workstreams come back unattached; the next step attaches them.
     insertRows(
       db,
-      "ws_corpus_entity",
-      entities
-        .filter((entity) => !now.has(entity.id as string))
-        .map((entity) => ({
-          ...entity,
-          name: `\u0000${String(entity.id)}`,
+      "ws_workstream",
+      workstreams
+        .filter((workstream) => !now.has(workstream.id as string))
+        .map((workstream) => ({
+          ...workstream,
+          name: `\u0000${String(workstream.id)}`,
           parent_id: null,
         })),
     );
-    for (const entity of entities) {
+    for (const workstream of workstreams) {
       const live = db
         .prepare(
-          "SELECT project_id, project_source, project_revision FROM ws_corpus_entity WHERE id = ?",
+          "SELECT project_id, project_source, project_revision FROM ws_workstream WHERE id = ?",
         )
-        .get(entity.id) as Row;
-      // Automatic project learning does not prevent undoing a topic edit.
-      // Keep learned choices on surviving topics; manual changes are guarded
-      // by the fingerprint, and recreated topics get a fresh association epoch.
+        .get(workstream.id) as Row;
+      // Automatic project learning does not prevent undoing a workstream edit.
+      // Keep learned choices on surviving workstreams; manual changes are guarded
+      // by the fingerprint, and recreated workstreams get a fresh association epoch.
       if (
         live.project_source === "learned" &&
-        (entity.project_source === null || entity.project_source === "learned")
+        (workstream.project_source === null ||
+          workstream.project_source === "learned")
       ) {
-        entity.project_id = live.project_id;
-        entity.project_source = live.project_source;
+        workstream.project_id = live.project_id;
+        workstream.project_source = live.project_source;
       }
-      if ("project_revision" in entity)
-        entity.project_revision =
-          now.has(entity.id as string) &&
-          live.project_id === entity.project_id &&
-          live.project_source === entity.project_source
+      if ("project_revision" in workstream)
+        workstream.project_revision =
+          now.has(workstream.id as string) &&
+          live.project_id === workstream.project_id &&
+          live.project_source === workstream.project_source
             ? live.project_revision
             : current + 1;
-      const columns = Object.keys(entity).filter((column) => column !== "id");
+      const columns = Object.keys(workstream).filter(
+        (column) => column !== "id",
+      );
       db.prepare(
-        `UPDATE ws_corpus_entity SET ${columns.map((c) => `${c} = ?`).join(", ")} WHERE id = ?`,
-      ).run(...columns.map((c) => entity[c]), entity.id);
+        `UPDATE ws_workstream SET ${columns.map((c) => `${c} = ?`).join(", ")} WHERE id = ?`,
+      ).run(...columns.map((c) => workstream[c]), workstream.id);
     }
-    // Topics the snapshot lacks go, children first; no kept topic points at
+    // Workstreams the snapshot lacks go, children first; no kept workstream points at
     // them any more.
     const depth = (id: string) => {
       let n = 0;
@@ -282,18 +291,22 @@ export function restoreTopics(
     for (const id of [...now.keys()]
       .filter((id) => !kept.has(id))
       .sort((a, b) => depth(b) - depth(a)))
-      db.prepare("DELETE FROM ws_corpus_entity WHERE id = ?").run(id);
-    insertRows(db, "ws_corpus_subject", JSON.parse(row.subjects) as Row[]);
-    setMeta(db, "catalog_revision", String(current + 1));
+      db.prepare("DELETE FROM ws_workstream WHERE id = ?").run(id);
+    insertRows(
+      db,
+      "ws_thread_workstream",
+      JSON.parse(row.assignments) as Row[],
+    );
+    setMeta(db, "tree_revision", String(current + 1));
     return true;
   })();
 }
 
-export class TopicStore {
+export class WorkstreamStore {
   constructor(private readonly db: Database) {}
 
   revision(): number {
-    const raw = getMeta(this.db, "catalog_revision");
+    const raw = getMeta(this.db, "tree_revision");
     return raw ? parseInt(raw, 10) || 1 : 1;
   }
 
@@ -306,106 +319,104 @@ export class TopicStore {
 
   bumpRevision(): number {
     const next = this.revision() + 1;
-    setMeta(this.db, "catalog_revision", String(next));
+    setMeta(this.db, "tree_revision", String(next));
     return next;
   }
 
-  list(): Topic[] {
+  list(): Workstream[] {
     return (
       this.db
-        .prepare(`SELECT ${TOPIC_COLUMNS} FROM ws_corpus_entity ORDER BY id`)
-        .all() as TopicRow[]
-    ).map(toTopic);
+        .prepare(`SELECT ${WORKSTREAM_COLUMNS} FROM ws_workstream ORDER BY id`)
+        .all() as WorkstreamRow[]
+    ).map(toWorkstream);
   }
 
   /**
-   * A topic and its ancestors, read by id rather than with the whole tree:
-   * enough for its path and ancestry. Empty when the topic is gone.
+   * A workstream and its ancestors, read by id rather than with the whole tree:
+   * enough for its path and ancestry. Empty when the workstream is gone.
    */
-  private lineage(entityId: string): Topic[] {
+  private lineage(workstreamId: string): Workstream[] {
     const lookup = this.db.prepare(
-      `SELECT ${TOPIC_COLUMNS} FROM ws_corpus_entity WHERE id = ?`,
+      `SELECT ${WORKSTREAM_COLUMNS} FROM ws_workstream WHERE id = ?`,
     );
-    const out: Topic[] = [];
+    const out: Workstream[] = [];
     const seen = new Set<string>();
-    let id: string | null = entityId;
+    let id: string | null = workstreamId;
     while (id !== null && !seen.has(id)) {
       seen.add(id);
-      const row = lookup.get(id) as TopicRow | undefined;
+      const row = lookup.get(id) as WorkstreamRow | undefined;
       if (!row) break;
-      const topic = toTopic(row);
-      out.push(topic);
-      id = topic.parentId;
+      const workstream = toWorkstream(row);
+      out.push(workstream);
+      id = workstream.parentId;
     }
     return out;
   }
 
-  /** How many topics sit directly beneath `entityId`. */
-  subtopics(entityId: string): number {
+  /** How many workstreams sit directly beneath `entityId`. */
+  workstreams(workstreamId: string): number {
     return (
       this.db
-        .prepare(
-          "SELECT COUNT(*) AS n FROM ws_corpus_entity WHERE parent_id = ?",
-        )
-        .get(entityId) as { n: number }
+        .prepare("SELECT COUNT(*) AS n FROM ws_workstream WHERE parent_id = ?")
+        .get(workstreamId) as { n: number }
     ).n;
   }
 
-  /** Stored assignments keep a topic in use, including archived work. */
-  heldThreads(entityId: string): number {
+  /** Stored assignments keep a workstream in use, including archived work. */
+  heldThreads(workstreamId: string): number {
     return (
       this.db
         .prepare(
-          `SELECT COUNT(*) AS n FROM ws_corpus_subject WHERE entity_id = ?`,
+          `SELECT COUNT(*) AS n FROM ws_thread_workstream WHERE workstream_id = ?`,
         )
-        .get(entityId) as { n: number }
+        .get(workstreamId) as { n: number }
     ).n;
   }
 
   /**
-   * A topic holds threads or subtopics, never both (docs/organization.md).
-   * Refuses to give `parentId` a subtopic while it holds threads.
+   * A workstream holds threads or workstreams in a group, never both (docs/organization.md).
+   * Refuses to give `parentId` a workstream while it holds threads.
    */
-  private assertTakesSubtopics(parentId: string | null): void {
+  private assertTakesWorkstreams(parentId: string | null): void {
     if (parentId === null) return;
     const held = this.heldThreads(parentId);
     if (held > 0)
       throw new Error(
-        `${this.pathOf(parentId)} holds ${held === 1 ? "a thread" : `${held} threads`}, and a topic holds threads or subtopics, never both. Move its threads first, or accept a suggestion that splits it.`,
+        `${this.pathOf(parentId)} holds ${held === 1 ? "a thread" : `${held} threads`}, and a workstream can't also hold workstreams. Move its threads first, or accept a suggestion that splits it.`,
       );
   }
 
-  /** Refuses to file a thread in a topic that has subtopics. */
-  private assertTakesThreads(entityId: string): void {
-    if (this.subtopics(entityId) > 0)
+  /** Refuses to file a thread in a workstream that has workstreams in a group. */
+  private assertTakesThreads(workstreamId: string): void {
+    if (this.workstreams(workstreamId) > 0)
       throw new Error(
-        `${this.pathOf(entityId)} has subtopics, and a topic holds threads or subtopics, never both. Choose one of its subtopics.`,
+        `${this.pathOf(workstreamId)} is a group, and a group holds workstreams, never threads. Choose one of its workstreams.`,
       );
   }
 
-  private pathOf(entityId: string): string {
-    return topicPath(entityId, this.list());
+  private pathOf(workstreamId: string): string {
+    return workstreamPath(workstreamId, this.list());
   }
 
-  getById(id: string): Topic | null {
-    return this.list().find((entity) => entity.id === id) ?? null;
+  getById(id: string): Workstream | null {
+    return this.list().find((workstream) => workstream.id === id) ?? null;
   }
 
-  resolve(name: string, parentId: string | null = null): Topic | null {
+  resolve(name: string, parentId: string | null = null): Workstream | null {
     const target = normalize(name);
-    for (const entity of this.list()) {
-      if (entity.parentId !== parentId) continue;
+    for (const workstream of this.list()) {
+      if (workstream.parentId !== parentId) continue;
       if (
-        normalize(entity.name) === target ||
-        entity.aliases.some((alias) => normalize(alias) === target)
+        normalize(workstream.name) === target ||
+        workstream.aliases.some((alias) => normalize(alias) === target)
       )
-        return entity;
+        return workstream;
     }
     return null;
   }
 
   /**
-   * Inserts a topic Workstreams discovered. `rememberProposal` resolves a
+   * Inserts a workstream Workstreams discovered. `rememberProposal` resolves a
    * proposal against the tree first, so only names the tree lacks reach here.
    */
   private insertDiscovered(
@@ -413,11 +424,11 @@ export class TopicStore {
     description: string,
     parentId: string | null = null,
     aliases: readonly string[] = [],
-  ): Topic {
+  ): Workstream {
     const cleanName = name.trim();
-    if (!cleanName) throw new Error("Topic name must not be empty");
+    if (!cleanName) throw new Error("A workstream needs a name");
     if (parentId !== null && !this.getById(parentId))
-      throw new Error(`Unknown topic parent: ${parentId}`);
+      throw new Error(`Unknown group: ${parentId}`);
     this.assertParentChainAcyclic(parentId);
     assertProposalLevels({ name, description, parentId }, this.list());
 
@@ -426,13 +437,11 @@ export class TopicStore {
     if (
       cleanAliasList.some((alias) => normalize(alias) === normalize(cleanName))
     )
-      throw new Error("Topic alias must differ from its name");
+      throw new Error("An alias must differ from the name");
     if (cleanAliasList.some((alias) => this.resolve(alias, parentId)))
-      throw new Error(
-        "Topic alias already resolves to an entity in this parent scope",
-      );
+      throw new Error("That alias already names a workstream in this group");
 
-    const entity: Topic = {
+    const workstream: Workstream = {
       id: randomUUID(),
       name: cleanName,
       description: cleanDescription,
@@ -444,16 +453,16 @@ export class TopicStore {
     };
     this.db
       .prepare(
-        "INSERT INTO ws_corpus_entity(id, name, description, parent_id, aliases, origin) VALUES (?, ?, ?, ?, ?, 'discovered')",
+        "INSERT INTO ws_workstream(id, name, description, parent_id, aliases, origin) VALUES (?, ?, ?, ?, ?, 'discovered')",
       )
       .run(
-        entity.id,
-        entity.name,
-        entity.description,
-        entity.parentId,
-        JSON.stringify(entity.aliases),
+        workstream.id,
+        workstream.name,
+        workstream.description,
+        workstream.parentId,
+        JSON.stringify(workstream.aliases),
       );
-    return entity;
+    return workstream;
   }
 
   create(
@@ -461,20 +470,20 @@ export class TopicStore {
     description: string = "",
     parentId: string | null = null,
     aliases: readonly string[] = [],
-  ): Topic {
+  ): Workstream {
     return this.db.transaction(() => {
       const cleanName = name.trim();
-      if (!cleanName) throw new Error("Topic name must not be empty");
+      if (!cleanName) throw new Error("A workstream needs a name");
       if (parentId !== null && !this.getById(parentId))
-        throw new Error(`Unknown topic parent: ${parentId}`);
+        throw new Error(`Unknown group: ${parentId}`);
       this.assertParentChainAcyclic(parentId);
       assertProposalLevels({ name, description, parentId }, this.list());
-      this.assertTakesSubtopics(parentId);
+      this.assertTakesWorkstreams(parentId);
 
       const existing = this.resolve(cleanName, parentId);
       if (existing) {
         throw new Error(
-          `Topic '${cleanName}' already exists in this parent scope`,
+          `A workstream named '${cleanName}' already exists in this group`,
         );
       }
 
@@ -485,16 +494,16 @@ export class TopicStore {
           (alias) => normalize(alias) === normalize(cleanName),
         )
       )
-        throw new Error("Topic alias must differ from its name");
+        throw new Error("An alias must differ from the name");
 
       for (const alias of cleanAliasList) {
         if (this.resolve(alias, parentId))
           throw new Error(
-            `Topic alias '${alias}' already resolves to an entity in this parent scope`,
+            `The alias '${alias}' already names a workstream in this group`,
           );
       }
 
-      const entity: Topic = {
+      const workstream: Workstream = {
         id: randomUUID(),
         name: cleanName,
         description: cleanDescription,
@@ -507,33 +516,34 @@ export class TopicStore {
 
       this.db
         .prepare(
-          "INSERT INTO ws_corpus_entity(id, name, description, parent_id, aliases) VALUES (?, ?, ?, ?, ?)",
+          "INSERT INTO ws_workstream(id, name, description, parent_id, aliases) VALUES (?, ?, ?, ?, ?)",
         )
         .run(
-          entity.id,
-          entity.name,
-          entity.description,
-          entity.parentId,
-          JSON.stringify(entity.aliases),
+          workstream.id,
+          workstream.name,
+          workstream.description,
+          workstream.parentId,
+          JSON.stringify(workstream.aliases),
         );
 
       this.bumpRevision();
-      return entity;
+      return workstream;
     })();
   }
 
   /**
-   * Records a discovered topic under its deepest existing ancestor, resolved
+   * Records a discovered workstream under its deepest existing ancestor, resolved
    * against the Catalog as it is now: it may have changed since the proposal
-   * was classified. A proposal that names an existing topic returns it
+   * was classified. A proposal that names an existing workstream returns it
    * unchanged.
    */
-  rememberProposal(draft: DraftSubjectProposal): Topic {
+  rememberProposal(draft: DraftWorkstreamProposal): Workstream {
     return this.db.transaction(() => {
       if (draft.parentId && !this.getById(draft.parentId))
-        throw new Error(`Unknown topic parent: ${draft.parentId}`);
+        throw new Error(`Unknown group: ${draft.parentId}`);
       const resolved = resolveProposal(draft, this.list());
-      if (resolved.subjectId !== null) return this.getById(resolved.subjectId)!;
+      if (resolved.workstreamId !== null)
+        return this.getById(resolved.workstreamId)!;
       const proposal = resolved.proposed;
       assertProposalLevels(proposal, this.list());
       let parent = proposal.parentId ?? null;
@@ -546,7 +556,7 @@ export class TopicStore {
         };
         if (JSON.stringify(requests[parent]) !== JSON.stringify(scope)) {
           requests[parent] = scope;
-          setMeta(this.db, "topic_division_requests", JSON.stringify(requests));
+          setMeta(this.db, "split_requests", JSON.stringify(requests));
           this.bumpRevision();
         }
         return this.getById(parent)!;
@@ -557,36 +567,41 @@ export class TopicStore {
           ancestor.description,
           parent,
         ).id;
-      const entity = this.insertDiscovered(
+      const workstream = this.insertDiscovered(
         proposal.name,
         proposal.description,
         parent,
       );
       this.bumpRevision();
-      return entity;
+      return workstream;
     })();
   }
 
-  private bindGroupWithoutRevision(sectionId: string, entityId: string): void {
-    if (!this.getById(entityId)) throw new Error(`Unknown topic: ${entityId}`);
+  private bindGroupWithoutRevision(
+    sectionId: string,
+    workstreamId: string,
+  ): void {
+    if (!this.getById(workstreamId))
+      throw new Error(`Unknown workstream: ${workstreamId}`);
     this.db
       .prepare(
-        "INSERT INTO ws_corpus_group(section_id, entity_id) VALUES (?, ?) ON CONFLICT(section_id) DO UPDATE SET entity_id = excluded.entity_id",
+        "INSERT INTO ws_workstream_section(section_id, workstream_id) VALUES (?, ?) ON CONFLICT(section_id) DO UPDATE SET workstream_id = excluded.workstream_id",
       )
-      .run(sectionId, entityId);
+      .run(sectionId, workstreamId);
   }
 
-  bindGroup(sectionId: string, entityId: string): void {
-    if (!this.getById(entityId)) throw new Error(`Unknown topic: ${entityId}`);
+  bindGroup(sectionId: string, workstreamId: string): void {
+    if (!this.getById(workstreamId))
+      throw new Error(`Unknown workstream: ${workstreamId}`);
     const existing = this.groups().get(sectionId);
-    if (existing === entityId) return;
-    this.bindGroupWithoutRevision(sectionId, entityId);
+    if (existing === workstreamId) return;
+    this.bindGroupWithoutRevision(sectionId, workstreamId);
     this.bumpRevision();
   }
 
   unbindGroup(sectionId: string): void {
     const res = this.db
-      .prepare("DELETE FROM ws_corpus_group WHERE section_id = ?")
+      .prepare("DELETE FROM ws_workstream_section WHERE section_id = ?")
       .run(sectionId);
     if (res.changes > 0) {
       this.bumpRevision();
@@ -596,15 +611,15 @@ export class TopicStore {
   groups(): Map<string, string> {
     const rows = this.db
       .prepare(
-        "SELECT section_id, entity_id FROM ws_corpus_group ORDER BY section_id",
+        "SELECT section_id, workstream_id FROM ws_workstream_section ORDER BY section_id",
       )
-      .all() as { section_id: string; entity_id: string }[];
+      .all() as { section_id: string; workstream_id: string }[];
     return new Map(
-      rows.map(({ section_id, entity_id }) => [section_id, entity_id]),
+      rows.map(({ section_id, workstream_id }) => [section_id, workstream_id]),
     );
   }
 
-  findRootThread(threadId: string): string {
+  findParentmostThread(threadId: string): string {
     const lookup = this.db.prepare(
       "SELECT parent_thread_id FROM ws_seen_thread WHERE thread_id = ?",
     );
@@ -620,54 +635,56 @@ export class TopicStore {
     return currentId;
   }
 
-  private subject(rootId: string): SubjectRow | undefined {
+  private subject(rootId: string): AssignmentRow | undefined {
     return this.db
       .prepare(
-        "SELECT entity_id, evidence, source FROM ws_corpus_subject WHERE thread_id = ?",
+        "SELECT workstream_id, evidence, source FROM ws_thread_workstream WHERE thread_id = ?",
       )
-      .get(rootId) as SubjectRow | undefined;
+      .get(rootId) as AssignmentRow | undefined;
   }
 
   /**
    * One thread's assignment. It reads only the thread's root, its subject
-   * row, and the assigned topic's lineage, so callers may use it per thread;
+   * row, and the assigned workstream's lineage, so callers may use it per thread;
    * a caller resolving many threads at once uses `assignmentsOf`.
    */
-  assignment(threadId: string): TopicAssignment {
-    const rootId = this.findRootThread(threadId);
+  assignment(threadId: string): WorkstreamAssignment {
+    const rootId = this.findParentmostThread(threadId);
     const subject = this.subject(rootId);
     return resolveAssignment(
       threadId,
       rootId,
       subject,
-      subject?.entity_id ? this.lineage(subject.entity_id) : [],
+      subject?.workstream_id ? this.lineage(subject.workstream_id) : [],
     );
   }
 
-  /** The assignments of `threadIds`, from one read of the topic tree. */
-  assignmentsOf(threadIds: Iterable<string>): Map<string, TopicAssignment> {
-    const entities = this.list();
-    const out = new Map<string, TopicAssignment>();
+  /** The assignments of `threadIds`, from one read of the workstreams and groups. */
+  assignmentsOf(
+    threadIds: Iterable<string>,
+  ): Map<string, WorkstreamAssignment> {
+    const workstreams = this.list();
+    const out = new Map<string, WorkstreamAssignment>();
     for (const threadId of threadIds) {
-      const rootId = this.findRootThread(threadId);
+      const rootId = this.findParentmostThread(threadId);
       out.set(
         threadId,
-        resolveAssignment(threadId, rootId, this.subject(rootId), entities),
+        resolveAssignment(threadId, rootId, this.subject(rootId), workstreams),
       );
     }
     return out;
   }
 
   /** Every seen thread's and every stored subject's assignment. */
-  assignments(): Record<string, TopicAssignment> {
-    const entities = this.list();
+  assignments(): Record<string, WorkstreamAssignment> {
+    const workstreams = this.list();
     const subjects = new Map(
       (
         this.db
           .prepare(
-            "SELECT thread_id, entity_id, evidence, source FROM ws_corpus_subject",
+            "SELECT thread_id, workstream_id, evidence, source FROM ws_thread_workstream",
           )
-          .all() as (SubjectRow & { thread_id: string })[]
+          .all() as (AssignmentRow & { thread_id: string })[]
       ).map((row) => [row.thread_id, row]),
     );
 
@@ -696,14 +713,14 @@ export class TopicStore {
       ...subjects.keys(),
     ]);
 
-    const result: Record<string, TopicAssignment> = {};
+    const result: Record<string, WorkstreamAssignment> = {};
     for (const threadId of threadIds) {
       const rootId = resolveRoot(threadId);
       result[threadId] = resolveAssignment(
         threadId,
         rootId,
         subjects.get(rootId),
-        entities,
+        workstreams,
       );
     }
     return result;
@@ -711,53 +728,60 @@ export class TopicStore {
 
   assign(
     threadId: string,
-    entityId: string | null,
+    workstreamId: string | null,
     options?: { provenance?: AssignmentProvenance; evidence?: string | null },
-  ): TopicAssignment {
+  ): WorkstreamAssignment {
     return this.db.transaction(() => {
-      if (entityId !== null && !this.getById(entityId))
-        throw new Error(`Unknown topic: ${entityId}`);
+      if (workstreamId !== null && !this.getById(workstreamId))
+        throw new Error(`Unknown workstream: ${workstreamId}`);
       if (!threadId.trim()) throw new Error("Thread ID must not be empty");
 
-      const rootId = this.findRootThread(threadId);
+      const rootId = this.findParentmostThread(threadId);
 
       const provenance: AssignmentProvenance = options?.provenance ?? "manual";
       const evidence: string | null = options?.evidence ?? null;
 
       const existing = this.db
         .prepare(
-          "SELECT entity_id, evidence, source FROM ws_corpus_subject WHERE thread_id = ?",
+          "SELECT workstream_id, evidence, source FROM ws_thread_workstream WHERE thread_id = ?",
         )
         .get(rootId) as
-        | { entity_id: string | null; evidence: string | null; source: string }
+        | {
+            workstream_id: string | null;
+            evidence: string | null;
+            source: string;
+          }
         | undefined;
 
       if (
         existing &&
-        existing.entity_id === entityId &&
+        existing.workstream_id === workstreamId &&
         existing.source === provenance &&
         (existing.evidence ?? null) === evidence
       ) {
         return this.assignment(threadId);
       }
-      if (entityId !== null && topicAncestors(entityId, this.list()).length > 2)
-        throw new Error("Topic identity has at most two levels.");
-      if (entityId !== null && existing?.entity_id !== entityId)
-        this.assertTakesThreads(entityId);
+      if (
+        workstreamId !== null &&
+        workstreamAncestors(workstreamId, this.list()).length > 2
+      )
+        throw new Error("Workstreams go at most two levels deep.");
+      if (workstreamId !== null && existing?.workstream_id !== workstreamId)
+        this.assertTakesThreads(workstreamId);
 
       const isInitialClear =
-        !existing && entityId === null && provenance === "manual";
+        !existing && workstreamId === null && provenance === "manual";
 
       this.db
         .prepare(
-          `INSERT INTO ws_corpus_subject(thread_id, entity_id, evidence, source)
+          `INSERT INTO ws_thread_workstream(thread_id, workstream_id, evidence, source)
            VALUES (?, ?, ?, ?)
            ON CONFLICT(thread_id) DO UPDATE SET
-             entity_id = excluded.entity_id,
+             workstream_id = excluded.workstream_id,
              evidence = excluded.evidence,
              source = excluded.source`,
         )
-        .run(rootId, entityId, evidence, provenance);
+        .run(rootId, workstreamId, evidence, provenance);
 
       if (!isInitialClear) {
         this.bumpRevision();
@@ -766,7 +790,7 @@ export class TopicStore {
     })();
   }
 
-  clear(threadId: string): TopicAssignment {
+  clear(threadId: string): WorkstreamAssignment {
     return this.assign(threadId, null, {
       provenance: "manual",
       evidence: null,
@@ -774,229 +798,243 @@ export class TopicStore {
   }
 
   /**
-   * Applies an analysis's topic under the source priority (see
-   * `AssignmentProvenance`): your topic is never replaced, an inherited one
+   * Applies an analysis's workstream under the source priority (see
+   * `AssignmentProvenance`): your workstream is never replaced, an inherited one
    * only by an automatic choice (`full`) on a scope shift or with a more
-   * specific topic beneath it, and a composer preview of earlier text
-   * (`quick`) only fills a thread that has no topic yet or replaces its own
+   * specific workstream beneath it, and a composer preview of earlier text
+   * (`quick`) only fills a thread that has no workstream yet or replaces its own
    * earlier one. Returns whether the assignment
    * changed.
    */
   applyAnalysis(
     threadId: string,
     answer: {
-      subjectId: string | null;
-      proposed: DraftSubjectProposal | null;
+      workstreamId: string | null;
+      proposed: DraftWorkstreamProposal | null;
       scopeShift?: boolean;
     },
-    kind: "full" | "quick",
+    kind: "automatic" | "composer",
     basis: string | null,
   ): boolean {
     return this.db.transaction(() => {
-      const rootId = this.findRootThread(threadId);
+      const rootId = this.findParentmostThread(threadId);
       const row = this.db
         .prepare(
-          "SELECT entity_id, evidence, source FROM ws_corpus_subject WHERE thread_id = ?",
+          "SELECT workstream_id, evidence, source FROM ws_thread_workstream WHERE thread_id = ?",
         )
         .get(rootId) as
-        | { entity_id: string | null; evidence: string | null; source: string }
+        | {
+            workstream_id: string | null;
+            evidence: string | null;
+            source: string;
+          }
         | undefined;
       const current = row ? readSource(row.source) : null;
       if (current === "manual") return false;
       if (
         current === "inherited" &&
         !(
-          kind === "full" &&
-          (answer.scopeShift || this.narrows(answer, row?.entity_id ?? null))
+          kind === "automatic" &&
+          (answer.scopeShift ||
+            this.narrows(answer, row?.workstream_id ?? null))
         )
       ) {
         // Settled from these requests: a later turn without a new request
         // has nothing to reconsider.
-        if (kind === "full" && basis && row?.evidence !== basis)
+        if (kind === "automatic" && basis && row?.evidence !== basis)
           this.db
             .prepare(
-              "UPDATE ws_corpus_subject SET evidence = ? WHERE thread_id = ?",
+              "UPDATE ws_thread_workstream SET evidence = ? WHERE thread_id = ?",
             )
             .run(basis, rootId);
         return false;
       }
-      if (kind === "quick" && current !== null && current !== "quick")
+      if (kind === "composer" && current !== null && current !== "composer")
         return false;
-      const entity = answer.subjectId
-        ? this.getById(answer.subjectId)
+      const workstream = answer.workstreamId
+        ? this.getById(answer.workstreamId)
         : answer.proposed
           ? this.rememberProposal(answer.proposed)
           : null;
-      // An unavailable or non-fileable topic preserves the current assignment.
+      // An unavailable or non-fileable workstream preserves the current assignment.
       // Retain the request basis so unrelated turns do not repeat the same call.
       if (
-        (answer.subjectId && !entity) ||
-        (entity &&
-          (this.subtopics(entity.id) > 0 ||
-            topicAncestors(entity.id, this.list()).length > 2))
+        (answer.workstreamId && !workstream) ||
+        (workstream &&
+          (this.workstreams(workstream.id) > 0 ||
+            workstreamAncestors(workstream.id, this.list()).length > 2))
       ) {
-        if (kind === "full" && basis)
+        if (kind === "automatic" && basis)
           this.db
             .prepare(
-              `INSERT INTO ws_corpus_subject(thread_id, entity_id, evidence, source)
+              `INSERT INTO ws_thread_workstream(thread_id, workstream_id, evidence, source)
                VALUES (?, NULL, ?, 'full')
                ON CONFLICT(thread_id) DO UPDATE SET evidence = excluded.evidence`,
             )
             .run(rootId, basis);
         return false;
       }
-      const entityId = entity?.id ?? null;
+      const workstreamId = workstream?.id ?? null;
       if (
         row &&
         current === "inherited" &&
-        row.entity_id === entityId &&
+        row.workstream_id === workstreamId &&
         !answer.scopeShift
       ) {
-        if (kind === "full" && basis && row.evidence !== basis)
+        if (kind === "automatic" && basis && row.evidence !== basis)
           this.db
             .prepare(
-              "UPDATE ws_corpus_subject SET evidence = ? WHERE thread_id = ?",
+              "UPDATE ws_thread_workstream SET evidence = ? WHERE thread_id = ?",
             )
             .run(basis, rootId);
         return false;
       }
       if (
         row &&
-        row.entity_id === entityId &&
+        row.workstream_id === workstreamId &&
         readSource(row.source) === kind &&
         (row.evidence ?? null) === basis
       )
         return false;
       const changed =
-        !row || row.entity_id !== entityId || readSource(row.source) !== kind;
+        !row ||
+        row.workstream_id !== workstreamId ||
+        readSource(row.source) !== kind;
       this.db
         .prepare(
-          `INSERT INTO ws_corpus_subject(thread_id, entity_id, evidence, source)
+          `INSERT INTO ws_thread_workstream(thread_id, workstream_id, evidence, source)
            VALUES (?, ?, ?, ?)
            ON CONFLICT(thread_id) DO UPDATE SET
-             entity_id = excluded.entity_id,
+             workstream_id = excluded.workstream_id,
              evidence = excluded.evidence,
              source = excluded.source`,
         )
-        .run(rootId, entityId, basis, kind);
+        .run(rootId, workstreamId, basis, kind);
       if (changed) this.bumpRevision();
       return changed;
     })();
   }
 
   /**
-   * Whether an answer names a topic strictly beneath `entityId`: an existing
+   * Whether an answer names a workstream strictly beneath `entityId`: an existing
    * descendant, or a proposal anchored at it or below it.
    */
   private narrows(
-    answer: { subjectId: string | null; proposed: DraftSubjectProposal | null },
-    entityId: string | null,
+    answer: {
+      workstreamId: string | null;
+      proposed: DraftWorkstreamProposal | null;
+    },
+    workstreamId: string | null,
   ): boolean {
-    if (!entityId) return false;
-    const entities = this.list();
-    const known = new Set(entities.map((entity) => entity.id));
-    if (answer.subjectId)
+    if (!workstreamId) return false;
+    const workstreams = this.list();
+    const known = new Set(workstreams.map((workstream) => workstream.id));
+    if (answer.workstreamId)
       return (
-        answer.subjectId !== entityId &&
-        known.has(answer.subjectId) &&
-        topicAncestors(answer.subjectId, entities).includes(entityId)
+        answer.workstreamId !== workstreamId &&
+        known.has(answer.workstreamId) &&
+        workstreamAncestors(answer.workstreamId, workstreams).includes(
+          workstreamId,
+        )
       );
     const anchor = answer.proposed?.parentId;
     return (
       !!anchor &&
       known.has(anchor) &&
-      topicAncestors(anchor, entities).includes(entityId)
+      workstreamAncestors(anchor, workstreams).includes(workstreamId)
     );
   }
 
   /**
-   * Gives a thread that has no topic of its own the topic of the thread it
+   * Gives a thread that has no workstream of its own the workstream of the thread it
    * was started from. Returns whether it changed anything.
    */
   inherit(threadId: string, fromThreadId: string): boolean {
     const source = this.assignment(fromThreadId);
-    if (!source.entityId) return false;
-    return this.inheritTopic(threadId, source.entityId);
+    if (!source.workstreamId) return false;
+    return this.inheritWorkstream(threadId, source.workstreamId);
   }
 
   /**
-   * Gives a thread that has no topic of its own, or only a composer
-   * preview's (`quick`), the topic `entityId` as inherited.
+   * Gives a thread that has no workstream of its own, or only a composer
+   * preview's (`quick`), the workstream `entityId` as inherited.
    */
-  inheritTopic(threadId: string, entityId: string): boolean {
-    // A topic with subtopics holds no threads; placement settles the thread
-    // with this topic as its hint.
+  inheritWorkstream(threadId: string, workstreamId: string): boolean {
+    // A workstream with workstreams in a group holds no threads; placement settles the thread
+    // with this workstream as its hint.
     if (
-      !this.getById(entityId) ||
-      this.subtopics(entityId) > 0 ||
-      topicAncestors(entityId, this.list()).length > 2
+      !this.getById(workstreamId) ||
+      this.workstreams(workstreamId) > 0 ||
+      workstreamAncestors(workstreamId, this.list()).length > 2
     )
       return false;
     const current = this.assignment(threadId);
-    if (current.provenance !== null && current.provenance !== "quick")
+    if (current.provenance !== null && current.provenance !== "composer")
       return false;
-    this.assign(threadId, entityId, { provenance: "inherited" });
+    this.assign(threadId, workstreamId, { provenance: "inherited" });
     return true;
   }
 
   /**
-   * Applies a reviewed division of a first-level topic into lasting child
-   * topics. Every stored assignment, including archived work, appears exactly
+   * Applies a reviewed division of a top-level workstream into lasting child
+   * workstreams. Every stored assignment, including archived work, appears exactly
    * once and retains its provenance and basis. Matching children are reused.
    */
   split(
-    entityId: string,
-    subgroups: readonly {
+    workstreamId: string,
+    workstreams: readonly {
       name: string;
       description: string;
       threadIds: readonly string[];
     }[],
-  ): Topic[] {
+  ): Workstream[] {
     return this.db.transaction(() => {
-      const entity = this.getById(entityId);
-      if (!entity) throw new Error(`Unknown topic: ${entityId}`);
-      if (entity.parentId !== null)
-        throw new Error("Only a first-level topic can gain child topics.");
-      if (subgroups.length === 0)
-        throw new Error("A split needs at least one subgroup.");
+      const workstream = this.getById(workstreamId);
+      if (!workstream) throw new Error(`Unknown workstream: ${workstreamId}`);
+      if (workstream.parentId !== null)
+        throw new Error("Only a top-level workstream can be split.");
+      if (workstreams.length === 0)
+        throw new Error("A split needs at least one workstream.");
       const held = (
         this.db
           .prepare(
-            `SELECT thread_id FROM ws_corpus_subject WHERE entity_id = ?`,
+            `SELECT thread_id FROM ws_thread_workstream WHERE workstream_id = ?`,
           )
-          .all(entityId) as { thread_id: string }[]
+          .all(workstreamId) as { thread_id: string }[]
       ).map((row) => row.thread_id);
-      const listed = subgroups.flatMap((group) => group.threadIds);
+      const listed = workstreams.flatMap((group) => group.threadIds);
       if (
         listed.length !== new Set(listed).size ||
         listed.length !== held.length ||
         held.some((id) => !listed.includes(id))
       )
         throw new Error(
-          `A split of ${this.pathOf(entityId)} must file each of its threads in exactly one subgroup.`,
+          `A split of ${this.pathOf(workstreamId)} must put each of its threads in exactly one workstream.`,
         );
-      const names = subgroups.map((group) => normalize(group.name));
+      const names = workstreams.map((group) => normalize(group.name));
       if (
-        names.some((name) => !name || name.includes(":")) ||
+        names.some((name) => !name || name.includes(PATH_MARK)) ||
         new Set(names).size !== names.length
       )
-        throw new Error("Subgroups need distinct names without colons.");
-      const result: Topic[] = [];
-      for (const group of subgroups) {
-        const existing = this.resolve(group.name, entityId);
+        throw new Error(
+          `Workstreams need distinct names without “${PATH_MARK}”.`,
+        );
+      const result: Workstream[] = [];
+      for (const group of workstreams) {
+        const existing = this.resolve(group.name, workstreamId);
         if (existing) this.assertTakesThreads(existing.id);
-        const topic =
+        const workstream =
           existing ??
-          this.insertDiscovered(group.name, group.description, entityId);
+          this.insertDiscovered(group.name, group.description, workstreamId);
         for (const threadId of group.threadIds)
           this.db
             .prepare(
-              "UPDATE ws_corpus_subject SET entity_id = ? WHERE thread_id = ?",
+              "UPDATE ws_thread_workstream SET workstream_id = ? WHERE thread_id = ?",
             )
-            .run(topic.id, threadId);
-        result.push(topic);
+            .run(workstream.id, threadId);
+        result.push(workstream);
       }
-      this.consumeDivisionRequest(entityId);
+      this.consumeDivisionRequest(workstreamId);
       this.bumpRevision();
       return result;
     })();
@@ -1004,9 +1042,7 @@ export class TopicStore {
 
   divisionRequests(): Record<string, { name: string; description: string }> {
     try {
-      const parsed = JSON.parse(
-        getMeta(this.db, "topic_division_requests") ?? "{}",
-      );
+      const parsed = JSON.parse(getMeta(this.db, "split_requests") ?? "{}");
       if (
         typeof parsed !== "object" ||
         parsed === null ||
@@ -1031,55 +1067,53 @@ export class TopicStore {
     }
   }
 
-  consumeDivisionRequest(topicId: string): void {
+  consumeDivisionRequest(workstreamId: string): void {
     const requests = this.divisionRequests();
-    delete requests[topicId];
-    setMeta(this.db, "topic_division_requests", JSON.stringify(requests));
+    delete requests[workstreamId];
+    setMeta(this.db, "split_requests", JSON.stringify(requests));
   }
 
-  /** The basis the thread's automatic topic was settled from, if any. */
+  /** The basis the thread's automatic workstream was settled from, if any. */
   basis(threadId: string): string | null {
     const row = this.db
-      .prepare("SELECT evidence FROM ws_corpus_subject WHERE thread_id = ?")
-      .get(this.findRootThread(threadId)) as
+      .prepare("SELECT evidence FROM ws_thread_workstream WHERE thread_id = ?")
+      .get(this.findParentmostThread(threadId)) as
       { evidence: string | null } | undefined;
     return row?.evidence ?? null;
   }
 
-  /** Forgets a deleted thread's topic, so it no longer keeps a topic in use. */
+  /** Forgets a deleted thread's workstream, so it no longer keeps a workstream in use. */
   forget(threadId: string): void {
     const removed = this.db
-      .prepare("DELETE FROM ws_corpus_subject WHERE thread_id = ?")
+      .prepare("DELETE FROM ws_thread_workstream WHERE thread_id = ?")
       .run(threadId);
     if (removed.changes > 0) this.bumpRevision();
   }
 
   /**
-   * Removes discovered topics that no thread has, no workstream uses, and
-   * that have no subtopics, deepest first. Topics you created or configured
+   * Removes discovered workstreams that no thread has, no workstream uses, and
+   * that have no workstreams in a group, deepest first. Workstreams you created or configured
    * with a project choice or learning opt-out are kept.
    */
-  prune(): Topic[] {
+  prune(): Workstream[] {
     return this.db.transaction(() => {
-      const removed: Topic[] = [];
+      const removed: Workstream[] = [];
       for (;;) {
         const row = this.db
           .prepare(
-            `SELECT e.id FROM ws_corpus_entity e
+            `SELECT e.id FROM ws_workstream e
              WHERE e.origin = 'discovered'
                AND e.project_id IS NULL
                AND e.project_source IS NULL
-               AND NOT EXISTS (SELECT 1 FROM ws_corpus_subject s WHERE s.entity_id = e.id)
-               AND NOT EXISTS (SELECT 1 FROM ws_corpus_group g WHERE g.entity_id = e.id)
-               AND NOT EXISTS (SELECT 1 FROM ws_corpus_entity c WHERE c.parent_id = e.id)
+               AND NOT EXISTS (SELECT 1 FROM ws_thread_workstream s WHERE s.workstream_id = e.id)
+               AND NOT EXISTS (SELECT 1 FROM ws_workstream_section g WHERE g.workstream_id = e.id)
+               AND NOT EXISTS (SELECT 1 FROM ws_workstream c WHERE c.parent_id = e.id)
              LIMIT 1`,
           )
           .get() as { id: string } | undefined;
         if (!row) break;
         removed.push(this.getById(row.id)!);
-        this.db
-          .prepare("DELETE FROM ws_corpus_entity WHERE id = ?")
-          .run(row.id);
+        this.db.prepare("DELETE FROM ws_workstream WHERE id = ?").run(row.id);
       }
       if (removed.length) this.bumpRevision();
       return removed;
@@ -1087,39 +1121,39 @@ export class TopicStore {
   }
 
   edit(
-    entityId: string,
+    workstreamId: string,
     updates: {
       name?: string;
       description?: string;
       aliases?: readonly string[];
       projectId?: string | null;
-      projectSource?: Topic["projectSource"];
+      projectSource?: Workstream["projectSource"];
     },
-  ): Topic {
+  ): Workstream {
     return this.db.transaction(() => {
-      const entity = this.getById(entityId);
-      if (!entity) throw new Error(`Unknown topic: ${entityId}`);
+      const workstream = this.getById(workstreamId);
+      if (!workstream) throw new Error(`Unknown workstream: ${workstreamId}`);
 
-      let cleanName = entity.name;
+      let cleanName = workstream.name;
       if (updates.name !== undefined) {
         cleanName = updates.name.trim();
         if (!cleanName) throw new Error("Entity name must not be empty");
-        if (normalize(entity.name) !== normalize(cleanName)) {
-          const conflict = this.resolve(cleanName, entity.parentId);
-          if (conflict && conflict.id !== entityId) {
+        if (normalize(workstream.name) !== normalize(cleanName)) {
+          const conflict = this.resolve(cleanName, workstream.parentId);
+          if (conflict && conflict.id !== workstreamId) {
             throw new Error(
-              `Topic name conflicts with an existing topic in this parent scope: ${cleanName}`,
+              `A workstream in this group is already named ${cleanName}`,
             );
           }
         }
       }
 
-      let nextDescription = entity.description;
+      let nextDescription = workstream.description;
       if (updates.description !== undefined) {
         nextDescription = updates.description.trim();
       }
 
-      let nextAliases = entity.aliases;
+      let nextAliases = workstream.aliases;
       if (updates.aliases !== undefined) {
         const cleanAliasList = cleanAliases(updates.aliases);
         if (
@@ -1127,61 +1161,63 @@ export class TopicStore {
             (alias) => normalize(alias) === normalize(cleanName),
           )
         ) {
-          throw new Error("Topic alias must differ from its name");
+          throw new Error("An alias must differ from the name");
         }
         if (
           cleanAliasList.some((alias) => {
-            const other = this.resolve(alias, entity.parentId);
-            return other && other.id !== entity.id;
+            const other = this.resolve(alias, workstream.parentId);
+            return other && other.id !== workstream.id;
           })
         ) {
           throw new Error(
-            "Topic alias already resolves to an entity in this parent scope",
+            "That alias already names a workstream in this group",
           );
         }
         nextAliases = cleanAliasList;
       } else if (updates.name !== undefined) {
         nextAliases = cleanAliases(
-          entity.aliases.filter((a) => normalize(a) !== normalize(cleanName)),
+          workstream.aliases.filter(
+            (a) => normalize(a) !== normalize(cleanName),
+          ),
         );
       }
 
-      const nameChanged = cleanName !== entity.name;
-      const descriptionChanged = nextDescription !== entity.description;
+      const nameChanged = cleanName !== workstream.name;
+      const descriptionChanged = nextDescription !== workstream.description;
       const aliasesChanged =
-        nextAliases.length !== entity.aliases.length ||
-        nextAliases.some((a, i) => a !== entity.aliases[i]);
+        nextAliases.length !== workstream.aliases.length ||
+        nextAliases.some((a, i) => a !== workstream.aliases[i]);
 
       const projectId =
         updates.projectId === undefined
-          ? (entity.projectId ?? null)
+          ? (workstream.projectId ?? null)
           : updates.projectId;
       const projectSource =
         updates.projectSource !== undefined
           ? updates.projectSource
           : updates.projectId === undefined
-            ? (entity.projectSource ?? null)
+            ? (workstream.projectSource ?? null)
             : projectId
               ? "manual"
               : "disabled";
       const projectChanged =
-        projectId !== (entity.projectId ?? null) ||
-        projectSource !== (entity.projectSource ?? null);
+        projectId !== (workstream.projectId ?? null) ||
+        projectSource !== (workstream.projectSource ?? null);
       const projectRevision = projectChanged
         ? this.revision() + 1
-        : (entity.projectRevision ?? 0);
+        : (workstream.projectRevision ?? 0);
       if (
         !nameChanged &&
         !descriptionChanged &&
         !aliasesChanged &&
         !projectChanged
       ) {
-        return entity;
+        return workstream;
       }
 
       this.db
         .prepare(
-          "UPDATE ws_corpus_entity SET name = ?, description = ?, aliases = ?, project_id = ?, project_source = ?, project_revision = ? WHERE id = ?",
+          "UPDATE ws_workstream SET name = ?, description = ?, aliases = ?, project_id = ?, project_source = ?, project_revision = ? WHERE id = ?",
         )
         .run(
           cleanName,
@@ -1190,12 +1226,12 @@ export class TopicStore {
           projectId,
           projectSource,
           projectRevision,
-          entity.id,
+          workstream.id,
         );
 
       this.bumpRevision();
       return {
-        ...entity,
+        ...workstream,
         name: cleanName,
         description: nextDescription,
         aliases: nextAliases,
@@ -1206,70 +1242,70 @@ export class TopicStore {
     })();
   }
 
-  rename(entityId: string, newName: string): Topic {
-    return this.edit(entityId, { name: newName });
+  rename(workstreamId: string, newName: string): Workstream {
+    return this.edit(workstreamId, { name: newName });
   }
 
-  reparent(entityId: string, newParentId: string | null): Topic {
+  move(workstreamId: string, newParentId: string | null): Workstream {
     return this.db.transaction(() => {
-      const entity = this.getById(entityId);
-      if (!entity) throw new Error(`Unknown topic: ${entityId}`);
-      if (entity.parentId === newParentId) return entity;
-      if (newParentId === entityId)
-        throw new Error("Cannot reparent an entity under itself");
+      const workstream = this.getById(workstreamId);
+      if (!workstream) throw new Error(`Unknown workstream: ${workstreamId}`);
+      if (workstream.parentId === newParentId) return workstream;
+      if (newParentId === workstreamId)
+        throw new Error("A workstream can't move into itself");
 
       if (newParentId !== null) {
         const parent = this.getById(newParentId);
-        if (!parent) throw new Error(`Unknown topic parent: ${newParentId}`);
-        this.assertTakesSubtopics(newParentId);
-        const parentAncestors = topicAncestors(newParentId, this.list());
-        if (parentAncestors.includes(entityId)) {
+        if (!parent) throw new Error(`Unknown group: ${newParentId}`);
+        this.assertTakesWorkstreams(newParentId);
+        const parentAncestors = workstreamAncestors(newParentId, this.list());
+        if (parentAncestors.includes(workstreamId)) {
           throw new Error(
-            `Cannot reparent: entity ${entityId} is an ancestor of ${newParentId} (cycle detected)`,
+            `Can't move ${workstreamId} into ${newParentId}, which is inside it`,
           );
         }
       }
 
-      const conflict = this.resolve(entity.name, newParentId);
-      if (conflict && conflict.id !== entityId) {
+      const conflict = this.resolve(workstream.name, newParentId);
+      if (conflict && conflict.id !== workstreamId) {
         throw new Error(
-          `Topic name conflicts with an existing topic in target parent scope: ${entity.name}`,
+          `A workstream in the target group is already named ${workstream.name}`,
         );
       }
 
-      for (const alias of entity.aliases) {
+      for (const alias of workstream.aliases) {
         const other = this.resolve(alias, newParentId);
-        if (other && other.id !== entityId) {
+        if (other && other.id !== workstreamId) {
           throw new Error(
-            `Topic alias '${alias}' conflicts with an existing topic in target parent scope`,
+            `The alias '${alias}' already names a workstream in the target group`,
           );
         }
       }
 
       this.db
-        .prepare("UPDATE ws_corpus_entity SET parent_id = ? WHERE id = ?")
-        .run(newParentId, entity.id);
-      assertTopicLevels(this.list());
+        .prepare("UPDATE ws_workstream SET parent_id = ? WHERE id = ?")
+        .run(newParentId, workstream.id);
+      assertWorkstreamLevels(this.list());
 
       this.bumpRevision();
-      return { ...entity, parentId: newParentId };
+      return { ...workstream, parentId: newParentId };
     })();
   }
 
   updateMetadata(
-    entityId: string,
+    workstreamId: string,
     updates: {
       description?: string;
       aliases?: readonly string[];
       projectId?: string | null;
       projectAutomatic?: boolean;
     },
-  ): Topic {
+  ): Workstream {
     if (updates.projectAutomatic && updates.projectId)
       throw new Error(
         "Choose automatic learning or an explicit project, not both.",
       );
-    return this.edit(entityId, {
+    return this.edit(workstreamId, {
       ...updates,
       ...(updates.projectAutomatic
         ? { projectId: null, projectSource: null }
@@ -1277,24 +1313,26 @@ export class TopicStore {
     });
   }
 
-  merge(sourceEntityId: string, targetEntityId: string): Topic {
-    if (sourceEntityId === targetEntityId) {
+  merge(sourceWorkstreamId: string, targetWorkstreamId: string): Workstream {
+    if (sourceWorkstreamId === targetWorkstreamId) {
       throw new Error("Cannot merge an entity into itself");
     }
 
     return this.db.transaction(() => {
-      const source = this.getById(sourceEntityId);
-      if (!source) throw new Error(`Unknown source entity: ${sourceEntityId}`);
-      const target = this.getById(targetEntityId);
-      if (!target) throw new Error(`Unknown target entity: ${targetEntityId}`);
+      const source = this.getById(sourceWorkstreamId);
+      if (!source)
+        throw new Error(`Unknown source entity: ${sourceWorkstreamId}`);
+      const target = this.getById(targetWorkstreamId);
+      if (!target)
+        throw new Error(`Unknown target entity: ${targetWorkstreamId}`);
 
-      const entities = this.list();
-      const targetAncestors = topicAncestors(target.id, entities);
+      const workstreams = this.list();
+      const targetAncestors = workstreamAncestors(target.id, workstreams);
       const targetIsDescendantOfSource = targetAncestors.includes(source.id);
 
-      // The merged topic holds both topics' threads and subtopics, so one
-      // side's threads can't land beside the other's subtopics.
-      const mergedSubtopics = entities.filter(
+      // The merged workstream holds both workstreams' threads and workstreams in a group, so one
+      // side's threads can't land beside the other's workstreams in a group.
+      const mergedWorkstreams = workstreams.filter(
         (e) =>
           (e.parentId === target.id || e.parentId === source.id) &&
           e.id !== target.id &&
@@ -1302,9 +1340,9 @@ export class TopicStore {
       ).length;
       const mergedThreads =
         this.heldThreads(source.id) + this.heldThreads(target.id);
-      if (mergedSubtopics > 0 && mergedThreads > 0)
+      if (mergedWorkstreams > 0 && mergedThreads > 0)
         throw new Error(
-          `Merging ${this.pathOf(source.id)} into ${this.pathOf(target.id)} would put threads beside subtopics, and a topic holds threads or subtopics, never both.`,
+          `Merging ${this.pathOf(source.id)} into ${this.pathOf(target.id)} would put threads beside workstreams, and a group holds workstreams, never threads.`,
         );
 
       const newTargetParentId = targetIsDescendantOfSource
@@ -1314,8 +1352,7 @@ export class TopicStore {
       // Validate newTargetParentId
       if (newTargetParentId !== null) {
         const newParent = this.getById(newTargetParentId);
-        if (!newParent)
-          throw new Error(`Unknown topic parent: ${newTargetParentId}`);
+        if (!newParent) throw new Error(`Unknown group: ${newTargetParentId}`);
       }
 
       const combinedAliases = cleanAliases([
@@ -1336,14 +1373,14 @@ export class TopicStore {
       for (const sibling of targetSiblings) {
         if (normalize(sibling.name) === normalize(target.name)) {
           throw new Error(
-            `Topic name conflicts with an existing topic in target parent scope: ${target.name}`,
+            `A workstream in the target group is already named ${target.name}`,
           );
         }
         if (
           sibling.aliases.some((a) => normalize(a) === normalize(target.name))
         ) {
           throw new Error(
-            `Topic name conflicts with an existing alias in target parent scope: ${target.name}`,
+            `An alias in the target group already names ${target.name}`,
           );
         }
         for (const alias of combinedAliases) {
@@ -1352,7 +1389,7 @@ export class TopicStore {
             sibling.aliases.some((a) => normalize(a) === normalize(alias))
           ) {
             throw new Error(
-              `Topic alias '${alias}' conflicts with an existing topic in target parent scope`,
+              `The alias '${alias}' already names a workstream in the target group`,
             );
           }
         }
@@ -1361,30 +1398,34 @@ export class TopicStore {
       // If target is descendant of source, reparent target to source.parentId before processing source's subtree
       if (targetIsDescendantOfSource) {
         this.db
-          .prepare("UPDATE ws_corpus_entity SET parent_id = ? WHERE id = ?")
+          .prepare("UPDATE ws_workstream SET parent_id = ? WHERE id = ?")
           .run(source.parentId, target.id);
       }
 
-      const mergeSubtree = (src: Topic, dst: Topic) => {
+      const mergeSubtree = (src: Workstream, dst: Workstream) => {
         // 1. Move subjects assigned to src -> dst
         this.db
           .prepare(
-            "UPDATE ws_corpus_subject SET entity_id = ? WHERE entity_id = ?",
+            "UPDATE ws_thread_workstream SET workstream_id = ? WHERE workstream_id = ?",
           )
           .run(dst.id, src.id);
 
         // 2. Handle group bindings
         const dstGroup = this.db
-          .prepare("SELECT section_id FROM ws_corpus_group WHERE entity_id = ?")
+          .prepare(
+            "SELECT section_id FROM ws_workstream_section WHERE workstream_id = ?",
+          )
           .get(dst.id) as { section_id: string } | undefined;
         if (dstGroup) {
           this.db
-            .prepare("DELETE FROM ws_corpus_group WHERE entity_id = ?")
+            .prepare(
+              "DELETE FROM ws_workstream_section WHERE workstream_id = ?",
+            )
             .run(src.id);
         } else {
           this.db
             .prepare(
-              "UPDATE ws_corpus_group SET entity_id = ? WHERE entity_id = ?",
+              "UPDATE ws_workstream_section SET workstream_id = ? WHERE workstream_id = ?",
             )
             .run(dst.id, src.id);
         }
@@ -1408,14 +1449,14 @@ export class TopicStore {
               sibling.aliases.some((a) => normalize(a) === normalize(alias))
             ) {
               throw new Error(
-                `Topic alias '${alias}' conflicts with an existing topic in target parent scope`,
+                `The alias '${alias}' already names a workstream in the target group`,
               );
             }
           }
         }
 
         this.db
-          .prepare("UPDATE ws_corpus_entity SET aliases = ? WHERE id = ?")
+          .prepare("UPDATE ws_workstream SET aliases = ? WHERE id = ?")
           .run(JSON.stringify(mergedDstAliases), dst.id);
 
         // 4. Process children of src
@@ -1442,7 +1483,7 @@ export class TopicStore {
                 )
               ) {
                 throw new Error(
-                  `Topic name conflicts with an existing topic in target parent scope: ${child.name}`,
+                  `A workstream in the target group is already named ${child.name}`,
                 );
               }
               for (const alias of child.aliases) {
@@ -1453,7 +1494,7 @@ export class TopicStore {
                   )
                 ) {
                   throw new Error(
-                    `Topic alias '${alias}' conflicts with an existing topic in target parent scope`,
+                    `The alias '${alias}' already names a workstream in the target group`,
                   );
                 }
               }
@@ -1461,20 +1502,18 @@ export class TopicStore {
 
             // Reparent child under dst
             this.db
-              .prepare("UPDATE ws_corpus_entity SET parent_id = ? WHERE id = ?")
+              .prepare("UPDATE ws_workstream SET parent_id = ? WHERE id = ?")
               .run(dst.id, child.id);
           }
         }
 
         // 5. Delete src
-        this.db
-          .prepare("DELETE FROM ws_corpus_entity WHERE id = ?")
-          .run(src.id);
+        this.db.prepare("DELETE FROM ws_workstream WHERE id = ?").run(src.id);
       };
 
       mergeSubtree(source, target);
 
-      assertTopicLevels(this.list());
+      assertWorkstreamLevels(this.list());
 
       this.bumpRevision();
 
@@ -1482,14 +1521,14 @@ export class TopicStore {
     })();
   }
 
-  state(): TopicState {
-    const entities = this.list();
+  state(): WorkstreamState {
+    const workstreams = this.list();
     const groups: Record<string, string> = {};
-    for (const [sectionId, entityId] of this.groups()) {
-      groups[sectionId] = entityId;
+    for (const [sectionId, workstreamId] of this.groups()) {
+      groups[sectionId] = workstreamId;
     }
     return {
-      entities,
+      workstreams,
       groups,
       assignments: this.assignments(),
       revision: this.revision(),
@@ -1502,8 +1541,8 @@ export class TopicStore {
    * use `assignments()`, which also covers archived subjects; clients read an
    * archived thread's assignment on demand.
    */
-  visibleAssignments(): Record<string, TopicAssignment> {
-    const entities = this.list();
+  visibleAssignments(): Record<string, WorkstreamAssignment> {
+    const workstreams = this.list();
     const parents = new Map(
       (
         this.db
@@ -1516,14 +1555,14 @@ export class TopicStore {
       (
         this.db
           .prepare(
-            `SELECT thread_id, entity_id, evidence, source FROM ws_corpus_subject
+            `SELECT thread_id, workstream_id, evidence, source FROM ws_thread_workstream
              WHERE thread_id IN (SELECT thread_id FROM ws_seen_thread
                UNION SELECT parent_thread_id FROM ws_seen_thread)`,
           )
-          .all() as (SubjectRow & { thread_id: string })[]
+          .all() as (AssignmentRow & { thread_id: string })[]
       ).map((row) => [row.thread_id, row]),
     );
-    const result: Record<string, TopicAssignment> = {};
+    const result: Record<string, WorkstreamAssignment> = {};
     for (const threadId of parents.keys()) {
       let rootId = threadId;
       const visited = new Set<string>();
@@ -1537,7 +1576,7 @@ export class TopicStore {
         threadId,
         rootId,
         subjects.get(rootId),
-        entities,
+        workstreams,
       );
     }
     return result;
@@ -1548,10 +1587,10 @@ export class TopicStore {
     let currentId = parentId;
     while (currentId !== null) {
       if (visited.has(currentId))
-        throw new Error(`Topic parent cycle detected at: ${currentId}`);
+        throw new Error(`A workstream is inside itself at: ${currentId}`);
       visited.add(currentId);
       const current = this.getById(currentId);
-      if (!current) throw new Error(`Unknown topic parent: ${currentId}`);
+      if (!current) throw new Error(`Unknown group: ${currentId}`);
       currentId = current.parentId;
     }
   }

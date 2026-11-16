@@ -12,7 +12,7 @@ afterEach(cleanup);
 const summary = (id: string, overrides: Record<string, unknown> = {}) => ({
   id,
   at: Date.now() - 60_000,
-  kind: "full-analysis",
+  kind: "turn-end",
   status: "ok",
   label: "Alpha parser",
   model: "google/gemini-3.1-flash-lite",
@@ -116,10 +116,10 @@ it("lists model calls in the Activity log in Debug mode", async () => {
   const entry = {
     id: "e1",
     at: now - 120_000,
-    action: "move",
-    source: "user",
+    action: "thread-moved",
+    source: "you",
     status: "applied",
-    rationale: "Moved from Unfiled to Beta",
+    rationale: "Moved from Other to Beta",
     threads: [{ id: "t1", name: "Alpha parser" }],
     workstreams: [{ id: "sec_b", name: "Beta" }],
     undo: null,
@@ -171,7 +171,7 @@ it("lists model calls in the Activity log in Debug mode", async () => {
       },
     );
   const off = page(false);
-  expect(await off.findByText("Moved from Unfiled to Beta")).toBeTruthy();
+  expect(await off.findByText("Moved from Other to Beta")).toBeTruthy();
   expect(off.queryByText("Ready for review")).toBeNull();
   off.unmount();
 
@@ -179,11 +179,9 @@ it("lists model calls in the Activity log in Debug mode", async () => {
   const summaryLine = await on.findByText("Ready for review");
   // Newest first: the analysis, the move, then the failed routing call.
   const rows = on.getAllByRole("listitem").map((li) => li.textContent ?? "");
-  const order = [
-    "Alpha parser tabs",
-    "Moved from Unfiled",
-    "Fix the parser",
-  ].map((text) => rows.findIndex((row) => row.includes(text)));
+  const order = ["Alpha parser tabs", "Moved from Other", "Fix the parser"].map(
+    (text) => rows.findIndex((row) => row.includes(text)),
+  );
   expect(order).toEqual([...order].sort((a, b) => a - b));
   expect(on.getByText("Unexpected token")).toBeTruthy();
   fireEvent.click(
@@ -201,7 +199,7 @@ it("lists model calls in the Activity log in Debug mode", async () => {
     "Model calls",
   );
   await waitFor(() =>
-    expect(on.queryByText("Moved from Unfiled to Beta")).toBeNull(),
+    expect(on.queryByText("Moved from Other to Beta")).toBeNull(),
   );
   expect(on.getByText("Fix the parser")).toBeTruthy();
 });

@@ -244,11 +244,11 @@ it("shows archived threads grouped by workstream and loads another page", async 
     .getByRole("link", { name: "Archived task" })
     .closest(".ws-row")!;
   expect(betaRow.textContent).not.toContain("Beta");
-  const unsorted = within(
-    slot.getByRole("region", { name: "Archived Unfiled" }),
+  const other = within(
+    slot.getByRole("region", { name: "Archived Other" }),
   );
-  fireEvent.click(unsorted.getByRole("button", { name: /Unfiled/ }));
-  expect(groupRows(slot, "Archived Unfiled")).toEqual(["Archived loose task"]);
+  fireEvent.click(other.getByRole("button", { name: /Other/ }));
+  expect(groupRows(slot, "Archived Other")).toEqual(["Archived loose task"]);
   const archivedRegion = slot.getByRole("region", { name: "Archived" });
   expect(
     archivedRegion.querySelector('[data-sidebar-thread-id="active"]'),
@@ -292,7 +292,7 @@ it("sorts workstreams alphabetically by default and lets the view menu change so
   await waitFor(() =>
     expect(
       slot.getAllByRole("region").map((r) => r.getAttribute("aria-label")),
-    ).toEqual(["Alpha", "Beta", "Unfiled"]),
+    ).toEqual(["Alpha", "Beta", "Other"]),
   );
   // The sort lives on the heading over the workstreams.
   expect(slot.getByRole("heading", { name: "Workstreams" })).toBeTruthy();
@@ -310,7 +310,7 @@ it("sorts workstreams alphabetically by default and lets the view menu change so
   await waitFor(() =>
     expect(
       slot.getAllByRole("region").map((r) => r.getAttribute("aria-label")),
-    ).toEqual(["Alpha", "Beta", "Unfiled"]),
+    ).toEqual(["Alpha", "Beta", "Other"]),
   );
   expect(slot.inspection.rpcCalls).toContainEqual(
     expect.objectContaining({
@@ -329,7 +329,7 @@ it("shows Unfiled after the populated workstreams, and nothing for an emptied on
   await waitFor(() =>
     expect(
       slot.getAllByRole("region").map((r) => r.getAttribute("aria-label")),
-    ).toEqual(["Beta", "Alpha", "Unfiled"]),
+    ).toEqual(["Beta", "Alpha", "Other"]),
   );
   expect(slot.queryByRole("button", { name: /Dormant/ })).toBeNull();
   // A workstream with no visible thread draws no header at all.
@@ -574,7 +574,7 @@ it("offers a Topic submenu in the row menu", async () => {
   );
   fireEvent.contextMenu(link.closest("li")!);
   const item = await slot.findByRole("menuitem", {
-    name: "Topic",
+    name: "Move to",
   });
   expect(item).toBeTruthy();
   slot.lifecycle.unmount();
@@ -627,7 +627,7 @@ it("keeps thread titles at their default color in workstreams and Up Next", asyn
   for (const [region, name] of [
     ["Alpha", "Root task"],
     ["Up Next", "Root task"],
-    ["Unfiled", "Loose task"],
+    ["Other", "Loose task"],
   ]) {
     const row = within(slot.getByRole("region", { name: region })).getByRole(
       "link",

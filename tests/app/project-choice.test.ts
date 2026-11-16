@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from "vitest";
 import {
-  carryPickedTopic,
+  carryPickedWorkstream,
   preserveProjectChoice,
   takeProjectChoice,
 } from "../../src/app/composer/project-choice.ts";
@@ -8,17 +8,17 @@ import { NewWork } from "../../src/app/composer/new-work.ts";
 
 const choice = {
   identity: {
-    entityId: "topic",
+    workstreamId: "workstream",
     proposal: null,
-    label: "Topic",
+    label: "Workstream",
     provenance: "automatic" as const,
   },
   decision: {
     id: "preview",
     traceId: null,
     confidence: "high" as const,
-    subjectId: "topic",
-    subject: "Topic",
+    workstreamId: "workstream",
+    subject: "Workstream",
     goal: "Fix parser",
     reason: "Matches",
   },
@@ -57,12 +57,12 @@ const deps = { route: async () => choice.decision, cancelRoute: () => {} };
 
 it("carries a picked topic to the draft's model in the project you chose", () => {
   const work = new NewWork(deps);
-  work.selectIdentity({ entityId: "topic", label: "Topic" });
-  carryPickedTopic("draft", "project", work.snapshot());
+  work.selectIdentity({ workstreamId: "workstream", label: "Workstream" });
+  carryPickedWorkstream("draft", "project", work.snapshot());
   expect(takeProjectChoice("project", "other-draft")).toBeUndefined();
   const replacement = new NewWork(deps, takeProjectChoice("other", "draft"));
   expect(replacement.snapshot()).toMatchObject({
-    identity: { entityId: "topic", provenance: "manual" },
+    identity: { workstreamId: "workstream", provenance: "manual" },
     projectOverride: true,
     suppliedProjectId: null,
   });
@@ -73,10 +73,10 @@ it("carries a picked topic to the draft's model in the project you chose", () =>
 
 it("does not carry a topic into the same project or carry Quick analysis's topic", () => {
   const work = new NewWork(deps);
-  work.selectIdentity({ entityId: "topic", label: "Topic" });
-  carryPickedTopic("draft", "project", work.snapshot());
+  work.selectIdentity({ workstreamId: "workstream", label: "Workstream" });
+  carryPickedWorkstream("draft", "project", work.snapshot());
   expect(takeProjectChoice("project", "draft")).toBeUndefined();
-  carryPickedTopic("draft", "project", { ...work.snapshot(), ...choice });
+  carryPickedWorkstream("draft", "project", { ...work.snapshot(), ...choice });
   expect(takeProjectChoice("other", "draft")).toBeUndefined();
   work.dispose();
 });
@@ -85,8 +85,8 @@ it("drops a carried topic no replacement took", () => {
   vi.useFakeTimers();
   try {
     const work = new NewWork(deps);
-    work.selectIdentity({ entityId: "topic", label: "Topic" });
-    carryPickedTopic("draft", "project", work.snapshot());
+    work.selectIdentity({ workstreamId: "workstream", label: "Workstream" });
+    carryPickedWorkstream("draft", "project", work.snapshot());
     vi.advanceTimersByTime(1000);
     expect(takeProjectChoice("other", "draft")).toBeUndefined();
     work.dispose();
@@ -100,13 +100,13 @@ it("marks a project you choose after picking a topic, until the topic changes", 
   work.observeSelection({ projectId: "one" });
   work.observeSelection({ projectId: "two" });
   expect(work.snapshot().projectOverride).toBeFalsy();
-  work.selectIdentity({ entityId: "topic", label: "Topic" });
+  work.selectIdentity({ workstreamId: "workstream", label: "Workstream" });
   work.supplyProject("three");
   work.observeSelection({ projectId: "three" });
   expect(work.snapshot().projectOverride).toBeFalsy();
   work.observeSelection({ projectId: "four" });
   expect(work.viewSnapshot().projectOverride).toBe(true);
-  work.selectIdentity({ entityId: "other", label: "Other" });
+  work.selectIdentity({ workstreamId: "other", label: "Other" });
   expect(work.snapshot().projectOverride).toBe(false);
   work.dispose();
 });

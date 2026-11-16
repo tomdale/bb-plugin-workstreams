@@ -200,10 +200,10 @@ export class SnoozeWaker {
     for (const [id, snooze] of Object.entries(snoozes)) {
       const root = byId.get(id);
       if (!root || !wakesOnEvents(snooze)) continue;
-      const delegates = descendants(id, children);
+      const childThreads = descendants(id, children);
       const rootFacts = wakeThread(root);
-      const delegateFacts = delegates.map(wakeThread);
-      if (isStalled(rootFacts, delegateFacts, snooze.at)) {
+      const childFacts = childThreads.map(wakeThread);
+      if (isStalled(rootFacts, childFacts, snooze.at)) {
         if (!this.stalled.has(id)) this.stalled.set(id, now);
       } else this.stalled.delete(id);
       const earliest = (condition: Condition, tree: InventoryThread[]) =>
@@ -213,12 +213,12 @@ export class SnoozeWaker {
           {
             snooze,
             thread: rootFacts,
-            children: delegateFacts,
+            children: childFacts,
             stalledSince: this.stalled.get(id),
-            hostWaitingSince: earliest("hostWaiting", [root, ...delegates]),
+            hostWaitingSince: earliest("hostWaiting", [root, ...childThreads]),
             sendFailedSince: this.since.sendFailed.get(id),
             askingSince: this.since.asking.get(id),
-            childAskingSince: earliest("asking", delegates),
+            childAskingSince: earliest("asking", childThreads),
             now,
           },
           enabled,

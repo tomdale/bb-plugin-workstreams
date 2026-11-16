@@ -1,19 +1,19 @@
 /**
  * How the workstream groups are arranged below Up Next, shared by the sidebar
- * and the phone Home screen: focused groups (stored as `prioritized`) lead,
+ * and the phone Home screen: focused groups (stored as `focused`) lead,
  * the rest follow in the chosen order with populated ones before empty ones,
- * and Unfiled and Dormant sit beside them. While any workstream is focused
+ * and Other and Dormant sit beside them. While any workstream is focused
  * the rest hide behind a "Show other workstreams" toggle. Pure, so both
  * surfaces agree.
  *
- * Workstreams nest by topic. Each workstream is a BB section bound to one
- * topic, and BB keeps sections flat, so the nesting comes from the layout the
- * organizer last applied (see `layoutGroups`): which topics list threads,
- * which only head subgroups, and the names dimmed before each header.
+ * Workstreams nest by workstream. Each workstream is a BB section bound to one
+ * workstream, and BB keeps sections flat, so the nesting comes from the layout the
+ * organizer last applied (see `layoutGroups`): which workstreams list threads,
+ * which only head workstreams, and the names dimmed before each header.
  * Focus, dormancy, and ordering apply to the top-level group as a whole.
  *
  * Subgroups keep their headers together or all list inline (see `GROUP_MIN`),
- * so a parent shows threads or subgroup headers, never both. Top-level groups
+ * so a parent shows threads or workstream headers, never both. Top-level groups
  * always keep their own headers. Rows listed outside their own group's header
  * carry its name. A workstream with no visible thread disappears at once, at
  * any depth.
@@ -21,18 +21,19 @@
 import type { CategoryGeneration } from "./categories.ts";
 import { layoutLabel, type LayoutNode } from "./layout.ts";
 import type { Group, Projection, WorkstreamThread } from "./project.ts";
+import { PATH_SEPARATOR } from "./topic-path.ts";
 
 /** How workstream groups are ordered: by name, by recent activity, or as dragged. */
 export type GroupSort = "alphabetical" | "activity" | "manual";
 
-/** The topic tree, the topic each workstream's section is bound to, and the layout. */
-export type WorkstreamTopics = {
-  readonly entities: readonly {
+/** The workstreams and groups, the workstream each workstream's section is bound to, and the layout. */
+export type WorkstreamTree = {
+  readonly workstreams: readonly {
     readonly id: string;
     readonly name: string;
     readonly parentId: string | null;
   }[];
-  /** Section id → topic id. */
+  /** Section id → workstream id. */
   readonly bindings: Readonly<Record<string, string>>;
   /** The groups the organizer last applied; absent before its first pass. */
   readonly layout?: readonly LayoutNode[];
@@ -43,28 +44,28 @@ export type WorkstreamTopics = {
  * A workstream group with the more specific workstreams nested under it.
  * `rows` are the threads filed in this workstream itself; `total`,
  * `needsYou`, and `lastActiveAt` cover the whole subtree, and the node is
- * `prioritized` when any workstream in it is focused.
+ * `focused` when any workstream in it is focused.
  */
 export type WorkstreamNode<T extends WorkstreamThread> = Group<T> & {
-  /** The topic it shows; null for a section bound to no known topic. */
-  readonly topicId: string | null;
+  /** The workstream it shows; null for a section bound to no known workstream. */
+  readonly workstreamId: string | null;
   /**
-   * The topic name with its first-level container as a dimmed prefix.
+   * The workstream name with its first-level container as a dimmed prefix.
    */
   readonly label: string;
   /**
-   * The container topic whose name that prefix shows, when the label has one.
+   * The container workstream whose name that prefix shows, when the label has one.
    * Its color identifies the parent wherever its areas appear, so one parent
    * reads the same under each of them.
    */
-  readonly parentTopicId: string | null;
-  /** False for a header that only heads subgroups, which no BB section backs. */
+  readonly parentWorkstreamId: string | null;
+  /** False for a header that only heads workstreams, which no BB section backs. */
   readonly hasSection: boolean;
-  readonly subgroups: readonly WorkstreamNode<T>[];
+  readonly workstreams: readonly WorkstreamNode<T>[];
   /** Every section in the subtree, in the input order. */
   readonly sectionIds: readonly string[];
   /**
-   * Drawn without a header: its rows, and its subgroups' rows, list in its
+   * Drawn without a header: its rows, and its workstreams' rows, list in its
    * parent's list, each labeled with its name.
    */
   readonly inline?: boolean;
@@ -72,7 +73,7 @@ export type WorkstreamNode<T extends WorkstreamThread> = Group<T> & {
 };
 
 /**
- * Two subgroups showing this many threads keep headers for all their siblings.
+ * Two workstreams showing this many threads keep headers for all their siblings.
  */
 export const GROUP_MIN = 3;
 
@@ -82,45 +83,46 @@ const inlined = <T extends WorkstreamThread>(
 ): WorkstreamNode<T> => ({
   ...node,
   inline: true,
-  subgroups: node.subgroups.map(inlined),
+  workstreams: node.workstreams.map(inlined),
 });
 
 /**
- * Folds all subgroups into one thread list unless two reach `GROUP_MIN`.
- * Headers stay together so inline threads never sit beside subgroup headers.
- * A parent with its own rows also draws all subgroups inline to preserve that rule.
+ * Folds all workstreams into one thread list unless two reach `GROUP_MIN`.
+ * Headers stay together so inline threads never sit beside workstream headers.
+ * A parent with its own rows also draws all workstreams inline to preserve that rule.
  */
 function foldSmall<T extends WorkstreamThread>(
   node: WorkstreamNode<T>,
 ): WorkstreamNode<T> {
-  const big = node.subgroups.filter((sub) => sub.total >= GROUP_MIN);
+  const big = node.workstreams.filter((sub) => sub.total >= GROUP_MIN);
   const keepHeaders = node.rows.length === 0 && big.length >= 2;
   return {
     ...node,
-    subgroups: node.subgroups.map((sub) =>
+    workstreams: node.workstreams.map((sub) =>
       keepHeaders ? foldSmall(sub) : inlined(sub),
     ),
   };
 }
 
 /**
- * Unfiled as a node, so it draws like any workstream: it has no topic, no
- * section, and no subgroups.
+ * Other as a node, so it draws like any workstream: it has no workstream, no
+ * section, and no workstreams.
  */
-export const unfiledNode = <T extends WorkstreamThread>(
+export const otherNode = <T extends WorkstreamThread>(
   group: Group<T>,
 ): WorkstreamNode<T> => ({
   ...group,
-  topicId: null,
+  workstreamId: null,
   label: group.name,
-  parentTopicId: null,
+  parentWorkstreamId: null,
   hasSection: false,
-  subgroups: [],
+  workstreams: [],
   sectionIds: [],
 });
 
-/** Id of a header drawn for a topic that has no section. */
-export const sharedTopicId = (topicId: string) => `topic:${topicId}`;
+/** Id of a header drawn for a workstream that has no section. */
+export const sharedWorkstreamId = (workstreamId: string) =>
+  `workstream:${workstreamId}`;
 
 /** Sorts by the whole name, prefix first: "BB Fork & Core" before "BB Plugins". */
 const labelOf = (group: { name: string; label?: string }) =>
@@ -146,10 +148,10 @@ function sortTree<T extends WorkstreamThread>(
   sort: GroupSort,
 ): WorkstreamNode<T>[] {
   return sortGroups(nodes, sort).map((node) =>
-    node.subgroups.length > 0
+    node.workstreams.length > 0
       ? {
           ...node,
-          subgroups: sortTree(node.subgroups, sort),
+          workstreams: sortTree(node.workstreams, sort),
         }
       : node,
   );
@@ -157,69 +159,72 @@ function sortTree<T extends WorkstreamThread>(
 
 const leaf = <T extends WorkstreamThread>(
   group: Group<T>,
-  topicId: string | null,
+  workstreamId: string | null,
   label = group.name,
-  parentTopicId: string | null = null,
+  parentWorkstreamId: string | null = null,
 ): WorkstreamNode<T> => ({
   ...group,
-  topicId,
+  workstreamId,
   label,
-  parentTopicId,
+  parentWorkstreamId,
   hasSection: true,
-  subgroups: [],
+  workstreams: [],
   sectionIds: [group.id],
 });
 
 /**
  * Nests workstreams by the organizer's layout. Top-level groups keep the
- * input order of their first workstream, and subgroups likewise within their
- * parent. A section the layout doesn't list (bound to an unknown topic, or
+ * input order of their first workstream, and workstreams likewise within their
+ * parent. A section the layout doesn't list (bound to an unknown workstream, or
  * created since the last pass) stands alone.
  */
 export function nestGroups<T extends WorkstreamThread>(
   groups: readonly Group<T>[],
-  topics?: WorkstreamTopics,
+  tree?: WorkstreamTree,
 ): WorkstreamNode<T>[] {
   const index = new Map(groups.map((group, i) => [group.id, i]));
   const sectionsOf = new Map<string, Group<T>[]>();
-  if (topics)
+  if (tree)
     for (const group of groups) {
-      const topicId = topics.bindings[group.id];
-      if (!topicId) continue;
-      sectionsOf.set(topicId, [...(sectionsOf.get(topicId) ?? []), group]);
+      const workstreamId = tree.bindings[group.id];
+      if (!workstreamId) continue;
+      sectionsOf.set(workstreamId, [
+        ...(sectionsOf.get(workstreamId) ?? []),
+        group,
+      ]);
     }
-  const byId = new Map((topics?.entities ?? []).map((e) => [e.id, e]));
-  const pathName = (topicId: string) => {
+  const byId = new Map((tree?.workstreams ?? []).map((e) => [e.id, e]));
+  const pathName = (workstreamId: string) => {
     const names: string[] = [];
     const seen = new Set<string>();
-    for (let at: string | null = topicId; at && !seen.has(at);) {
+    for (let at: string | null = workstreamId; at && !seen.has(at);) {
       seen.add(at);
-      const entity = byId.get(at);
-      if (!entity) break;
-      names.unshift(entity.name);
-      at = entity.parentId;
+      const workstream = byId.get(at);
+      if (!workstream) break;
+      names.unshift(workstream.name);
+      at = workstream.parentId;
     }
-    return names.join(": ");
+    return names.join(PATH_SEPARATOR);
   };
   // A section the layout doesn't list (one emptied or created since the last
-  // pass) nests under the nearest topic the layout draws above its own, so it
+  // pass) nests under the nearest workstream the layout draws above its own, so it
   // stays in its group.
   const drawn = new Set<string>();
   const listed = new Set<string>();
   const walk = (nodes: readonly LayoutNode[]) => {
     for (const node of nodes) {
-      drawn.add(node.topicId);
-      if (node.lists) listed.add(node.topicId);
+      drawn.add(node.workstreamId);
+      if (node.lists) listed.add(node.workstreamId);
       walk(node.children);
     }
   };
-  walk(topics?.layout ?? []);
+  walk(tree?.layout ?? []);
   const strays = new Map<string, Group<T>[]>();
   for (const group of groups) {
-    const topicId = topics?.bindings[group.id];
-    if (!topicId || listed.has(topicId)) continue;
+    const workstreamId = tree?.bindings[group.id];
+    if (!workstreamId || listed.has(workstreamId)) continue;
     const seen = new Set<string>();
-    for (let at: string | null = topicId; at && !seen.has(at);) {
+    for (let at: string | null = workstreamId; at && !seen.has(at);) {
       seen.add(at);
       if (drawn.has(at)) {
         strays.set(at, [...(strays.get(at) ?? []), group]);
@@ -228,21 +233,21 @@ export function nestGroups<T extends WorkstreamThread>(
       at = byId.get(at)?.parentId ?? null;
     }
   }
-  /** A topic's name below `ancestor`: "Alert Investigations", "CLI: Commands". */
-  const relative = (topicId: string, ancestor: string) => {
+  /** A workstream's name below `ancestor`: "Alert Investigations", "CLI › Commands". */
+  const relative = (workstreamId: string, ancestor: string) => {
     const names: string[] = [];
     const seen = new Set<string>();
     for (
-      let at: string | null = topicId;
+      let at: string | null = workstreamId;
       at && at !== ancestor && !seen.has(at);
     ) {
       seen.add(at);
-      const entity = byId.get(at);
-      if (!entity) break;
-      names.unshift(entity.name);
-      at = entity.parentId;
+      const workstream = byId.get(at);
+      if (!workstream) break;
+      names.unshift(workstream.name);
+      at = workstream.parentId;
     }
-    return names.join(": ");
+    return names.join(PATH_SEPARATOR);
   };
   const used = new Set<string>();
   const first = (node: WorkstreamNode<T>) =>
@@ -253,22 +258,22 @@ export function nestGroups<T extends WorkstreamThread>(
 
   const build = (node: LayoutNode): WorkstreamNode<T> | null => {
     const label = layoutLabel(node);
-    /** The container the label's prefix names, which is the topic's parent. */
-    const parentTopicId =
+    /** The container the label's prefix names, which is the workstream's parent. */
+    const parentWorkstreamId =
       node.prefix.length > 0
-        ? (byId.get(node.topicId)?.parentId ?? null)
+        ? (byId.get(node.workstreamId)?.parentId ?? null)
         : null;
-    const own = node.lists ? (sectionsOf.get(node.topicId) ?? []) : [];
+    const own = node.lists ? (sectionsOf.get(node.workstreamId) ?? []) : [];
     for (const group of own) used.add(group.id);
-    const stray = (strays.get(node.topicId) ?? []).map((group) => {
+    const stray = (strays.get(node.workstreamId) ?? []).map((group) => {
       used.add(group.id);
-      const topicId = topics!.bindings[group.id]!;
-      const ownTopic = topicId === node.topicId;
+      const workstreamId = tree!.bindings[group.id]!;
+      const ownWorkstream = workstreamId === node.workstreamId;
       return leaf(
         group,
-        topicId,
-        ownTopic ? label : relative(topicId, node.topicId),
-        ownTopic ? parentTopicId : null,
+        workstreamId,
+        ownWorkstream ? label : relative(workstreamId, node.workstreamId),
+        ownWorkstream ? parentWorkstreamId : null,
       );
     });
     const children = [
@@ -277,36 +282,37 @@ export function nestGroups<T extends WorkstreamThread>(
         .filter((child): child is WorkstreamNode<T> => child !== null),
       ...stray,
     ].sort((a, b) => first(a) - first(b));
-    // A second section bound to the same topic nests as its sibling, not
+    // A second section bound to the same workstream nests as its sibling, not
     // its replacement, so none of its threads disappear.
     const [section, ...extra] = own;
-    const subgroups = [
-      ...extra.map((group) => leaf(group, node.topicId, label, parentTopicId)),
+    const workstreams = [
+      ...extra.map((group) =>
+        leaf(group, node.workstreamId, label, parentWorkstreamId),
+      ),
       ...children,
     ];
-    if (!section && subgroups.length === 0) return null;
+    if (!section && workstreams.length === 0) return null;
     return {
-      id: section?.id ?? sharedTopicId(node.topicId),
-      name: section?.name ?? pathName(node.topicId),
+      id: section?.id ?? sharedWorkstreamId(node.workstreamId),
+      name: section?.name ?? pathName(node.workstreamId),
       rows: section?.rows ?? [],
       total:
         (section?.total ?? 0) +
-        subgroups.reduce((sum, sub) => sum + sub.total, 0),
+        workstreams.reduce((sum, sub) => sum + sub.total, 0),
       needsYou:
         (section?.needsYou ?? 0) +
-        subgroups.reduce((sum, sub) => sum + sub.needsYou, 0),
+        workstreams.reduce((sum, sub) => sum + sub.needsYou, 0),
       lastActiveAt: Math.max(
         section?.lastActiveAt ?? 0,
-        ...subgroups.map((sub) => sub.lastActiveAt),
+        ...workstreams.map((sub) => sub.lastActiveAt),
       ),
-      prioritized:
-        (section?.prioritized ?? false) ||
-        subgroups.some((sub) => sub.prioritized),
-      topicId: node.topicId,
+      focused:
+        (section?.focused ?? false) || workstreams.some((sub) => sub.focused),
+      workstreamId: node.workstreamId,
       label,
-      parentTopicId,
+      parentWorkstreamId,
       hasSection: section !== undefined,
-      subgroups,
+      workstreams,
       sectionIds: [
         ...own.map((group) => group.id),
         ...children.flatMap((child) => child.sectionIds),
@@ -314,7 +320,7 @@ export function nestGroups<T extends WorkstreamThread>(
     };
   };
 
-  const nested = (topics?.layout ?? [])
+  const nested = (tree?.layout ?? [])
     .map(build)
     .filter((node): node is WorkstreamNode<T> => node !== null);
   const alone = groups
@@ -322,15 +328,17 @@ export function nestGroups<T extends WorkstreamThread>(
     .map((group) =>
       leaf(
         group,
-        topics?.bindings[group.id] && byId.has(topics.bindings[group.id]!)
-          ? topics.bindings[group.id]!
+        tree?.bindings[group.id] && byId.has(tree.bindings[group.id]!)
+          ? tree.bindings[group.id]!
           : null,
       ),
     );
   const withCategories = (node: WorkstreamNode<T>): WorkstreamNode<T> => ({
     ...node,
-    categories: node.topicId ? topics?.categories?.[node.topicId] : undefined,
-    subgroups: node.subgroups.map(withCategories),
+    categories: node.workstreamId
+      ? tree?.categories?.[node.workstreamId]
+      : undefined,
+    workstreams: node.workstreams.map(withCategories),
   });
   return [...nested, ...alone]
     .sort((a, b) => first(a) - first(b))
@@ -339,23 +347,23 @@ export function nestGroups<T extends WorkstreamThread>(
 
 /**
  * The threads that snoozing a workstream row snoozes: the root of every
- * thread tree the row lists, its subgroups' included, whether or not the row
+ * thread tree the row lists, its workstreams' included, whether or not the row
  * or its trees are collapsed. A snoozed root takes its child threads along
  * (see `projectWorkstreams`), so every thread the row counts leaves it, and
  * each tree wakes whole, just as if each root had been snoozed by itself.
  */
 export function groupRoots<T extends WorkstreamThread>(
-  group: Group<T> & { readonly subgroups?: readonly WorkstreamNode<T>[] },
+  group: Group<T> & { readonly workstreams?: readonly WorkstreamNode<T>[] },
 ): T[] {
   return [
     ...group.rows.filter((row) => row.depth === 0).map((row) => row.thread),
-    ...(group.subgroups ?? []).flatMap((sub) => groupRoots(sub)),
+    ...(group.workstreams ?? []).flatMap((sub) => groupRoots(sub)),
   ];
 }
 
 /**
  * The workstream groups split into the lists the sidebar draws them in, with
- * Unfiled and the counts for the groups hidden behind the lower toggle.
+ * Other and the counts for the groups hidden behind the lower toggle.
  */
 export type GroupArrangement<T extends WorkstreamThread> = {
   /** Focused workstreams, which pin below Up Next. */
@@ -365,27 +373,27 @@ export type GroupArrangement<T extends WorkstreamThread> = {
   /** Workstreams with no recent activity, in the projection's order. */
   readonly dormant: readonly WorkstreamNode<T>[];
   /** The virtual group of threads in no workstream. */
-  readonly unfiled: WorkstreamNode<T>;
+  readonly other: WorkstreamNode<T>;
   /** Some workstream is focused, so the rest hide behind a toggle. */
   readonly tiered: boolean;
   /** There is anything below the focused groups to reveal. */
   readonly hasLower: boolean;
-  /** Counts on the hidden groups' headers, including Unfiled and Dormant. */
+  /** Counts on the hidden groups' headers, including Other and Dormant. */
   readonly lowerCounts: { readonly needsYou: number; readonly total: number };
 };
 
 /**
  * The sections whose threads count as focused (see `selectUpNext`): every
  * section in a top-level group that holds a focused one, so focusing a group
- * covers its subgroups.
+ * covers its workstreams.
  */
 export function focusedSections<T extends WorkstreamThread>(
   arrangement: GroupArrangement<T>,
-  prioritized: ReadonlySet<string>,
+  focused: ReadonlySet<string>,
 ): Set<string> {
   return new Set(
     [...arrangement.pinned, ...arrangement.populated, ...arrangement.dormant]
-      .filter((node) => node.sectionIds.some((id) => prioritized.has(id)))
+      .filter((node) => node.sectionIds.some((id) => focused.has(id)))
       .flatMap((node) => node.sectionIds),
   );
 }
@@ -393,7 +401,7 @@ export function focusedSections<T extends WorkstreamThread>(
 export function arrangeGroups<T extends WorkstreamThread>(
   projection: Projection<T>,
   sort: GroupSort,
-  topics?: WorkstreamTopics,
+  tree?: WorkstreamTree,
 ): GroupArrangement<T> {
   // The projection decides dormancy per section from the clock; a nested
   // group is dormant only when nothing in it is still active.
@@ -402,9 +410,9 @@ export function arrangeGroups<T extends WorkstreamThread>(
   // never keep its own header or an ancestor's header on screen.
   const prune = (node: WorkstreamNode<T>): WorkstreamNode<T> => ({
     ...node,
-    subgroups: node.subgroups.filter((sub) => sub.total > 0).map(prune),
+    workstreams: node.workstreams.filter((sub) => sub.total > 0).map(prune),
   });
-  const nodes = nestGroups(projection.all, topics)
+  const nodes = nestGroups(projection.all, tree)
     .filter((node) => node.total > 0)
     .map(prune)
     .map(foldSmall);
@@ -412,14 +420,14 @@ export function arrangeGroups<T extends WorkstreamThread>(
   const otherNodes: WorkstreamNode<T>[] = [];
   const dormant: WorkstreamNode<T>[] = [];
   for (const node of nodes) {
-    if (node.prioritized) pinnedNodes.push(node);
+    if (node.focused) pinnedNodes.push(node);
     else if (!node.sectionIds.some((sectionId) => active.has(sectionId)))
       dormant.push(node);
     else otherNodes.push(node);
   }
   const pinned = sortTree(pinnedNodes, sort);
   const other = sortTree(otherNodes, sort);
-  const lowerCounts = [...other, ...dormant, projection.unsorted].reduce(
+  const lowerCounts = [...other, ...dormant, projection.other].reduce(
     (counts, group) => ({
       needsYou: counts.needsYou + group.needsYou,
       total: counts.total + group.total,
@@ -430,10 +438,10 @@ export function arrangeGroups<T extends WorkstreamThread>(
     pinned,
     populated: other,
     dormant: sortTree(dormant, "manual"),
-    unfiled: unfiledNode(projection.unsorted),
+    other: otherNode(projection.other),
     tiered: pinned.length > 0,
     lowerCounts,
     hasLower:
-      other.length > 0 || projection.unsorted.total > 0 || dormant.length > 0,
+      other.length > 0 || projection.other.total > 0 || dormant.length > 0,
   };
 }

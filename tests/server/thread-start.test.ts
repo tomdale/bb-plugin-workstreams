@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { makeMessageDispatchHookContext } from "@get-bb/plugin-sdk/testing";
 import type { PrefsPatch } from "../../src/domain/prefs.ts";
 import { fakeWorld, type FakeCompletion } from "./fake-bb.ts";
-import { TopicStore } from "../../src/server/topics.ts";
+import { WorkstreamStore } from "../../src/server/topics.ts";
 import { openDatabase } from "../../src/server/db.ts";
 
 /*
@@ -25,8 +25,8 @@ const REQUEST =
 const isOpening = (prompt: string) =>
   prompt.includes("You name one new agent thread from its opening request");
 /** Gives a thread a topic, so the start call has only its title to settle. */
-const topicked = (w: World, id: string) =>
-  new TopicStore(openDatabase(w.bb)).assign(id, null, {
+const workstreamked = (w: World, id: string) =>
+  new WorkstreamStore(openDatabase(w.bb)).assign(id, null, {
     provenance: "manual",
   });
 const openingCalls = (w: World) =>
@@ -45,7 +45,7 @@ const rpc = <T = unknown>(w: World, method: string, input: unknown) =>
   w.harness.behavior.callRpc(method, input) as Promise<T>;
 const retitles = async (w: World) =>
   (await rpc<{ entries: Entry[] }>(w, "journal", {})).entries.filter(
-    (e) => e.action === "retitle",
+    (e) => e.action === "title-updated",
   );
 const titleRecord = (w: World, id: string) =>
   w.bb.storage
@@ -77,7 +77,7 @@ function models(answers: {
 }): FakeCompletion {
   const calls = { opening: 0, analysis: 0 };
   return ({ prompt }) => {
-    if (prompt.includes("You maintain the topic tree"))
+    if (prompt.includes("You maintain the workstreams and groups"))
       return JSON.stringify({ edits: [] });
     const kind = isOpening(prompt) ? "opening" : "analysis";
     const list = answers[kind] ?? [null];
@@ -93,7 +93,7 @@ async function setup(complete: FakeCompletion, prefs?: PrefsPatch) {
 
 /** A thread whose first turn is starting, as BB shows it before any title. */
 function newThread(w: World, id = "t1", overrides = {}) {
-  topicked(w, id);
+  workstreamked(w, id);
   return w.addThread(id, {
     title: null,
     titleFallback: "Fix the stale build cache in the monorepo, it keeps serv…",
@@ -187,7 +187,7 @@ describe("naming a thread from its opening request", () => {
 
     const [entry] = await retitles(w);
     expect(entry).toMatchObject({
-      source: "auto",
+      source: "workstreams",
       rationale: "Titled from the opening request",
       threads: [{ id: "t1", name: "Fix stale build cache" }],
       undo: { kind: "retitle", from: null, to: "Fix stale build cache" },
@@ -211,7 +211,7 @@ describe("naming a thread from its opening request", () => {
       'Return {"title": {"verb": string, "subject": string}|null}',
     );
     // You set its topic, so naming it needs no topic tree.
-    expect(prompt).not.toContain("<topic_tree>");
+    expect(prompt).not.toContain("<workstream_tree>");
     expect(prompt).not.toContain("Last assistant");
     expect(prompt).not.toContain("Zebracorn");
     // BB re-runs the hook for a queued message, a retry, and a restart; the

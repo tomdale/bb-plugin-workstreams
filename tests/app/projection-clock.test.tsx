@@ -67,10 +67,10 @@ function state(): ServerState {
     analysis: {},
     recaps: {},
     dismissedRecaps: [],
-    order: { workstreams: [], threads: {}, prioritized: [] },
+    order: { workstreams: [], threads: {}, focused: [] },
     snoozes: {},
     snoozePrefs: DEFAULT_SNOOZE_PREFS,
-    catalog: { entities: [], groups: {}, assignments: {}, revision: 1 },
+    tree: { workstreams: [], groups: {}, assignments: {}, revision: 1 },
     pendingSuggestions: 0,
   };
 }

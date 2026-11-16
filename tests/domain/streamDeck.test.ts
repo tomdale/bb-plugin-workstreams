@@ -8,7 +8,7 @@ import { workstreamColorHex } from "../../src/domain/workstreamColor.ts";
 const thread = {
   id: "thr_1",
   title: "Choosing key layout",
-  workstream: { name: "Workstreams: Stream Deck", color: "#7fb4ff" },
+  workstream: { name: "Workstreams › Stream Deck", color: "#7fb4ff" },
   mark: "review",
   unread: false,
   onYou: true,

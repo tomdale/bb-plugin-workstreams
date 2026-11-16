@@ -2,14 +2,14 @@
  * What each surface tells a debug thread about the result the user clicked.
  * One builder per family keeps the wording of the brief in one place, so a
  * suggestion reads the same whether it was clicked in the sidebar or in
- * Topics.
+ * Workstreams.
  */
 import type { StoredAnalysis } from "../../domain/analysis.ts";
 import type { DebugSubject } from "../../domain/debug-thread.ts";
 import { workStateLabel } from "../../domain/presentation.ts";
 import { changeLines } from "../../domain/suggestion-change.ts";
 import type { TraceSummary } from "../../domain/trace.ts";
-import type { TopicAssignment } from "../../domain/topics.ts";
+import type { WorkstreamAssignment } from "../../domain/topics.ts";
 import type { Preview } from "../../server/preview.ts";
 import type { ProjectSuggestion } from "../../server/projectAssociations.ts";
 import type { SuggestionsStateWire } from "../../server/contract.ts";
@@ -32,7 +32,7 @@ const STATUS: Record<Suggestion["status"], string> = {
 };
 
 /**
- * An organizing suggestion, as the sidebar and Topics click it. `where` names
+ * An organizing suggestion, as the sidebar and Workstreams click it. `where` names
  * the list it was clicked in, since the same suggestion shows in both.
  */
 export function suggestionSubject(
@@ -77,7 +77,7 @@ export function draftSubject(decision: Preview, request: string): DebugSubject {
     surface: "The new-thread composer's routing preview",
     headline: decision.subject
       ? `New thread routed to ${decision.subject}`
-      : "New thread with no topic yet",
+      : "New thread with no workstream yet",
     facts: [
       { label: "Request", value: request },
       ...(decision.title
@@ -85,7 +85,7 @@ export function draftSubject(decision: Preview, request: string): DebugSubject {
         : []),
       {
         label: "Outcome",
-        value: `${decision.subject ?? "no topic yet"} · ${decision.confidence} confidence`,
+        value: `${decision.subject ?? "no workstream yet"} · ${decision.confidence} confidence`,
       },
       { label: "Reason the model gave", value: decision.reason || "none" },
       ...(decision.explanation?.notes.length
@@ -104,7 +104,7 @@ export function analysisSubject({
 }: {
   threadId: string;
   analysis: StoredAnalysis;
-  assignment?: TopicAssignment;
+  assignment?: WorkstreamAssignment;
 }): DebugSubject {
   return {
     surface: "A thread's Info tab and context card",
@@ -116,9 +116,9 @@ export function analysisSubject({
             {
               label: "Workstream",
               value:
-                assignment.status === "unresolved"
-                  ? "Unresolved"
-                  : `${assignment.label ?? "no topic yet"}${
+                assignment.status === "none"
+                  ? "No workstream"
+                  : `${assignment.label ?? "no workstream yet"}${
                       assignment.provenance
                         ? ` (${PROVENANCE[assignment.provenance] ?? assignment.provenance})`
                         : ""
@@ -126,8 +126,8 @@ export function analysisSubject({
             },
           ]
         : []),
-      ...(analysis.topicError
-        ? [{ label: "Topic error", value: analysis.topicError }]
+      ...(analysis.workstreamError
+        ? [{ label: "Workstream error", value: analysis.workstreamError }]
         : []),
       ...(analysis.title
         ? [{ label: "Settled title", value: analysis.title }]
@@ -208,15 +208,15 @@ export function modelCallSubject(trace: TraceSummary): DebugSubject {
   };
 }
 
-/** A project association Workstreams proposed for a topic. */
+/** A project association Workstreams proposed for a workstream. */
 export function projectSuggestionSubject(
   suggestion: ProjectSuggestion,
 ): DebugSubject {
   return {
-    surface: "Project associations in Topics",
-    headline: `${suggestion.topic}: ${suggestion.fromProject} → ${suggestion.toProject ?? "no project"}`,
+    surface: "Project associations in Organize",
+    headline: `${suggestion.workstream}: ${suggestion.fromProject} → ${suggestion.toProject ?? "no project"}`,
     facts: [
-      { label: "Workstream", value: suggestion.topic },
+      { label: "Workstream", value: suggestion.workstream },
       {
         label: "Change",
         value: `${suggestion.fromProject} → ${suggestion.toProject ?? "No project"}`,

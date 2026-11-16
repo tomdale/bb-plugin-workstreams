@@ -34,7 +34,7 @@ type ActivityItem = {
   subject: DebugSubject;
 };
 
-const FULL_ANALYSIS_OUTCOMES: Record<string, string> = {
+const TURN_END_OUTCOMES: Record<string, string> = {
   "needs-input": "needs input",
   blocked: "blocked",
   review: "ready for review",
@@ -47,8 +47,8 @@ function traceDetail(trace: TraceSummary): string {
   const summary = trace.summary?.split(" · ")[0];
   if (!summary) return trace.label;
   const outcome =
-    trace.kind === "full-analysis"
-      ? FULL_ANALYSIS_OUTCOMES[summary]
+    trace.kind === "turn-end"
+      ? TURN_END_OUTCOMES[summary]
       : undefined;
   return outcome ? `Work status: ${outcome}` : summary;
 }

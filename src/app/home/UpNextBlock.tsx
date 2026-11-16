@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import type { Row } from "../../domain/project.ts";
-import type { TopicColor } from "../../domain/workstreamColor.ts";
+import type { WorkstreamColor } from "../../domain/workstreamColor.ts";
 import type { ServerState, WorkView } from "../useWorkstreams.ts";
 import { hasStatusMark } from "../sidebar/presentation.ts";
 import { FocusIcon } from "../sidebar/FocusIcon.tsx";
@@ -49,7 +49,7 @@ export function UpNextBlock({
   recaps: ServerState["recaps"];
   workstreamOf: (row: Row<PluginSidebarThread>) => {
     name: string;
-    color: TopicColor;
+    color: WorkstreamColor;
   } | null;
   now: number;
   showAge: boolean;

@@ -22,7 +22,7 @@ function plan(threads: TestThread[], snoozed: string[] = []) {
   return planFeed(projection, {
     kindOf,
     now,
-    prioritized: new Set(),
+    focused: new Set(),
     groupSort: "alphabetical",
   });
 }
@@ -40,7 +40,7 @@ describe("planFeed", () => {
     const feed = planFeed(projection, {
       kindOf,
       now,
-      prioritized: new Set(),
+      focused: new Set(),
       groupSort: "alphabetical",
       fill: false,
     });
@@ -92,7 +92,7 @@ describe("planFeed", () => {
     const feed = planFeed(projection, {
       kindOf: kindOfIds,
       now,
-      prioritized: new Set(),
+      focused: new Set(),
       groupSort: "alphabetical",
     });
     // Up Next leaves it out; the page keeps it, last, for its status check.
@@ -132,8 +132,8 @@ describe("planFeed", () => {
     const feed = plan(threads);
     expect(feed.place.get("qa")).toEqual({ topId: "sec_a", path: ["Alpha"] });
     expect(feed.place.get("loose")).toEqual({
-      topId: "unsorted",
-      path: ["Unfiled"],
+      topId: "other",
+      path: ["Other"],
     });
     expect(feed.place.get("qb1")).toEqual({ topId: "sec_b", path: ["Beta"] });
   });

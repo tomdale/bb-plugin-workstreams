@@ -2,17 +2,17 @@ import { describe, expect, it } from "vitest";
 import { splitNow, type Split, type TreeState } from "../../src/domain/tidy.ts";
 
 const tree = (
-  threadTopic: Record<string, string | null>,
-  extra: TreeState["topics"] = [],
+  threadWorkstream: Record<string, string | null>,
+  extra: TreeState["workstreams"] = [],
 ): TreeState => ({
-  topics: [{ id: "auto", name: "Automations", parentId: null }, ...extra],
+  workstreams: [{ id: "auto", name: "Automations", parentId: null }, ...extra],
   held: {},
-  threadTopic,
+  threadWorkstream,
 });
 
 const split: Split = {
-  topicId: "auto",
-  subgroups: [
+  workstreamId: "auto",
+  workstreams: [
     { name: "PR Upkeep", description: "", threadIds: ["a1", "a2"] },
     { name: "Design", description: "", threadIds: ["a3", "a4"] },
   ],
@@ -31,7 +31,7 @@ describe("splitNow", () => {
       tree({ a1: "auto", a3: "auto", a4: "elsewhere" }),
     );
     expect(now.problem).toBeNull();
-    expect(now.split.subgroups.map((g) => [g.name, g.threadIds])).toEqual([
+    expect(now.split.workstreams.map((g) => [g.name, g.threadIds])).toEqual([
       ["PR Upkeep", ["a1"]],
       ["Design", ["a3"]],
     ]);
@@ -57,22 +57,22 @@ describe("splitNow", () => {
       moot: true,
     });
     expect(splitNow(split, tree({ a1: "auto", a2: "auto" }))).toMatchObject({
-      problem: "Only one of its subgroups still has threads.",
+      problem: "Only one of its workstreams still has threads.",
       moot: false,
     });
     expect(splitNow(split, tree({}, [])).problem).toBe(
       "None of its threads are in Automations anymore.",
     );
     expect(
-      splitNow({ ...split, topicId: "gone" }, tree({ a1: "auto" })).problem,
+      splitNow({ ...split, workstreamId: "gone" }, tree({ a1: "auto" })).problem,
     ).toBe("Its group is gone.");
   });
 
   it("lets a filing of threads beside subgroups go ahead with one subgroup, until none are left", () => {
     const repair: Split = {
-      topicId: "auto",
+      workstreamId: "auto",
       repair: true,
-      subgroups: [
+      workstreams: [
         { name: "Alerts", description: "", threadIds: ["a1"] },
         { name: "Design", description: "", threadIds: ["a2"] },
       ],
@@ -80,9 +80,9 @@ describe("splitNow", () => {
     const alerts = [{ id: "alerts", name: "Alerts", parentId: "auto" }];
     const now = splitNow(repair, tree({ a1: "auto", a2: "x" }, alerts));
     expect(now.problem).toBeNull();
-    expect(now.split.subgroups.map((g) => g.name)).toEqual(["Alerts"]);
+    expect(now.split.workstreams.map((g) => g.name)).toEqual(["Alerts"]);
     expect(splitNow(repair, tree({ a1: "x" }, alerts)).problem).toBe(
-      "Automations no longer holds threads beside its subgroups.",
+      "Automations no longer holds threads beside its workstreams.",
     );
   });
 });

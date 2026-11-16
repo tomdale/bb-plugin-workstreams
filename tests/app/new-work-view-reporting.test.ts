@@ -20,7 +20,7 @@ const preview: Preview = {
   confidence: "high",
   reason: "Fits feature",
   subject: "Export",
-  subjectId: null,
+  workstreamId: null,
   proposal: automaticProposal,
   title: "Export billing data",
   traceId: "trace_1",
@@ -75,8 +75,8 @@ describe("NewWork view store", () => {
     const viewListener = vi.fn();
     newWork.subscribeView(viewListener);
 
-    newWork.selectIdentity({ entityId: "ent_billing", label: "Billing" });
-    expect(newWork.viewSnapshot().identity?.entityId).toBe("ent_billing");
+    newWork.selectIdentity({ workstreamId: "ent_billing", label: "Billing" });
+    expect(newWork.viewSnapshot().identity?.workstreamId).toBe("ent_billing");
     expect(viewListener).toHaveBeenCalledTimes(1);
 
     newWork.reportError(new Error("First failure"));
@@ -143,13 +143,13 @@ describe("NewWork canonical identity reports", () => {
     newWork.observe("First draft");
     newWork.observe("Revised draft");
     newWork.observeSelection({ projectId: "proj_1", providerId: "openai" });
-    newWork.selectIdentity({ entityId: "ent_billing", label: "Billing" });
+    newWork.selectIdentity({ workstreamId: "ent_billing", label: "Billing" });
 
     await nextMicrotask();
     expect(reportIdentity).toHaveBeenCalledExactlyOnceWith({
       text: "Revised draft",
       identity: {
-        entityId: "ent_billing",
+        workstreamId: "ent_billing",
         proposal: null,
         provenance: "manual",
       },
@@ -266,19 +266,19 @@ describe("NewWork canonical identity reports", () => {
       reportIdentity.mock.calls.map(([report]) => report.identity),
     ).toEqual([
       {
-        entityId: null,
+        workstreamId: null,
         proposal: manualProposal,
         provenance: "manual",
       },
       {
-        entityId: null,
+        workstreamId: null,
         proposal: null,
         provenance: "inherited",
         sectionId: "sec_docs",
       },
       // The preview answered other text, so its title isn't sent.
       {
-        entityId: null,
+        workstreamId: null,
         proposal: automaticProposal,
         provenance: "automatic",
       },
@@ -287,7 +287,7 @@ describe("NewWork canonical identity reports", () => {
 
   it("sends a preview's title only with the text it answered", () => {
     const identity = {
-      entityId: null,
+      workstreamId: null,
       proposal: automaticProposal,
       label: "Export",
       provenance: "automatic" as const,
@@ -296,7 +296,7 @@ describe("NewWork canonical identity reports", () => {
     expect(
       submittedIdentity({ identity, decision, text: " Export billing data " }),
     ).toEqual({
-      entityId: null,
+      workstreamId: null,
       proposal: automaticProposal,
       provenance: "automatic",
       title: "Export billing data",
@@ -305,7 +305,7 @@ describe("NewWork canonical identity reports", () => {
     expect(
       submittedIdentity({ identity, decision, text: "Export billing data!" }),
     ).toEqual({
-      entityId: null,
+      workstreamId: null,
       proposal: automaticProposal,
       provenance: "automatic",
     });

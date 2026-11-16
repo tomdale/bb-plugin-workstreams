@@ -11,9 +11,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { RpcContract } from "../../server/contract.ts";
-import type { Topic } from "../../domain/topics.ts";
-import { topicAncestors } from "../../domain/topics.ts";
-import { topicPath } from "../../domain/topic-path.ts";
+import type { Workstream } from "../../domain/topics.ts";
+import { workstreamAncestors } from "../../domain/topics.ts";
+import { workstreamPath } from "../../domain/topic-path.ts";
 import { SelectField } from "../SelectField.tsx";
 
 /** A dialog field's select, as tall as its inputs. */
@@ -21,15 +21,15 @@ const dialogSelectClass = "mt-1 h-8 text-xs";
 
 type Rpc = ReturnType<typeof useRpc<RpcContract>>;
 
-export function CreateEntityDialog({
+export function CreateWorkstreamDialog({
   parentId: initialParentId,
-  entities,
+  workstreams,
   rpc,
   onSuccess,
   onClose,
 }: {
   parentId: string | null;
-  entities: readonly Topic[];
+  workstreams: readonly Workstream[];
   rpc: Rpc;
   onSuccess: () => void;
   onClose: () => void;
@@ -42,13 +42,13 @@ export function CreateEntityDialog({
   const [busy, setBusy] = useState(false);
   const parentOptions = useMemo(
     () => [
-      { value: "", label: "None (top level)" },
-      ...entities.map((e) => ({
+      { value: "", label: "No group" },
+      ...workstreams.map((e) => ({
         value: e.id,
-        label: topicPath(e.id, entities).replace(/: /g, " › "),
+        label: workstreamPath(e.id, workstreams),
       })),
     ],
-    [entities],
+    [workstreams],
   );
 
   const handleSubmit = async (e: FormEvent) => {
@@ -63,7 +63,7 @@ export function CreateEntityDialog({
         .filter(Boolean);
       if (aliases.some((alias) => alias.length > 80))
         throw new Error("Keep each alias to 80 characters or fewer.");
-      await rpc.call("catalogCreate", {
+      await rpc.call("workstreamCreate", {
         name: name.trim(),
         description: description.trim(),
         parentId,
@@ -72,7 +72,7 @@ export function CreateEntityDialog({
       onSuccess();
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Couldn't create the topic.",
+        err instanceof Error ? err.message : "Couldn't create the workstream.",
       );
       setBusy(false);
     }
@@ -84,10 +84,10 @@ export function CreateEntityDialog({
         <form onSubmit={handleSubmit} className="space-y-3">
           <DialogHeader>
             <DialogTitle>
-              {initialParentId ? "New subtopic" : "New topic"}
+              New workstream
             </DialogTitle>
             <DialogDescription>
-              Workstreams can classify threads into this topic right away.
+              Workstreams can move threads into it right away.
             </DialogDescription>
           </DialogHeader>
 
@@ -118,10 +118,10 @@ export function CreateEntityDialog({
 
           <div>
             <label className="text-xs font-medium text-foreground">
-              Parent topic
+              Group
             </label>
             <SelectField
-              label="Parent topic"
+              label="Group"
               value={parentId ?? ""}
               options={parentOptions}
               onChange={(next) => setParentId(next || null)}
@@ -136,7 +136,7 @@ export function CreateEntityDialog({
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="What work belongs in this topic?"
+              placeholder="What belongs here"
               maxLength={1000}
               rows={2}
               aria-label="Description"
@@ -177,15 +177,15 @@ export function CreateEntityDialog({
   );
 }
 
-export function MergeEntityDialog({
-  entity,
-  entities,
+export function MergeWorkstreamDialog({
+  workstream,
+  workstreams,
   rpc,
   onSuccess,
   onClose,
 }: {
-  entity: Topic;
-  entities: readonly Topic[];
+  workstream: Workstream;
+  workstreams: readonly Workstream[];
   rpc: Rpc;
   onSuccess: () => void;
   onClose: () => void;
@@ -196,11 +196,11 @@ export function MergeEntityDialog({
 
   // Exclude self and any descendants
   const invalid = useMemo(() => {
-    const invalid = new Set<string>([entity.id]);
-    for (const other of entities) {
+    const invalid = new Set<string>([workstream.id]);
+    for (const other of workstreams) {
       try {
-        const ancestors = topicAncestors(other.id, entities);
-        if (ancestors.includes(entity.id)) {
+        const ancestors = workstreamAncestors(other.id, workstreams);
+        if (ancestors.includes(workstream.id)) {
           invalid.add(other.id);
         }
       } catch {
@@ -208,18 +208,18 @@ export function MergeEntityDialog({
       }
     }
     return invalid;
-  }, [entity.id, entities]);
+  }, [workstream.id, workstreams]);
   const validTargets = useMemo(
-    () => entities.filter((e) => !invalid.has(e.id)),
-    [entities, invalid],
+    () => workstreams.filter((e) => !invalid.has(e.id)),
+    [workstreams, invalid],
   );
   const targetOptions = useMemo(
     () =>
       validTargets.map((e) => ({
         value: e.id,
-        label: topicPath(e.id, entities).replace(/: /g, " › "),
+        label: workstreamPath(e.id, workstreams),
       })),
-    [entities, validTargets],
+    [workstreams, validTargets],
   );
 
   const handleSubmit = async (e: FormEvent) => {
@@ -228,14 +228,14 @@ export function MergeEntityDialog({
     setBusy(true);
     setError(null);
     try {
-      await rpc.call("catalogMerge", {
-        sourceEntityId: entity.id,
-        targetEntityId: targetId,
+      await rpc.call("workstreamMerge", {
+        sourceWorkstreamId: workstream.id,
+        targetWorkstreamId: targetId,
       });
       onSuccess();
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Couldn't merge the topics.",
+        err instanceof Error ? err.message : "Couldn't merge the workstreams.",
       );
       setBusy(false);
     }
@@ -246,11 +246,11 @@ export function MergeEntityDialog({
       <DialogContent className="max-w-md">
         <form onSubmit={handleSubmit} className="space-y-3">
           <DialogHeader>
-            <DialogTitle>Merge topic</DialogTitle>
+            <DialogTitle>Merge workstream</DialogTitle>
             <DialogDescription>
-              Merge &ldquo;{entity.name}&rdquo; into another topic. Its threads
-              and subtopics move to that topic, and &ldquo;{entity.name}&rdquo;
-              is deleted.
+              Merge &ldquo;{workstream.name}&rdquo; into another workstream or
+              group. Its threads and workstreams move there, and &ldquo;
+              {workstream.name}&rdquo; is deleted.
             </DialogDescription>
           </DialogHeader>
 
@@ -270,7 +270,7 @@ export function MergeEntityDialog({
             <SelectField
               label="Merge into *"
               value={targetId}
-              placeholder="Choose a topic…"
+              placeholder="Choose a workstream…"
               options={targetOptions}
               onChange={setTargetId}
               className={dialogSelectClass}

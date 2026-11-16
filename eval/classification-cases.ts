@@ -1,19 +1,19 @@
-import type { Entity } from "../src/domain/classify.ts";
-import type { PlacementInput } from "../src/domain/placement.ts";
+import type { Workstream } from "../src/domain/classify.ts";
+import type { WorkstreamChoiceInput } from "../src/domain/placement.ts";
 
 /** One classification case's evidence, as Full analysis is shown it. */
 export type ClassifyInput = {
   /** The thread's title and summary, standing in for its latest reply. */
   prompt: string;
-  entities: Entity[];
+  workstreams: Workstream[];
   project?: string | null;
   requests?: string[];
-  placement?: Pick<
-    PlacementInput,
+  choice?: Pick<
+    WorkstreamChoiceInput,
     "title" | "checkout" | "hints" | "current" | "digest"
   >;
 };
-export const entities = [
+export const workstreams = [
   {
     id: "platform",
     name: "Harbor",
@@ -223,7 +223,7 @@ const base: Case[] = [
     prompt: title!,
     project: "Coordination",
     requests: [request!],
-    entities,
+    workstreams,
   },
 }));
 
@@ -241,8 +241,8 @@ const lookalike = (spec: {
   pane: [name: string, description: string];
   plugin?: [name: string, description: string];
 }): Case => {
-  const tree: Entity[] = [
-    ...entities,
+  const tree: Workstream[] = [
+    ...workstreams,
     {
       id: "app",
       name: spec.app[0],
@@ -278,7 +278,7 @@ const lookalike = (spec: {
       prompt: spec.title,
       project: "Coordination",
       requests: [spec.request],
-      entities: tree,
+      workstreams: tree,
     },
   };
 };
@@ -325,11 +325,11 @@ const specific = (
   id: string,
   title: string,
   request: string,
-  expected: { topic: string } | { inside: string },
+  expected: { workstream: string } | { inside: string },
 ): Case => ({
   id,
-  ...("topic" in expected
-    ? { expected: expected.topic }
+  ...("workstream" in expected
+    ? { expected: expected.workstream }
     : {
         expected: null,
         expectNew: { inside: expected.inside },
@@ -339,11 +339,11 @@ const specific = (
     prompt: title,
     project: "Coordination",
     requests: [request],
-    entities,
+    workstreams,
   },
 });
 
-const broadProduct: Entity[] = [
+const broadProduct: Workstream[] = [
   {
     id: "broad",
     name: "Harbor",
@@ -363,7 +363,7 @@ export const cases: Case[] = [
     expectNew: { inside: "broad" },
     input: {
       prompt: "Enterprise sign-in",
-      entities: broadProduct,
+      workstreams: broadProduct,
       requests: [
         "Implement single sign-on for Harbor's access control capability. This is the access control area, not work across the platform.",
       ],
@@ -375,7 +375,7 @@ export const cases: Case[] = [
     expected: "broad",
     input: {
       prompt: "Platform roadmap",
-      entities: broadProduct,
+      workstreams: broadProduct,
       requests: [
         "Plan Harbor's overall roadmap across billing, access control, and deployments. The deliverable is the direction of the product as a whole.",
       ],
@@ -387,7 +387,7 @@ export const cases: Case[] = [
     expected: "relay",
     input: {
       prompt: "Fixing routing cache",
-      entities: [
+      workstreams: [
         {
           id: "relay",
           name: "Relay",
@@ -407,16 +407,16 @@ export const cases: Case[] = [
     scopeShift: true,
     input: {
       prompt: "Building provider routing",
-      entities,
+      workstreams,
       project: "Harbor",
       requests: [
         "Fix Loom question answers rendering as raw JSON. The question card is the deliverable, not Harbor provider routing.",
       ],
-      placement: {
+      choice: {
         title: "Building provider routing",
         checkout: "/work/harbor/providers",
         hints: ["Continues work filed under Harbor: Providers."],
-        current: { label: "Harbor: Providers", inherited: true },
+        current: { label: "Harbor › Providers", inherited: true },
       },
     },
   },
@@ -426,16 +426,16 @@ export const cases: Case[] = [
     scopeShift: false,
     input: {
       prompt: "Shipping plugin build",
-      entities,
+      workstreams,
       requests: [
         "Diagnosis: Harbor core provider routing sends the wrong provider ID. Fix core routing.",
         "Build and submit the follow-up issue for the diagnosed defect; the affected Loom plugin is a consumer.",
       ],
-      placement: {
+      choice: {
         title: "Shipping Loom plugin",
         checkout: "/work/loom",
         hints: ["Checkout normally contains Loom Recaps work."],
-        current: { label: "Harbor: Providers", inherited: true },
+        current: { label: "Harbor › Providers", inherited: true },
       },
     },
   },
@@ -447,17 +447,17 @@ export const cases: Case[] = [
     scopeShift: false,
     input: {
       prompt: "Evaluating recap rename guidance",
-      entities,
+      workstreams,
       project: "Harbor",
       requests: [
         "Evaluate and improve the recap rename suggestions across models using realistic test cases.",
         "Compare the Terra and Sol suggestions and assess which changes are genuinely useful.",
       ],
-      placement: {
+      choice: {
         title: "Evaluating recap rename guidance",
         checkout: "/work/harbor",
         hints: [],
-        current: { label: "Loom: Recaps", inherited: false },
+        current: { label: "Loom › Recaps", inherited: false },
         digest:
           "The thread evaluates the Loom plugin's recap title and rename suggestions, comparing model outputs against realistic thread catalogs.",
       },
@@ -467,19 +467,19 @@ export const cases: Case[] = [
     "specific-new",
     "Automation run history",
     "Add a run history view to Beacon automations where users browse past runs, what triggered them, and their results.",
-    { topic: "jobs" },
+    { workstream: "jobs" },
   ),
   specific(
     "specific-whole",
     "Automations MVP",
     "Write the MVP design for Beacon automations: which triggers, actions, and limits ship first.",
-    { topic: "jobs" },
+    { workstream: "jobs" },
   ),
   specific(
     "specific-task",
     "Fix PR 482 checks",
     "Fix the failing lint check on Beacon automations PR 482.",
-    { topic: "jobs" },
+    { workstream: "jobs" },
   ),
   specific(
     "specific-product-new",

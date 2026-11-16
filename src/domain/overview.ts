@@ -1,5 +1,5 @@
 /**
- * A workstream's Overview: one row for each root thread the workstream lists,
+ * A workstream's Overview: one row for each thread the workstream lists,
  * with its status, a one-line summary, and what comes next. Every field comes
  * from the thread's stored recap and analysis, so the Overview asks no model.
  * Pure, so the page and tests share one definition.

@@ -1,7 +1,7 @@
 import { type ReactNode } from "react";
 import { type PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { type WorkstreamNode } from "../../domain/groups.ts";
-import { type Placement, type RowEntry } from "./rows.ts";
+import { type RowLocation, type RowEntry } from "./rows.ts";
 import { type DragHandle } from "./dnd.tsx";
 import { type SnoozePrefs, type SnoozeWhen } from "../../domain/snooze.ts";
 
@@ -10,7 +10,7 @@ export type { ThreadRow } from "./rows.ts";
 /** Types the sidebar thread list shares across its parts. */
 export type ThreadNode = WorkstreamNode<PluginSidebarThread>;
 export type RowRenderOptions = {
-  placement: Placement;
+  placement: RowLocation;
   /** The drag handle, for a root row that drags its tree. */
   handle?: DragHandle;
   /** The width its rows reserve for the status slot (see `slotWidthOf`). */

@@ -7,8 +7,8 @@
  */
 import { afterEach, describe, expect, it } from "vitest";
 import { makeMessageDispatchHookContext } from "@get-bb/plugin-sdk/testing";
-import { choosesTopic, fakeWorld, isStart } from "./fake-bb.ts";
-import { TopicStore } from "../../src/server/topics.ts";
+import { choosesWorkstream, fakeWorld, isStart } from "./fake-bb.ts";
+import { WorkstreamStore } from "../../src/server/topics.ts";
 import { openDatabase } from "../../src/server/db.ts";
 
 type World = Awaited<ReturnType<typeof fakeWorld>>;
@@ -21,7 +21,7 @@ afterEach(async () => {
 const isQuick = (prompt: string) =>
   prompt.includes("You name one new agent thread");
 const isPlacement = (prompt: string) =>
-  prompt.includes("You file one agent thread under a topic");
+  prompt.includes("You choose the workstream for one agent thread");
 const startCalls = (w: World) => w.completions.filter((c) => isStart(c.prompt));
 
 /**
@@ -29,30 +29,30 @@ const startCalls = (w: World) => w.completions.filter((c) => isStart(c.prompt));
  * test asks for its answer, it fails, so the starting topic stands.
  */
 async function setup(placed?: () => string | null) {
-  let topicId = "";
+  let workstreamId = "";
   world = await fakeWorld({
     // The fake asks a start's topic as a placement prompt.
     complete: ({ prompt }) =>
       isPlacement(prompt)
         ? placed
-          ? JSON.stringify({ subjectId: placed(), proposed: null })
+          ? JSON.stringify({ workstreamId: placed(), proposed: null })
           : "not json"
         : isQuick(prompt)
           ? JSON.stringify({
               title: "Parser tab handling",
-              subjectId: topicId,
+              workstreamId: workstreamId,
               proposed: null,
             })
           : JSON.stringify({ recap: "r", state: "needs-input" }),
   });
   const w = world;
-  const corpus = new TopicStore(openDatabase(w.bb));
-  const parser = corpus.create("Parser", "Parser product");
-  const docs = corpus.create("Docs", "Docs product");
+  const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
+  const parser = workstreamStore.create("Parser", "Parser product");
+  const docs = workstreamStore.create("Docs", "Docs product");
   // A workstream's threads start in its project.
-  corpus.edit(parser.id, { projectId: "proj_1", projectSource: "manual" });
-  corpus.edit(docs.id, { projectId: "proj_1", projectSource: "manual" });
-  topicId = parser.id;
+  workstreamStore.edit(parser.id, { projectId: "proj_1", projectSource: "manual" });
+  workstreamStore.edit(docs.id, { projectId: "proj_1", projectSource: "manual" });
+  workstreamId = parser.id;
   const hook = w.harness.registrations.hooks["message.dispatch"]!;
   const dispatch = async (
     threadId: string,
@@ -78,35 +78,35 @@ async function setup(placed?: () => string | null) {
   };
   const settle = () => new Promise((resolve) => setTimeout(resolve, 40));
   const quickCalls = () => w.completions.filter((c) => isQuick(c.prompt));
-  return { w, corpus, parser, docs, dispatch, settle, quickCalls };
+  return { w, workstreamStore: workstreamStore, parser, docs, dispatch, settle, quickCalls };
 }
 
 describe("a new root's first topic", () => {
   it("is settled by the start call on the first request", async () => {
     let docsId = "";
-    const { w, corpus, docs, dispatch, settle } = await setup(() => docsId);
+    const { w, workstreamStore: workstreamStore, docs, dispatch, settle } = await setup(() => docsId);
     docsId = docs.id;
     await dispatch("t1", "Make the parser handle tabs");
     await settle();
     expect(
-      w.completions.filter((c) => choosesTopic(c.prompt)).map((c) => c.prompt),
+      w.completions.filter((c) => choosesWorkstream(c.prompt)).map((c) => c.prompt),
     ).toEqual([expect.stringContaining("Make the parser handle tabs")]);
-    expect(corpus.assignment("t1")).toMatchObject({
-      entityId: docs.id,
-      provenance: "full",
+    expect(workstreamStore.assignment("t1")).toMatchObject({
+      workstreamId: docs.id,
+      provenance: "automatic",
     });
   });
 
   it("weighs the workstream it was started from when that topic has subtopics", async () => {
-    const { w, corpus, parser, dispatch, settle } = await setup(() => null);
-    corpus.create("Tabs", "Tab handling", parser.id);
+    const { w, workstreamStore: workstreamStore, parser, dispatch, settle } = await setup(() => null);
+    workstreamStore.create("Tabs", "Tab handling", parser.id);
     const section = w.addSection("Parser");
-    corpus.bindGroup(section.id, parser.id);
+    workstreamStore.bindGroup(section.id, parser.id);
     await w.harness.behavior.callRpc("draftIdentity", {
       draftKey: "d1",
       text: "Make the parser handle tabs",
       identity: {
-        entityId: null,
+        workstreamId: null,
         proposal: null,
         provenance: "inherited",
         sectionId: section.id,
@@ -114,36 +114,36 @@ describe("a new root's first topic", () => {
     });
     await dispatch("t1", "Make the parser handle tabs");
     await settle();
-    const prompt = w.completions.find((c) => choosesTopic(c.prompt))!.prompt;
+    const prompt = w.completions.find((c) => choosesWorkstream(c.prompt))!.prompt;
     expect(prompt).toContain("It was started from the Parser workstream.");
     expect(prompt).toContain("Tabs — Tab handling");
-    expect(corpus.assignment("t1").entityId).not.toBe(parser.id);
+    expect(workstreamStore.assignment("t1").workstreamId).not.toBe(parser.id);
   });
 
   it("comes from one start call that also titles it", async () => {
     let parserId = "";
-    const { w, corpus, parser, dispatch, settle } = await setup(() => parserId);
+    const { w, workstreamStore: workstreamStore, parser, dispatch, settle } = await setup(() => parserId);
     parserId = parser.id;
     await dispatch("t1", "Make the parser handle tabs");
     await settle();
     expect(startCalls(w)).toHaveLength(1);
     expect(startCalls(w)[0]!.prompt).toContain("Make the parser handle tabs");
-    expect(startCalls(w)[0]!.prompt).toContain("<topic_tree>");
-    expect(corpus.assignment("t1")).toMatchObject({
-      entityId: parser.id,
-      provenance: "full",
+    expect(startCalls(w)[0]!.prompt).toContain("<workstream_tree>");
+    expect(workstreamStore.assignment("t1")).toMatchObject({
+      workstreamId: parser.id,
+      provenance: "automatic",
     });
     // The title leaves out the name of the topic the same answer chose.
     expect(w.threads.get("t1")?.title).toBe("Tab handling");
   });
 
   it("is the composer's preview of exactly the text sent, with no second call", async () => {
-    const { w, corpus, docs, dispatch, settle } = await setup();
+    const { w, workstreamStore: workstreamStore, docs, dispatch, settle } = await setup();
     await w.harness.behavior.callRpc("draftIdentity", {
       draftKey: "d1",
       text: "Write the docs",
       identity: {
-        entityId: docs.id,
+        workstreamId: docs.id,
         proposal: null,
         provenance: "automatic",
         title: "Docs for tabs",
@@ -154,44 +154,44 @@ describe("a new root's first topic", () => {
     await settle();
     expect(startCalls(w)).toHaveLength(0);
     // The preview was the thread's start, so its topic is settled.
-    expect(corpus.assignment("t1")).toMatchObject({
-      entityId: docs.id,
-      provenance: "full",
+    expect(workstreamStore.assignment("t1")).toMatchObject({
+      workstreamId: docs.id,
+      provenance: "automatic",
     });
-    expect(corpus.basis("t1")).toBeTruthy();
+    expect(workstreamStore.basis("t1")).toBeTruthy();
     expect(w.threads.get("t1")?.title).toBe("Docs for tabs");
   });
 
   it("files by a preview of earlier text until the start call answers the text sent", async () => {
-    const { w, corpus, docs, dispatch, settle } = await setup();
+    const { w, workstreamStore: workstreamStore, docs, dispatch, settle } = await setup();
     await w.harness.behavior.callRpc("draftIdentity", {
       draftKey: "d1",
       text: "Write the docs",
-      identity: { entityId: docs.id, proposal: null, provenance: "automatic" },
+      identity: { workstreamId: docs.id, proposal: null, provenance: "automatic" },
     });
     await dispatch("t1", "Write the docs");
     await settle();
     // The start call asks title and topic; here the topic part fails, so the
     // preview's topic stands.
     expect(startCalls(w)).toHaveLength(1);
-    expect(startCalls(w)[0]!.prompt).toContain("<topic_tree>");
-    expect(corpus.assignment("t1")).toMatchObject({
-      entityId: docs.id,
-      provenance: "quick",
+    expect(startCalls(w)[0]!.prompt).toContain("<workstream_tree>");
+    expect(workstreamStore.assignment("t1")).toMatchObject({
+      workstreamId: docs.id,
+      provenance: "composer",
     });
   });
 
   it("is the topic you picked, which the start call never replaces", async () => {
-    const { w, corpus, docs, dispatch, settle } = await setup();
+    const { w, workstreamStore: workstreamStore, docs, dispatch, settle } = await setup();
     await w.harness.behavior.callRpc("draftIdentity", {
       draftKey: "d1",
       text: "Make the parser handle tabs",
-      identity: { entityId: docs.id, proposal: null, provenance: "manual" },
+      identity: { workstreamId: docs.id, proposal: null, provenance: "manual" },
     });
     await dispatch("t1", "Make the parser handle tabs");
     await settle();
-    expect(corpus.assignment("t1")).toMatchObject({
-      entityId: docs.id,
+    expect(workstreamStore.assignment("t1")).toMatchObject({
+      workstreamId: docs.id,
       provenance: "manual",
     });
     // The start call still titles it.
@@ -199,49 +199,49 @@ describe("a new root's first topic", () => {
   });
 
   it("is the topic you picked even in a project other than its workstream's", async () => {
-    const { w, corpus, docs, dispatch, settle } = await setup();
-    corpus.edit(docs.id, {
+    const { w, workstreamStore: workstreamStore, docs, dispatch, settle } = await setup();
+    workstreamStore.edit(docs.id, {
       projectId: "proj_elsewhere",
       projectSource: "manual",
     });
     await w.harness.behavior.callRpc("draftIdentity", {
       draftKey: "d1",
       text: "Make the parser handle tabs",
-      identity: { entityId: docs.id, proposal: null, provenance: "manual" },
+      identity: { workstreamId: docs.id, proposal: null, provenance: "manual" },
     });
     await dispatch("t1", "Make the parser handle tabs");
     await settle();
-    expect(corpus.assignment("t1")).toMatchObject({
-      entityId: docs.id,
+    expect(workstreamStore.assignment("t1")).toMatchObject({
+      workstreamId: docs.id,
       provenance: "manual",
     });
   });
 
   it("never files Quick analysis's topic under a workstream with a different project", async () => {
-    const { w, corpus, docs, dispatch, settle } = await setup();
-    corpus.edit(docs.id, {
+    const { w, workstreamStore: workstreamStore, docs, dispatch, settle } = await setup();
+    workstreamStore.edit(docs.id, {
       projectId: "proj_elsewhere",
       projectSource: "manual",
     });
     await w.harness.behavior.callRpc("draftIdentity", {
       draftKey: "d1",
       text: "Make the parser handle tabs",
-      identity: { entityId: docs.id, proposal: null, provenance: "automatic" },
+      identity: { workstreamId: docs.id, proposal: null, provenance: "automatic" },
     });
     await dispatch("t1", "Make the parser handle tabs");
     await settle();
-    expect(corpus.assignment("t1").entityId).not.toBe(docs.id);
+    expect(workstreamStore.assignment("t1").workstreamId).not.toBe(docs.id);
   });
 
   it("is the topic of the workstream whose ＋ opened the composer", async () => {
-    const { w, corpus, docs, dispatch, settle } = await setup();
+    const { w, workstreamStore: workstreamStore, docs, dispatch, settle } = await setup();
     const section = w.addSection("Docs");
-    corpus.bindGroup(section.id, docs.id);
+    workstreamStore.bindGroup(section.id, docs.id);
     await w.harness.behavior.callRpc("draftIdentity", {
       draftKey: "d1",
       text: "Make the parser handle tabs",
       identity: {
-        entityId: null,
+        workstreamId: null,
         proposal: null,
         provenance: "inherited",
         sectionId: section.id,
@@ -249,30 +249,30 @@ describe("a new root's first topic", () => {
     });
     await dispatch("t1", "Make the parser handle tabs");
     await settle();
-    expect(corpus.assignment("t1")).toMatchObject({
-      entityId: docs.id,
+    expect(workstreamStore.assignment("t1")).toMatchObject({
+      workstreamId: docs.id,
       provenance: "inherited",
     });
   });
 
   it("is the topic of the thread an agent started it from", async () => {
-    const { w, corpus, docs, dispatch, settle } = await setup();
+    const { w, workstreamStore: workstreamStore, docs, dispatch, settle } = await setup();
     w.addThread("caller", { title: "Caller" });
-    corpus.assign("caller", docs.id, { provenance: "full" });
+    workstreamStore.assign("caller", docs.id, { provenance: "automatic" });
     await dispatch("t1", "Make the parser handle tabs", {
       origin: "agent",
       initiator: "agent",
       senderThreadId: "caller",
     });
     await settle();
-    expect(corpus.assignment("t1")).toMatchObject({
-      entityId: docs.id,
+    expect(workstreamStore.assignment("t1")).toMatchObject({
+      workstreamId: docs.id,
       provenance: "inherited",
     });
   });
 
   it("isn't given to a child, which follows its parent", async () => {
-    const { w, corpus, parser, dispatch, settle } = await setup();
+    const { w, workstreamStore: workstreamStore, parser, dispatch, settle } = await setup();
     w.addThread("parent", { title: "Parent" });
     await dispatch(
       "child",
@@ -282,23 +282,23 @@ describe("a new root's first topic", () => {
     );
     await settle();
     await w.harness.behavior.callRpc("refresh", null);
-    expect(corpus.assignment("child").inheritedFrom).toBe("parent");
-    expect(corpus.assignment("parent").entityId).not.toBe(parser.id);
+    expect(workstreamStore.assignment("child").inheritedFrom).toBe("parent");
+    expect(workstreamStore.assignment("parent").workstreamId).not.toBe(parser.id);
   });
 });
 
 describe("the composer's preview", () => {
   it("gives a mentioned workstream's topic without a model call, and changes nothing", async () => {
-    const { w, corpus, docs, quickCalls } = await setup();
+    const { w, workstreamStore: workstreamStore, docs, quickCalls } = await setup();
     const section = w.addSection("Docs");
-    corpus.bindGroup(section.id, docs.id);
-    const revision = corpus.revision();
+    workstreamStore.bindGroup(section.id, docs.id);
+    const revision = workstreamStore.revision();
     const preview = (await w.harness.behavior.callRpc("preview", {
       prompt: `Add an example to @section:${section.id}`,
-    })) as { subjectId: string | null; subject: string | null };
-    expect(preview).toMatchObject({ subjectId: docs.id, subject: "Docs" });
+    })) as { workstreamId: string | null; subject: string | null };
+    expect(preview).toMatchObject({ workstreamId: docs.id, subject: "Docs" });
     expect(quickCalls()).toHaveLength(0);
-    expect(corpus.revision()).toBe(revision);
+    expect(workstreamStore.revision()).toBe(revision);
   });
 
   it("previews a draft with the start call and never creates a topic", async () => {
@@ -308,13 +308,13 @@ describe("the composer's preview", () => {
         calls++;
         return JSON.stringify({
           title: { verb: "Reserving", subject: "shelves" },
-          topic: null,
+          workstream: null,
           propose: { name: "Reservations", description: "", parent: null },
           scopeShift: false,
         });
       },
     });
-    const corpus = new TopicStore(openDatabase(world.bb));
+    const workstreamStore = new WorkstreamStore(openDatabase(world.bb));
     const preview = (await world.harness.behavior.callRpc("preview", {
       prompt: "Let people reserve shelves",
     })) as {
@@ -328,6 +328,6 @@ describe("the composer's preview", () => {
       subject: "Reservations",
       proposal: { name: "Reservations" },
     });
-    expect(corpus.list()).toEqual([]);
+    expect(workstreamStore.list()).toEqual([]);
   });
 });

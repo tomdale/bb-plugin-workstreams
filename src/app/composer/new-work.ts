@@ -1,25 +1,25 @@
 /**
- * The New thread composer's state: the new thread's topic, and the start
- * call's preview of its title and topic while you type. The topic decides the workstream,
+ * The New thread composer's state: the new thread's workstream, and the start
+ * call's preview of its title and workstream while you type. The workstream decides the workstream,
  * so the composer never asks for one.
  */
 import type { ComposerSelection } from "@get-bb/plugin-sdk/app";
 import type { ProjectChoice } from "../../domain/projectChoice.ts";
 import type { Preview } from "../../server/preview.ts";
 import type { ComposedIdentity } from "../../server/composed-drafts.ts";
-import type { DraftSubjectProposal } from "../../domain/topics.ts";
+import type { DraftWorkstreamProposal } from "../../domain/topics.ts";
 import { routeDelay } from "./timing.ts";
 import type { WorkstreamTarget } from "./preset.ts";
 
 /**
- * The topic the field shows: one you picked, the start call's preview
- * (`automatic`), or the topic of the workstream whose ＋ opened the composer
- * (`inherited`, by `sectionId`, or by topic for a shared-topic header).
- * Previews never replace a picked or inherited topic.
+ * The workstream the field shows: one you picked, the start call's preview
+ * (`automatic`), or the workstream of the workstream whose ＋ opened the composer
+ * (`inherited`, by `sectionId`, or by workstream for a shared-workstream header).
+ * Previews never replace a picked or inherited workstream.
  */
 type IdentityChoice = {
-  entityId: string | null;
-  proposal: DraftSubjectProposal | null;
+  workstreamId: string | null;
+  proposal: DraftWorkstreamProposal | null;
   label: string;
   provenance: "manual" | "automatic" | "inherited";
   sectionId?: string | null;
@@ -44,8 +44,8 @@ export type NewWorkState = {
   selection: ComposerSelection | null;
   suppliedProjectId?: string | null;
   /**
-   * You chose the thread's project after picking its topic. That project is
-   * for this thread only: Workstreams leaves it alone until the topic changes,
+   * You chose the thread's project after picking its workstream. That project is
+   * for this thread only: Workstreams leaves it alone until the workstream changes,
    * and offers to make it the workstream's project.
    */
   projectOverride?: boolean;
@@ -67,28 +67,28 @@ export type NewWorkViewState = Pick<
   | "errors"
 >;
 
-/** A topic you picked, or the one the workstream's ＋ started with. */
+/** A workstream you picked, or the one the workstream's ＋ started with. */
 export function isPicked(identity: IdentityChoice): boolean {
   return (
     identity?.provenance === "manual" || identity?.provenance === "inherited"
   );
 }
 
-/** What the server files the thread with: the topic the field shows. */
+/** What the server files the thread with: the workstream the field shows. */
 export function submittedIdentity(
   state: Pick<NewWorkState, "identity" | "decision" | "text">,
 ): ComposedIdentity {
   const identity = state.identity;
   if (!identity) return null;
   // A preview of exactly this text is the thread's start: its title travels
-  // with its topic, so the server doesn't ask again. A preview of earlier
-  // text still shows its topic, and the server asks after send.
+  // with its workstream, so the server doesn't ask again. A preview of earlier
+  // text still shows its workstream, and the server asks after send.
   const answered =
     identity.provenance === "automatic" &&
     !!state.decision?.answered &&
     state.decision.answered === state.text.trim();
   return {
-    entityId: identity.entityId,
+    workstreamId: identity.workstreamId,
     proposal: identity.proposal,
     provenance: identity.provenance,
     ...(identity.sectionId ? { sectionId: identity.sectionId } : {}),
@@ -130,7 +130,7 @@ export function identityDisplay(
 } {
   if (state.identity)
     return {
-      id: state.identity.entityId,
+      id: state.identity.workstreamId,
       label: state.identity.label,
       auto: state.identity.provenance === "automatic",
       selected: true,
@@ -179,7 +179,7 @@ function reportsEqual(
   const identityB = b.identity;
   if (identityA === null || identityB === null) return identityA === identityB;
   return (
-    (identityA.entityId ?? null) === (identityB.entityId ?? null) &&
+    (identityA.workstreamId ?? null) === (identityB.workstreamId ?? null) &&
     identityA.provenance === identityB.provenance &&
     (identityA.sectionId ?? null) === (identityB.sectionId ?? null) &&
     (identityA.title ?? null) === (identityB.title ?? null) &&
@@ -189,8 +189,8 @@ function reportsEqual(
 }
 
 function proposalsEqual(
-  a: DraftSubjectProposal | null | undefined,
-  b: DraftSubjectProposal | null | undefined,
+  a: DraftWorkstreamProposal | null | undefined,
+  b: DraftWorkstreamProposal | null | undefined,
 ): boolean {
   if (a === b) return true;
   if (!a || !b) return false;
@@ -373,7 +373,7 @@ export class NewWork {
     if (selection === this.state.selection) return;
     const previous = this.state.selection?.projectId;
     const projectId = selection?.projectId;
-    // A project change Workstreams didn't make, after you picked the topic.
+    // A project change Workstreams didn't make, after you picked the workstream.
     const overridden =
       !!previous &&
       previous !== projectId &&
@@ -396,24 +396,25 @@ export class NewWork {
 
   selectIdentity(
     choice: {
-      entityId?: string | null;
-      proposal?: DraftSubjectProposal | null;
+      workstreamId?: string | null;
+      proposal?: DraftWorkstreamProposal | null;
       label?: string;
     } | null,
     provenance: "manual" | "automatic" = "manual",
   ) {
     const nextChoice: NonNullable<IdentityChoice> = choice
       ? {
-          entityId: choice.entityId ?? null,
+          workstreamId: choice.workstreamId ?? null,
           proposal: choice.proposal ?? null,
           label:
-            choice.label ?? (choice.entityId ? choice.entityId : "No topic"),
+            choice.label ??
+            (choice.workstreamId ? choice.workstreamId : "No workstream"),
           provenance,
         }
       : {
-          entityId: null,
+          workstreamId: null,
           proposal: null,
-          label: "No topic",
+          label: "No workstream",
           provenance,
         };
     this.begin("select-identity", {
@@ -428,10 +429,10 @@ export class NewWork {
     });
   }
 
-  /** Starts the thread with the topic of the workstream whose ＋ opened it. */
+  /** Starts the thread with the workstream of the workstream whose ＋ opened it. */
   /**
-   * Starts with a workstream's topic, named by its section, or directly for
-   * a shared-topic header, which has no section.
+   * Starts with a workstream's workstream, named by its section, or directly for
+   * a shared-workstream header, which has no section.
    */
   selectWorkstream(target: WorkstreamTarget, label: string) {
     this.begin("select-identity", {
@@ -441,7 +442,7 @@ export class NewWork {
     })("ok");
     this.set({
       identity: {
-        entityId: target.topicId ?? null,
+        workstreamId: target.workstreamId ?? null,
         proposal: null,
         label,
         provenance: "inherited",
@@ -458,16 +459,16 @@ export class NewWork {
       to: "automatic",
     })("ok");
     let identity: IdentityChoice = null;
-    if (this.state.decision?.subjectId) {
+    if (this.state.decision?.workstreamId) {
       identity = {
-        entityId: this.state.decision.subjectId,
+        workstreamId: this.state.decision.workstreamId,
         proposal: null,
-        label: this.state.decision.subject ?? this.state.decision.subjectId,
+        label: this.state.decision.subject ?? this.state.decision.workstreamId,
         provenance: "automatic",
       };
     } else if (this.state.decision?.proposal) {
       identity = {
-        entityId: null,
+        workstreamId: null,
         proposal: this.state.decision.proposal,
         label: this.state.decision.subject ?? this.state.decision.proposal.name,
         provenance: "automatic",
@@ -559,22 +560,22 @@ export class NewWork {
       }
       finish("ok", { output: { decision } });
 
-      // A picked or inherited topic stays when a preview arrives.
+      // A picked or inherited workstream stays when a preview arrives.
       let nextIdentity = this.state.identity;
       if (
         !this.state.identity ||
         this.state.identity.provenance === "automatic"
       ) {
-        if (decision.subjectId) {
+        if (decision.workstreamId) {
           nextIdentity = {
-            entityId: decision.subjectId,
+            workstreamId: decision.workstreamId,
             proposal: null,
-            label: decision.subject ?? decision.subjectId,
+            label: decision.subject ?? decision.workstreamId,
             provenance: "automatic",
           };
         } else if (decision.proposal) {
           nextIdentity = {
-            entityId: null,
+            workstreamId: null,
             proposal: decision.proposal,
             label: decision.subject ?? decision.proposal.name,
             provenance: "automatic",

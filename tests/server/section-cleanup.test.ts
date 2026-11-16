@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { openDatabase } from "../../src/server/db.ts";
-import { TopicStore } from "../../src/server/topics.ts";
+import { WorkstreamStore } from "../../src/server/topics.ts";
 import { fakeWorld } from "./fake-bb.ts";
 
 type World = Awaited<ReturnType<typeof fakeWorld>>;
@@ -18,14 +18,14 @@ it("deletes an emptied workstream's section on the next pass and keeps its archi
   const starting = fakeWorld();
   await vi.advanceTimersByTimeAsync(10);
   world = await starting;
-  const topics = new TopicStore(openDatabase(world.bb));
-  const topic = topics.create("Product", "Product");
+  const workstreamStore = new WorkstreamStore(openDatabase(world.bb));
+  const workstream = workstreamStore.create("Product", "Product");
   const root = world.addThread("root");
-  await world.harness.behavior.callRpc("taskAssign", {
+  await world.harness.behavior.callRpc("threadMove", {
     threadId: root.id,
-    entityId: topic.id,
+    workstreamId: workstream.id,
   });
-  await world.harness.behavior.callRpc("organization", { action: "rebuild" });
+  await world.harness.behavior.callRpc("organizeStatus", { action: "rebuild" });
   const section = world.sections.find((s) => s.name === "Product")!;
   expect(section).toBeDefined();
   const archived = world.threads.get(root.id)!;

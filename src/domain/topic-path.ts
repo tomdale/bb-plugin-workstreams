@@ -1,53 +1,74 @@
 import { compareGroupNames } from "./group-name-order.ts";
-import type { Topic } from "./topics.ts";
+import type { Workstream } from "./topics.ts";
+
+/**
+ * Joins a workstream path in plain text: "bb › Workstreams Plugin". Names may
+ * not contain the mark, so a path always splits back into its names.
+ */
+export const PATH_SEPARATOR = " › ";
+export const PATH_MARK = "›";
+
+/** "bb › Workstreams Plugin" → ["bb", "Workstreams Plugin"]. */
+export const pathNames = (path: string): string[] =>
+  path
+    .split(PATH_MARK)
+    .map((name) => name.trim())
+    .filter(Boolean);
 
 /** Full ancestry distinguishes same-named features in different component scopes. */
-export function topicPath(id: string, entities: readonly Topic[]): string {
+export function workstreamPath(
+  id: string,
+  workstreams: readonly Workstream[],
+): string {
   const parts: string[] = [];
   const seen = new Set<string>();
   let current: string | null = id;
   while (current) {
-    if (seen.has(current)) throw new Error("Topic tree contains a cycle.");
+    if (seen.has(current)) throw new Error("A workstream is inside itself.");
     seen.add(current);
-    const entity = entities.find((e) => e.id === current);
-    if (!entity) throw new Error("Unknown topic.");
-    parts.unshift(entity.name);
-    current = entity.parentId;
+    const workstream = workstreams.find((e) => e.id === current);
+    if (!workstream) throw new Error("Unknown workstream.");
+    parts.unshift(workstream.name);
+    current = workstream.parentId;
   }
-  return parts.join(": ");
+  return parts.join(PATH_SEPARATOR);
 }
 
-export type IndexedTopic = {
-  entity: Topic;
+export type IndexedWorkstream = {
+  workstream: Workstream;
   path: string;
   /** Lowercase own and ancestor fields, matched separately as before. */
   searchText: readonly string[];
 };
 
-export type TopicIndex = {
-  byId: ReadonlyMap<string, Topic>;
-  /** Every assignable topic, ordered by its full path. */
-  leafTopics: readonly IndexedTopic[];
+export type WorkstreamIndex = {
+  byId: ReadonlyMap<string, Workstream>;
+  /** Every assignable workstream, ordered by its full path. */
+  leafWorkstreams: readonly IndexedWorkstream[];
   path: (id: string) => string;
   hasExactName: (lowercaseName: string) => boolean;
 };
 
-const indexes = new WeakMap<readonly Topic[], TopicIndex>();
+const indexes = new WeakMap<readonly Workstream[], WorkstreamIndex>();
 
 /**
  * Indexes one immutable entities snapshot for every open row menu and picker.
  * Paths, leaf ordering, and search fields are shared rather than recomputed
  * for each row or keystroke.
  */
-export function topicIndex(entities: readonly Topic[]): TopicIndex {
-  const cached = indexes.get(entities);
+export function workstreamIndex(
+  workstreams: readonly Workstream[],
+): WorkstreamIndex {
+  const cached = indexes.get(workstreams);
   if (cached) return cached;
 
-  const byId = new Map(entities.map((entity) => [entity.id, entity]));
-  // A topic holds threads or subtopics, never both, so parents are not options.
+  const byId = new Map(
+    workstreams.map((workstream) => [workstream.id, workstream]),
+  );
+  // A workstream holds threads or workstreams in a group, never both, so parents are not options.
   const parentIds = new Set<string>();
-  for (const entity of entities)
-    if (entity.parentId) parentIds.add(entity.parentId);
+  for (const workstream of workstreams)
+    if (workstream.parentId) parentIds.add(workstream.parentId);
   const paths = new Map<string, string>();
   const path = (id: string): string => {
     const cachedPath = paths.get(id);
@@ -56,22 +77,26 @@ export function topicIndex(entities: readonly Topic[]): TopicIndex {
     const seen = new Set<string>();
     let current: string | null = id;
     while (current) {
-      if (seen.has(current)) throw new Error("Topic tree contains a cycle.");
+      if (seen.has(current)) throw new Error("A workstream is inside itself.");
       seen.add(current);
-      const entity = byId.get(current);
-      if (!entity) throw new Error("Unknown topic.");
-      parts.unshift(entity.name);
-      current = entity.parentId;
+      const workstream = byId.get(current);
+      if (!workstream) throw new Error("Unknown workstream.");
+      parts.unshift(workstream.name);
+      current = workstream.parentId;
     }
-    const value = parts.join(": ");
+    const value = parts.join(PATH_SEPARATOR);
     paths.set(id, value);
     return value;
   };
 
-  const entries = new Map<string, IndexedTopic>();
-  for (const entity of entities) {
-    const searchFields = [entity.name, entity.description, ...entity.aliases];
-    let parentId = entity.parentId;
+  const entries = new Map<string, IndexedWorkstream>();
+  for (const workstream of workstreams) {
+    const searchFields = [
+      workstream.name,
+      workstream.description,
+      ...workstream.aliases,
+    ];
+    let parentId = workstream.parentId;
     const seen = new Set<string>();
     while (parentId && !seen.has(parentId)) {
       seen.add(parentId);
@@ -80,24 +105,24 @@ export function topicIndex(entities: readonly Topic[]): TopicIndex {
       searchFields.push(parent.name, ...parent.aliases);
       parentId = parent.parentId;
     }
-    entries.set(entity.id, {
-      entity,
-      path: path(entity.id),
+    entries.set(workstream.id, {
+      workstream,
+      path: path(workstream.id),
       searchText: searchFields.map((field) => field.toLowerCase()),
     });
   }
   const exactNames = new Set(
-    entities.map((entity) => entity.name.toLowerCase()),
+    workstreams.map((workstream) => workstream.name.toLowerCase()),
   );
-  const index: TopicIndex = {
+  const index: WorkstreamIndex = {
     byId,
-    leafTopics: entities
-      .filter((entity) => !parentIds.has(entity.id))
-      .map((entity) => entries.get(entity.id)!)
+    leafWorkstreams: workstreams
+      .filter((workstream) => !parentIds.has(workstream.id))
+      .map((workstream) => entries.get(workstream.id)!)
       .sort((a, b) => compareGroupNames(a.path, b.path)),
     path,
     hasExactName: (lowercaseName) => exactNames.has(lowercaseName),
   };
-  indexes.set(entities, index);
+  indexes.set(workstreams, index);
   return index;
 }

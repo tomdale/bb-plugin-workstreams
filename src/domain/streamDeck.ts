@@ -57,7 +57,7 @@ export type StreamDeckThread = {
   readonly id: string;
   readonly title: string;
   /**
-   * The thread's workstream, or null when it is Unfiled. `color` is the
+   * The thread's workstream, or null when it is Other. `color` is the
    * workstream's identity color for a dark surface, as `#rrggbb`.
    */
   readonly workstream: { readonly name: string; readonly color: string } | null;

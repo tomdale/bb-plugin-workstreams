@@ -1,19 +1,19 @@
 /**
  * The workstream whose ＋ opened the New thread composer. The sidebar sets it
  * just before navigating, and the composer's banner takes it when it mounts,
- * so the new thread starts with that workstream's topic. Both run in this
+ * so the new thread starts with that workstream's workstream. Both run in this
  * plugin's one client bundle, so a module value carries it; it expires
  * quickly so a later, unrelated New thread doesn't pick it up.
  */
 const PRESET_TTL_MS = 10_000;
 
 /**
- * A workstream's section, or the topic of a shared-topic header, which no
+ * A workstream's section, or the workstream of a shared-workstream header, which no
  * section backs (see `nestGroups`).
  */
 export type WorkstreamTarget =
-  | { sectionId: string; topicId?: undefined }
-  | { topicId: string; sectionId?: undefined };
+  | { sectionId: string; workstreamId?: undefined }
+  | { workstreamId: string; sectionId?: undefined };
 
 type Preset = { target: WorkstreamTarget; label: string };
 

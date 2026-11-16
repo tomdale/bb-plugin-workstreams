@@ -326,7 +326,7 @@ it("renders only the changed row when one thread's analysis changes", async () =
       state: () => ({
         ...emptyState(),
         analysis: { ...analysis },
-        order: { workstreams: [], threads: {}, prioritized: [] },
+        order: { workstreams: [], threads: {}, focused: [] },
       }),
     },
   });

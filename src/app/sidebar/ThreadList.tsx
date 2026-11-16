@@ -2,13 +2,13 @@
  * The Workstreams sidebar thread list: the Up Next and Pinned bands, the
  * focused workstreams, and the Recent band, then one group per remaining
  * workstream (BB section, in the user's drag-and-drop order, else BB's) that
- * holds a visible thread, Unfiled, a Dormant fold, and a Snoozed fold. Up
+ * holds a visible thread, Other, a Dormant fold, and a Snoozed fold. Up
  * Next, Pinned, and Recent are overlays: every visible thread appears in
  * exactly one group, or in Snoozed.
  *
- * Workstreams nest by topic (see `nestGroups`): a group lists its own
- * threads, then the threads of subgroups too small for headers, each
- * labeled with its subgroup, then its other subgroups. Each group's contents
+ * Workstreams nest by workstream (see `nestGroups`): a group lists its own
+ * threads, then the threads of workstreams too small for headers, each
+ * labeled with its workstream, then its other workstreams. Each group's contents
  * sit one step (`childIndent`) in. A header folds from the chevron beside its
  * name, and only from there: the row itself drags the workstream.
  * Top-level workstreams always keep their own headers (see `arrangeGroups`).
@@ -16,7 +16,7 @@
  * Up Next's rows come from `selectUpNext`, including its focus on the
  * focused workstreams; while any workstream is focused, the rest hide behind
  * a toggle below the focused ones. Focused workstreams are stored as
- * `prioritized`. Up Next never moves the open thread's row out from under
+ * `focused`. Up Next never moves the open thread's row out from under
  * the user. Its rows open and close their slots on a spring, and a re-ranked
  * row travels to its new slot (see `useSlotList`); other overlay rows open
  * and close their height over a fixed duration (see `motion.ts`).
@@ -89,12 +89,12 @@ import {
   rowsById,
   foldKey,
   foldDefault,
-  PLACEMENT_TRAITS,
+  LOCATION_TRAITS,
   visibleEntries,
   planBandRows,
   planArchived,
   type BandGroupPlan,
-  type Placement,
+  type RowLocation,
 } from "./rows.ts";
 import { type RowMenuHandlers } from "./RowMenu.tsx";
 import { TraceInspector } from "../debug/Inspector.tsx";
@@ -155,7 +155,7 @@ export function WorkstreamsThreadList({
   } = useSidebarSnooze(ws);
   const [nameRequest, setNameRequest] = useState<NameRequest | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [choosingTopic, setChoosingTopic] = useState(false);
+  const [choosingWorkstream, setChoosingWorkstream] = useState(false);
   const [showMore, setShowMore] = useState(false);
   const [showLower, setShowLower] = useState(false);
   // Other workstreams the user expanded since revealing them. Not
@@ -171,7 +171,7 @@ export function WorkstreamsThreadList({
     () => new Map(sections.map((section) => [section.id, section.name])),
     [sections],
   );
-  const prioritizedIds = ws.server.order.prioritized;
+  const focusedIds = ws.server.order.focused;
   const groupSort = prefs?.sidebar.groupSort ?? "alphabetical";
   /**
    * A header drag writes the stored manual order, which the active groups do
@@ -179,20 +179,20 @@ export function WorkstreamsThreadList({
    * regardless, but header dragging still follows the selected sort. Thread
    * rows drag under every sort.
    */
-  const headersDrag = groupSort === "manual" && !choosingTopic;
-  // Unfiled, a group only while it has threads, follows the populated
-  // workstreams. With any workstream focused, the rest (with Unfiled and
+  const headersDrag = groupSort === "manual" && !choosingWorkstream;
+  // Other, a group only while it has threads, follows the populated
+  // workstreams. With any workstream focused, the rest (with Other and
   // Dormant) sit hidden behind a toggle below the focused ones.
   /** The arrangement this one replaces: unchanged groups keep their nodes. */
   const previousArrangement = useRef<
     GroupArrangement<PluginSidebarThread> | undefined
   >(undefined);
   const arrangement = useMemo(() => {
-    const next = arrangeGroups(projection, groupSort, ws.topics);
+    const next = arrangeGroups(projection, groupSort, ws.workstreams);
     const shared = shareArrangement(previousArrangement.current, next);
     previousArrangement.current = shared;
     return shared;
-  }, [projection, groupSort, ws.topics]);
+  }, [projection, groupSort, ws.workstreams]);
   const {
     pinned: pinnedGroups,
     populated: populatedGroups,
@@ -200,11 +200,11 @@ export function WorkstreamsThreadList({
     tiered,
     hasLower,
     lowerCounts,
-    unfiled,
+    other,
   } = arrangement;
   const { isCollapsed, toggle, groupCollapsed, toggleGroup } = useGroupCollapse(
     {
-      groups: ws.server.catalog?.groups,
+      groups: ws.server.tree?.groups,
       tiered,
       lowerExpanded,
       setLowerExpanded,
@@ -218,9 +218,9 @@ export function WorkstreamsThreadList({
   const pinnedGroupItems = useGroupItems(pinnedGroups);
   const populatedGroupItems = useGroupItems(populatedGroups);
   const dormantGroupItems = useGroupItems(dormantGroups);
-  const prioritized = useMemo(
-    () => focusedSections(arrangement, new Set(prioritizedIds)),
-    [arrangement, prioritizedIds],
+  const focused = useMemo(
+    () => focusedSections(arrangement, new Set(focusedIds)),
+    [arrangement, focusedIds],
   );
 
   const upNextState = useRef(initialUpNextState);
@@ -229,11 +229,11 @@ export function WorkstreamsThreadList({
       planSidebarUpNext(
         upNextState.current,
         projection,
-        { ...ws.upNextOptions, prioritized },
+        { ...ws.upNextOptions, focused },
         activeThreadId,
         showMore,
       ),
-    [projection, ws.upNextOptions, prioritized, activeThreadId, showMore],
+    [projection, ws.upNextOptions, focused, activeThreadId, showMore],
   );
   if (showMore !== upNext.expanded) setShowMore(upNext.expanded);
   const { rows: shownNeedsRows, moreCount, trimmed: trimmedNeeds } = upNext;
@@ -260,41 +260,39 @@ export function WorkstreamsThreadList({
   const descendants = useMemo(
     () =>
       descendantsOf([
-        ...[
-          ...projection.groups,
-          projection.unsorted,
-          ...projection.dormant,
-        ].map((group) => group.rows),
+        ...[...projection.groups, projection.other, ...projection.dormant].map(
+          (group) => group.rows,
+        ),
         projection.snoozed,
       ]),
     [projection],
   );
   const currentRows = useMemo(() => rowsById(projection), [projection]);
   const folded = useCallback(
-    (placement: Placement, id: string) =>
+    (placement: RowLocation, id: string) =>
       isCollapsed(foldKey(placement, id), foldDefault(placement)),
     [isCollapsed],
   );
   /** One tree, root first, as `placement` draws it with its folds applied. */
   const entriesOf = useCallback(
-    (tree: readonly ThreadRow[], placement: Placement) =>
+    (tree: readonly ThreadRow[], placement: RowLocation) =>
       visibleEntries(tree, placement, (id) => folded(placement, id)),
     [folded],
   );
 
   const listRef = useRef<HTMLDivElement>(null);
-  const captureLayout = useFlip(listRef, [...prioritized].sort().join(" "));
+  const captureLayout = useFlip(listRef, [...focused].sort().join(" "));
   /** Focus covers a whole top-level group, so it names every section in it. */
   const toggleFocus = useStableCallback((group: ThreadNode) => {
     setError(null);
     captureLayout(`group:${group.id}`);
-    const ids = group.prioritized
-      ? prioritizedIds.filter((id) => !group.sectionIds.includes(id))
+    const ids = group.focused
+      ? focusedIds.filter((id) => !group.sectionIds.includes(id))
       : [
-          ...prioritizedIds,
-          ...group.sectionIds.filter((id) => !prioritizedIds.includes(id)),
+          ...focusedIds,
+          ...group.sectionIds.filter((id) => !focusedIds.includes(id)),
         ];
-    ws.reorder({ kind: "prioritized", ids }).catch(report);
+    ws.reorder({ kind: "focused", ids }).catch(report);
   });
 
   const report = (cause: unknown) =>
@@ -306,31 +304,31 @@ export function WorkstreamsThreadList({
       projection,
       sections,
       ws.server.order,
-      ws.topics,
+      ws.workstreams,
     );
     try {
       if (plan.assign) {
         const { within, ...target } = plan.assign;
-        if (within && target.entityId) {
-          setChoosingTopic(true);
-          await ws.rpc.call("taskMove", {
+        if (within && target.workstreamId) {
+          setChoosingWorkstream(true);
+          await ws.rpc.call("threadMoveToGroup", {
             ...target,
-            entityId: target.entityId,
+            workstreamId: target.workstreamId,
           });
-        } else await ws.rpc.call("taskAssign", target);
+        } else await ws.rpc.call("threadMove", target);
         await ws.refresh();
       }
       if (plan.reorder) await ws.reorder(plan.reorder);
     } catch (cause) {
       report(cause);
     } finally {
-      setChoosingTopic(false);
+      setChoosingWorkstream(false);
     }
   };
   const { contextProps } = useSidebarDnd({
     containerRef: listRef,
     onDrop,
-    acceptsThread: (from, to) => acceptsThreadDrop(from, to, ws.topics),
+    acceptsThread: (from, to) => acceptsThreadDrop(from, to, ws.workstreams),
   });
 
   const currentRowActions = useLatest({
@@ -375,11 +373,9 @@ export function WorkstreamsThreadList({
   const groupSlot = useMemo(
     () =>
       slotWidthOf(
-        [
-          ...projection.groups,
-          projection.unsorted,
-          ...projection.dormant,
-        ].flatMap((group) => group.rows),
+        [...projection.groups, projection.other, ...projection.dormant].flatMap(
+          (group) => group.rows,
+        ),
       ),
     [projection, ws.server.analysis, ws.server.recaps, spinnerShape],
   );
@@ -468,7 +464,7 @@ export function WorkstreamsThreadList({
           snoozePrefs={snoozePrefs}
           handlers={handlers}
           disclosureExpanded={
-            PLACEMENT_TRAITS[placement].disclosure && row.hasChildren
+            LOCATION_TRAITS[placement].disclosure && row.hasChildren
               ? !folded(placement, row.thread.id)
               : undefined
           }
@@ -545,19 +541,19 @@ export function WorkstreamsThreadList({
   /** An overlay row followed, when expanded, by its visible descendants. */
   const renderOverlayTree = (
     row: ThreadRow,
-    placement: Placement,
+    placement: RowLocation,
     slotWidth: number,
   ) =>
     entriesOf([row, ...(descendants.get(row.thread.id) ?? [])], placement).map(
       (entry) => renderRow(entry, { placement, slotWidth }),
     );
-  /** The new thread starts with this workstream's topic. */
+  /** The new thread starts with this workstream's workstream. */
   const newThreadIn = useCallback(
     (group: ThreadNode) => () => {
       setComposerPreset(
         group.hasSection
           ? { sectionId: group.id }
-          : { topicId: group.topicId! },
+          : { workstreamId: group.workstreamId! },
         group.label,
       );
       navigate.toCompose({ focusPrompt: true });
@@ -572,16 +568,16 @@ export function WorkstreamsThreadList({
     },
     [navigate, onNavigate],
   );
-  // Colors read only the catalog's section bindings and stored colors, so a
+  // Colors read only the workstream tree's section bindings and stored colors, so a
   // filing, which changes its assignments, leaves the group renderers alone.
-  const colorBindings = ws.server.catalog?.groups;
-  const storedColors = ws.server.catalog?.colors;
+  const colorBindings = ws.server.tree?.groups;
+  const storedColors = ws.server.tree?.colors;
   const colorOf = useCallback(
     (group: ThreadNode) =>
       colorForWorkstream(
         group.id,
         colorBindings && { groups: colorBindings, colors: storedColors },
-        group.topicId,
+        group.workstreamId,
       ),
     [colorBindings, storedColors],
   );
@@ -592,11 +588,11 @@ export function WorkstreamsThreadList({
    */
   const prefixColorOf = useCallback(
     (group: ThreadNode) =>
-      group.parentTopicId
+      group.parentWorkstreamId
         ? colorForWorkstream(
-            group.parentTopicId,
+            group.parentWorkstreamId,
             colorBindings && { groups: colorBindings, colors: storedColors },
-            group.parentTopicId,
+            group.parentWorkstreamId,
           )
         : undefined,
     [colorBindings, storedColors],
@@ -644,7 +640,7 @@ export function WorkstreamsThreadList({
       toggleGroup={toggleGroup}
       renderRow={renderRow}
       groupSlot={groupSlot}
-      choosingTopic={choosingTopic}
+      choosingWorkstream={choosingWorkstream}
       colorOf={colorOf}
       newThreadIn={newThreadIn}
       openOverview={openOverview}
@@ -709,7 +705,7 @@ export function WorkstreamsThreadList({
     pinnedGroups.length +
       populatedGroups.length +
       dormantGroups.length +
-      projection.unsorted.total >
+      projection.other.total >
     0;
   /**
    * The heading over the workstreams, holding the organizing suggestions'
@@ -722,14 +718,16 @@ export function WorkstreamsThreadList({
       rpc={ws.rpc}
       sidebar={{
         projection,
-        catalog: ws.server.catalog,
+        tree: ws.server.tree,
         sort: groupSort,
         manualOrder: ws.server.order.workstreams,
         sections,
         now: ws.now,
       }}
       count={ws.server.pendingSuggestions ?? 0}
-      onOpenTopics={() => navigate.toPluginPanel("home", { subPath: "topics" })}
+      onOpenOrganize={() =>
+        navigate.toPluginPanel("home", { subPath: "organize" })
+      }
     >
       {(suggestions) => (
         <div
@@ -766,10 +764,10 @@ export function WorkstreamsThreadList({
         >
           {renderGroupList(populatedGroups, "populated")}
         </SortableContext>
-        {unfiled.total > 0
+        {other.total > 0
           ? listedGroup(
-              unfiled,
-              "unfiled",
+              other,
+              "other",
               populatedGroups.length > 0
                 ? [populatedGroups.at(-1)!, "populated"]
                 : null,
@@ -832,12 +830,12 @@ export function WorkstreamsThreadList({
             {error}
           </p>
         ) : null}
-        {choosingTopic ? (
+        {choosingWorkstream ? (
           <p
             role="status"
             className="mx-2 px-2 py-1 text-xs text-muted-foreground"
           >
-            Choosing a topic in the destination workstream…
+            Choosing a workstream in the destination group…
           </p>
         ) : null}
         {stackPresence.map((stack) => (

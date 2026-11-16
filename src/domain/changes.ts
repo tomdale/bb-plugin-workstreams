@@ -18,7 +18,7 @@ export const STATE_SLICES = [
   "recaps",
   "order",
   "snoozes",
-  "catalog",
+  "tree",
   "suggestions",
 ] as const;
 

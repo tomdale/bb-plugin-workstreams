@@ -23,14 +23,14 @@ import {
 import { categoryRows } from "../../domain/categoryRows.ts";
 import {
   workstreamColorStyle,
-  type TopicColor,
+  type WorkstreamColor,
 } from "../../domain/workstreamColor.ts";
 import { GroupSnooze, RenderRow, ThreadNode, ThreadRow } from "./types.ts";
 import { WorkstreamGroup } from "./WorkstreamGroup.tsx";
 
 /** The groups drawn inline under `group`, in order, theirs included. */
 export function inlineGroups(group: ThreadNode): ThreadNode[] {
-  return group.subgroups
+  return group.workstreams
     .filter((sub) => sub.inline)
     .flatMap((sub) => [sub, ...inlineGroups(sub)]);
 }
@@ -47,7 +47,7 @@ export type ThreadTreesProps = {
   renderRow: RenderRow;
   collapsed?: boolean;
   slotWidth: number;
-  choosingTopic: boolean;
+  choosingWorkstream: boolean;
   isCollapsed: (id: string, byDefault?: boolean) => boolean;
 };
 
@@ -59,7 +59,7 @@ export function SortableThreadTree({
   categorized = false,
   renderRow,
   slotWidth,
-  choosingTopic,
+  choosingWorkstream,
   isCollapsed,
 }: Omit<ThreadTreesProps, "rows"> & {
   tree: readonly ThreadRow[];
@@ -92,7 +92,7 @@ export function SortableThreadTree({
     <Sortable
       id={treeKey(root.id)}
       data={{ type: "thread", threadId: root.id, groupId }}
-      disabled={choosingTopic}
+      disabled={choosingWorkstream}
       // `pl-3` is `SIDEBAR_GEOMETRY.category.treeInset`, which `rowGeometry`
       // subtracts from the category indent.
       className={cn("list-none", categorized && "pl-3")}
@@ -115,7 +115,7 @@ export const ThreadTrees = memo(
     categorized = false,
     renderRow,
     slotWidth,
-    choosingTopic,
+    choosingWorkstream,
     isCollapsed,
   }: ThreadTreesProps) {
     const trees = useMemo(() => treesOf(rows), [rows]);
@@ -134,7 +134,7 @@ export const ThreadTrees = memo(
             categorized={categorized}
             renderRow={renderRow}
             slotWidth={slotWidth}
-            choosingTopic={choosingTopic}
+            choosingWorkstream={choosingWorkstream}
             isCollapsed={isCollapsed}
           />
         ))}
@@ -150,7 +150,7 @@ export const ThreadTrees = memo(
       before.categorized === after.categorized &&
       before.renderRow === after.renderRow &&
       before.slotWidth === after.slotWidth &&
-      before.choosingTopic === after.choosingTopic &&
+      before.choosingWorkstream === after.choosingWorkstream &&
       before.isCollapsed === after.isCollapsed),
 );
 
@@ -159,8 +159,8 @@ export type GroupBodyProps = {
   collapsed: boolean;
   renderRow: RenderRow;
   groupSlot: number;
-  choosingTopic: boolean;
-  colorOf: (group: ThreadNode) => TopicColor;
+  choosingWorkstream: boolean;
+  colorOf: (group: ThreadNode) => WorkstreamColor;
   newThreadIn: (group: ThreadNode) => () => void;
   /** Opens a workstream's Overview; absent where the list offers none. */
   openOverview?: (group: ThreadNode) => () => void;
@@ -176,7 +176,7 @@ export function CategorizedTrees({
   renderRow,
   collapsed,
   groupSlot,
-  choosingTopic,
+  choosingWorkstream,
   colorOf,
   isCollapsed,
 }: Pick<
@@ -185,7 +185,7 @@ export function CategorizedTrees({
   | "renderRow"
   | "collapsed"
   | "groupSlot"
-  | "choosingTopic"
+  | "choosingWorkstream"
   | "colorOf"
   | "isCollapsed"
 > & { label?: string }) {
@@ -196,7 +196,7 @@ export function CategorizedTrees({
   );
   const color = useMemo(
     () => workstreamColorStyle(colorOf(group)) as CSSProperties,
-    [colorOf, group.id, group.topicId],
+    [colorOf, group.id, group.workstreamId],
   );
   return categories.map((category, index) => (
     <Fragment key={category.id ?? "unplaced"}>
@@ -219,8 +219,7 @@ export function CategorizedTrees({
           >
             {label ? (
               <>
-                {label}
-                <span className="sr-only">:</span> {category.name}
+                {label} <span className="sr-only">›</span> {category.name}
               </>
             ) : (
               category.name
@@ -236,7 +235,7 @@ export function CategorizedTrees({
         renderRow={renderRow}
         collapsed={collapsed}
         slotWidth={groupSlot}
-        choosingTopic={choosingTopic}
+        choosingWorkstream={choosingWorkstream}
         isCollapsed={isCollapsed}
       />
     </Fragment>
@@ -301,7 +300,7 @@ export const GroupBody = memo(
             label={shortLabel(sub.label)}
           />
         ))}
-        {group.subgroups
+        {group.workstreams
           .filter((sub) => !sub.inline)
           .map((sub) => (
             <li key={sub.id} className="list-none">
@@ -324,7 +323,7 @@ export const GroupBody = memo(
       before.group === after.group &&
       before.renderRow === after.renderRow &&
       before.groupSlot === after.groupSlot &&
-      before.choosingTopic === after.choosingTopic &&
+      before.choosingWorkstream === after.choosingWorkstream &&
       before.colorOf === after.colorOf &&
       before.newThreadIn === after.newThreadIn &&
       before.openOverview === after.openOverview &&

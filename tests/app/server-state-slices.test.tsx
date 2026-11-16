@@ -14,7 +14,7 @@ import {
   type StateSlice,
 } from "../../src/domain/changes.ts";
 import { DEFAULT_SNOOZE_PREFS } from "../../src/domain/snooze.ts";
-import type { TopicAssignment } from "../../src/domain/topics.ts";
+import type { WorkstreamAssignment } from "../../src/domain/topics.ts";
 
 afterEach(cleanup);
 
@@ -30,10 +30,10 @@ function stamp(revisions: Partial<Revisions> = {}, epoch = "e1"): ChangeStamp {
   };
 }
 
-const assignment = (threadId: string): TopicAssignment => ({
+const assignment = (threadId: string): WorkstreamAssignment => ({
   threadId,
-  entityId: null,
-  status: "unresolved",
+  workstreamId: null,
+  status: "none",
   provenance: null,
   label: null,
   ancestorIds: [],
@@ -50,20 +50,20 @@ function server() {
       recaps: {},
       dismissedRecaps: [],
       pendingSuggestions: 1,
-      order: { workstreams: [], threads: {}, prioritized: [] },
+      order: { workstreams: [], threads: {}, focused: [] },
       snoozes: {},
       snoozePrefs: DEFAULT_SNOOZE_PREFS,
-      catalog: {
-        entities: [],
+      tree: {
+        workstreams: [],
         groups: {},
         assignments: { live: assignment("live") },
         revision: 1,
       },
     } as Required<
-      Omit<ServerState, "ready" | "loaded" | "catalog" | "dismissedRecaps">
+      Omit<ServerState, "ready" | "loaded" | "tree" | "dismissedRecaps">
     > &
       Pick<ServerState, "dismissedRecaps"> & {
-        catalog: NonNullable<ServerState["catalog"]>;
+        tree: NonNullable<ServerState["tree"]>;
       },
   };
   const copy = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
@@ -72,7 +72,7 @@ function server() {
     recaps: ["recaps", "dismissedRecaps"],
     order: ["order"],
     snoozes: ["snoozes", "snoozePrefs"],
-    catalog: ["catalog"],
+    tree: ["tree"],
     suggestions: ["pendingSuggestions"],
   };
   const state = vi.fn(async () =>
@@ -148,7 +148,7 @@ describe("slice-scoped state reads", () => {
     expect(s.state).toHaveBeenCalledTimes(1);
     // Slices it did not read keep their identity.
     const after = seen.at(-1)!;
-    expect(after.catalog).toBe(before.catalog);
+    expect(after.tree).toBe(before.tree);
     expect(after.order).toBe(before.order);
 
     // A signal whose revisions the client already holds reads nothing.
@@ -210,7 +210,7 @@ describe("slice-scoped state reads", () => {
         new Promise((resolve) => {
           finish = () =>
             resolve({
-              order: { workstreams: ["a"], threads: {}, prioritized: [] },
+              order: { workstreams: ["a"], threads: {}, focused: [] },
             });
         }),
     );
@@ -242,7 +242,7 @@ describe("slice-scoped state reads", () => {
     await waitFor(() => expect(s.state).toHaveBeenCalledTimes(2));
     await new Promise((resolve) => setTimeout(resolve, 10));
     expect(within(slot.container).getByTestId("order").textContent).toBe("a");
-    s.world.state.order = { workstreams: ["a"], threads: {}, prioritized: [] };
+    s.world.state.order = { workstreams: ["a"], threads: {}, focused: [] };
     finish();
     await write;
     // The write's end reads everything again, which acknowledges it.
@@ -330,8 +330,8 @@ describe("records of threads outside the snapshot", () => {
     expect(recapGet).toHaveBeenCalledTimes(2);
 
     // A topic change moves the catalog revision, which may relabel it.
-    s.world.state.catalog = { ...s.world.state.catalog, revision: 2 };
-    s.bump("catalog");
+    s.world.state.tree = { ...s.world.state.tree, revision: 2 };
+    s.bump("tree");
     await slot.behavior.emitRealtime("changed", s.world.changes);
     await waitFor(() => expect(recapGet).toHaveBeenCalledTimes(3));
   });
@@ -386,8 +386,8 @@ describe("records of threads outside the snapshot", () => {
     );
     // Archived: the snapshot no longer carries it.
     s.world.state.recaps = {};
-    s.world.state.catalog = { ...s.world.state.catalog, assignments: {} };
-    s.bump("recaps", "catalog");
+    s.world.state.tree = { ...s.world.state.tree, assignments: {} };
+    s.bump("recaps", "tree");
     await slot.behavior.emitRealtime("changed", s.world.changes);
     await waitFor(() => expect(recapGet).toHaveBeenCalledTimes(1));
     expect(within(slot.container).getByTestId("block").textContent).toBe(

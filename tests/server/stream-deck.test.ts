@@ -34,7 +34,7 @@ async function world(prefs?: PrefsPatch) {
     },
   );
   const now = Date.now();
-  const section = w.addSection("Workstreams: Stream Deck");
+  const section = w.addSection("Workstreams › Stream Deck");
   w.addThread("ask", {
     title: "Choosing key layout",
     sectionId: section.id,
@@ -83,7 +83,7 @@ describe("Stream Deck routes", () => {
       id: "ask",
       title: "Choosing key layout",
       workstream: {
-        name: "Workstreams: Stream Deck",
+        name: "Workstreams › Stream Deck",
         color: workstreamColorHex({
           hue: workstreamHue(w.section.id),
           level: 0,

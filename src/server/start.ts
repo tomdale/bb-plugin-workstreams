@@ -1,6 +1,6 @@
 /**
  * A thread's start: one call names a new thread from its first request and,
- * for a root, chooses its topic (see `domain/start.ts`), while its first turn
+ * for a root, chooses its workstream (see `domain/start.ts`), while its first turn
  * is still running. The thread is titled and filed within seconds instead of
  * after a turn that may take an hour; the turn-end call settles both later.
  *
@@ -13,18 +13,18 @@
  *   request (`cancel`), deletion, or disposal stops it.
  * - A thread is tried once per run. The title is applied only while the
  *   thread has no title of its own and its first turn is the evidence (the
- *   retitle policy re-checks at the write); the topic only while nothing else
+ *   retitle policy re-checks at the write); the workstream only while nothing else
  *   has settled it (`unsettled`).
  * - Hidden threads, which the workflows and subagents plugins start, are
  *   never listed, so they get neither.
  */
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { clip, type ThreadListing } from "../domain/analysis.ts";
-import type { PlacementOutput } from "../domain/placement.ts";
+import type { WorkstreamChoiceOutput } from "../domain/placement.ts";
 import type { ModelChoice } from "../domain/prefs.ts";
 import type { InventoryThread } from "./inventory.ts";
 import type { Inference } from "./model.ts";
-import type { PlacementQuestion, PlacementThread } from "./placement.ts";
+import type { ChoiceQuestion, ChoiceThread } from "./placement.ts";
 import { isUserRequest, openingRequest } from "./requests.ts";
 import { threadEvidence } from "./evidence.ts";
 
@@ -43,7 +43,7 @@ const MAX_SWEEP_IN_FLIGHT = 4;
 const LABEL_MAX = 60;
 
 /** What decides whether a thread can be named and filed from its request. */
-export type OpeningThread = PlacementThread & {
+export type OpeningThread = ChoiceThread & {
   readonly visibility: string;
   readonly archivedAt: number | null;
   readonly latestAttentionAt?: number | null;
@@ -52,12 +52,12 @@ export type OpeningThread = PlacementThread & {
 
 /**
  * What the composer's preview already answered for the text sent: its title
- * (null when the request says nothing), and its topic unless the topic must
+ * (null when the request says nothing), and its workstream unless the workstream must
  * still be asked. An omitted title is asked too.
  */
 export type StartPreset = {
   readonly title?: string | null;
-  readonly topic?: PlacementOutput;
+  readonly workstream?: WorkstreamChoiceOutput;
 };
 
 /** The part of BB's `message.dispatch` context that tells a first message. */
@@ -116,13 +116,13 @@ export class ThreadStart {
       question: (
         thread: OpeningThread,
         request: string,
-      ) => Promise<PlacementQuestion | null>;
-      /** Whether nothing else has settled the root's topic. */
+      ) => Promise<ChoiceQuestion | null>;
+      /** Whether nothing else has settled the root's workstream. */
       unsettled: (threadId: string) => boolean;
-      /** Applies a topic answer under the source priority. */
+      /** Applies a workstream answer under the source priority. */
       file: (
         threadId: string,
-        answer: PlacementOutput,
+        answer: WorkstreamChoiceOutput,
         basis: string,
         traceId: string | null,
       ) => void;
@@ -150,7 +150,7 @@ export class ThreadStart {
 
   /**
    * A thread's first message was admitted and the thread is filed from where
-   * it started, so the call reads its inherited topic and hints. What the
+   * it started, so the call reads its inherited workstream and hints. What the
    * composer's preview answered for this text (`preset`) is applied as is,
    * and only the rest is asked. Never rejects.
    */
@@ -171,18 +171,18 @@ export class ThreadStart {
             this.deps.log(`Titling ${thread.id} failed: ${String(error)}`),
           );
       if (
-        preset.topic &&
+        preset.workstream &&
         !thread.parentThreadId &&
         this.deps.unsettled(thread.id)
       ) {
-        // The basis records which requests settled the topic.
+        // The basis records which requests settled the workstream.
         const question = await this.deps.question(thread, request);
         if (question && this.deps.unsettled(thread.id))
-          this.deps.file(thread.id, preset.topic, question.basis, null);
+          this.deps.file(thread.id, preset.workstream, question.basis, null);
       }
       await this.start(thread, request, {
         title: preset.title === undefined,
-        topic: preset.topic === undefined,
+        workstream: preset.workstream === undefined,
       });
     } catch (error) {
       this.deps.log(`Starting ${ctx.thread.id} failed: ${String(error)}`);
@@ -192,7 +192,7 @@ export class ThreadStart {
   /**
    * A thread is running without a title. Reads its opening request, which
    * covers a thread whose dispatch this run never saw (the plugin loaded
-   * mid-turn, or the hook missed it); its topic waits for the turn's end.
+   * mid-turn, or the hook missed it); its workstream waits for the turn's end.
    * Never rejects.
    */
   async onRunning(thread: OpeningThread): Promise<void> {
@@ -267,11 +267,11 @@ export class ThreadStart {
   private async start(
     thread: OpeningThread,
     request: string,
-    want: { title: boolean; topic?: boolean },
+    want: { title: boolean; workstream?: boolean },
   ): Promise<void> {
     if (!isUserRequest(request)) return;
     let title = want.title && this.titleWanted(thread);
-    const root = want.topic === true && !thread.parentThreadId;
+    const root = want.workstream === true && !thread.parentThreadId;
     if (!title && !(root && this.deps.unsettled(thread.id))) return;
 
     this.running.get(thread.id)?.abort();
@@ -279,16 +279,16 @@ export class ThreadStart {
     this.running.set(thread.id, controller);
     const revision = revisionOf(thread);
     const evidence = threadEvidence({ ...thread, status: undefined });
-    const topicWanted = () =>
+    const workstreamWanted = () =>
       root && !controller.signal.aborted && this.deps.unsettled(thread.id);
     try {
       for (let attempt = 0; ; attempt++) {
         try {
           // Asked again on each attempt, so a retry reads the current tree.
-          const question = topicWanted()
+          const question = workstreamWanted()
             ? await this.deps.question(thread, request)
             : null;
-          // A root with nothing to place by settles "no topic" without a call.
+          // A root with nothing to place by settles "no workstream" without a call.
           if (question?.settled)
             this.deps.file(thread.id, question.settled, question.basis, null);
           const placing = question && !question.settled ? question : null;
@@ -298,7 +298,7 @@ export class ThreadStart {
             {
               request,
               project: placing?.input.project ?? null,
-              placement: placing
+              choice: placing
                 ? (({ requests: _r, title: _t, ...rest }) => rest)(
                     placing.input,
                   )
@@ -325,14 +325,16 @@ export class ThreadStart {
             );
             title = false;
           }
-          // An invalid topic is asked again; the title already stands.
-          if (placing && value.topicError) throw new Error(value.topicError);
+          // An invalid workstream is asked again; the title already stands.
+          if (placing && value.workstreamError)
+            throw new Error(value.workstreamError);
           // The thread may have been filed or corrected while the call ran.
-          if (placing && value.topic && topicWanted())
-            this.deps.file(thread.id, value.topic, placing.basis, traceId);
+          if (placing && value.workstream && workstreamWanted())
+            this.deps.file(thread.id, value.workstream, placing.basis, traceId);
           else if (placing)
             this.deps.inference.annotate(traceId, {
-              topic: "not applied: the thread's topic was settled meanwhile",
+              workstream:
+                "not applied: the thread's workstream was chosen meanwhile",
             });
           return;
         } catch (error) {
@@ -341,7 +343,8 @@ export class ThreadStart {
           const wait = RETRY_DELAYS_MS[attempt];
           if (wait === undefined) return;
           await delay(wait, controller.signal);
-          if (!topicWanted() && !(title && this.titleWanted(thread))) return;
+          if (!workstreamWanted() && !(title && this.titleWanted(thread)))
+            return;
         }
       }
     } catch (error) {

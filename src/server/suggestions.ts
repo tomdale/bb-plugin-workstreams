@@ -1,17 +1,17 @@
 /*
- * Reviewed changes to durable topic identity. Placement can identify a lasting
- * area within a populated first-level topic; its division request asks for a
+ * Reviewed changes to durable workstream identity. Placement can identify a lasting
+ * area within a populated top-level workstream; its division request asks for a
  * complete filing plan rather than adding a child around existing threads.
  * Asking for suggestions also considers divisions explicitly. Volume-based
  * categories have their own lifecycle and never change this tree.
  *
- * Tidy tracks changes to the topic tree and root filing, and remembers
- * accepted and declined suggestions. Every accepted edit passes the topic
+ * Tidy tracks changes to the workstreams and groups and root filing, and remembers
+ * accepted and declined suggestions. Every accepted edit passes the workstream
  * store's two-level and leaf-only guards and records a guarded snapshot for Undo.
  */
 import { randomUUID } from "node:crypto";
 import type { ModelChoice } from "../domain/prefs.ts";
-import type { Topic } from "../domain/topics.ts";
+import type { Workstream } from "../domain/topics.ts";
 import {
   describeEdit,
   editKey,
@@ -34,15 +34,15 @@ import {
   type ChangeDelta,
   type SuggestionChange,
 } from "../domain/suggestion-change.ts";
-import { topicPath } from "../domain/topic-path.ts";
+import { workstreamPath } from "../domain/topic-path.ts";
 import { getMeta, setMeta, type Database } from "./db.ts";
 import type { Journal } from "./journal.ts";
 import { UserError } from "./service.ts";
 import type { Inference } from "./model.ts";
 import {
-  snapshotTopics,
-  topicsFingerprint,
-  type TopicStore,
+  snapshotWorkstreams,
+  workstreamsFingerprint,
+  type WorkstreamStore,
 } from "./topics.ts";
 
 /** How long an automatic check waits for changes to settle. */
@@ -68,7 +68,7 @@ type SuggestionView = {
   change: SuggestionChange | null;
   /**
    * Accepting it as data, for drawing the sidebar after. Null when `change`
-   * is, and when it can't be drawn: it needs a topic another suggestion
+   * is, and when it can't be drawn: it needs a workstream another suggestion
    * creates, or threads that joined its group are still to be filed.
    */
   delta: ChangeDelta | null;
@@ -78,7 +78,7 @@ type SuggestionView = {
   traceId: string | null;
   /**
    * Threads that joined a split's group since it was made; accepting asks
-   * the model which subgroup each goes in.
+   * the model which workstream each goes in.
    */
   arrivals: { id: string; title: string }[];
 };
@@ -114,27 +114,27 @@ type TidyMemo = {
 /** A visible root as suggestions read it. */
 type SuggestRoot = { id: string; title: string };
 
-/** An edit that needs a topic another suggestion of its pass creates. */
+/** An edit that needs a workstream another suggestion of its pass creates. */
 class NotYet extends Error {}
 
 const refs = (edit: TidyEdit): (string | null)[] => {
   switch (edit.op) {
     case "merge":
       return [edit.from, edit.into];
-    case "reparent":
-      return [edit.topic, edit.parent];
+    case "move-workstream":
+      return [edit.workstream, edit.parent];
     case "rename":
-      return [edit.topic];
-    case "create":
+      return [edit.workstream];
+    case "group":
       return [edit.parent, ...edit.children];
-    case "move":
-      return [edit.topic];
+    case "move-thread":
+      return [edit.workstream];
   }
 };
 
 /**
  * The delta as the client receives it: the archived threads it files are
- * counted (`archived`) but not listed, since a topic can hold thousands and
+ * counted (`archived`) but not listed, since a workstream can hold thousands and
  * a drawing never shows them.
  */
 function wireDelta(
@@ -167,18 +167,18 @@ export class Suggestions {
     private readonly deps: {
       db: Database;
       inference: Inference;
-      topics: TopicStore;
+      workstreamStore: WorkstreamStore;
       journal: Journal;
       model: () => Promise<ModelChoice>;
       /** Whether automatic suggestions are on. */
       enabled: () => boolean;
       /** Visible, non-archived roots. */
       roots: () => readonly SuggestRoot[];
-      splitThreads?: (topicId: string) => Promise<SuggestThread[]>;
+      splitThreads?: (workstreamId: string) => Promise<SuggestThread[]>;
       checkout: (threadId: string) => string | null;
       coordination: () => string[];
-      /** Suggestions or the topic tree changed. */
-      onChange: (topicsChanged: boolean) => void;
+      /** Suggestions or the workstreams and groups changed. */
+      onChange: (workstreamsChanged: boolean) => void;
       log: (message: string) => void;
       now?: () => number;
     },
@@ -219,7 +219,7 @@ export class Suggestions {
     ];
     const tree = this.tree();
     const known = {
-      topics: this.deps.topics.list(),
+      workstreams: this.deps.workstreamStore.list(),
       titles: new Map(this.deps.roots().map((r) => [r.id, r.title])),
     };
     return rows.map((row) => {
@@ -277,8 +277,8 @@ export class Suggestions {
 
   /**
    * `check`, unless nothing it reads changed since the last one. Besides the
-   * suggestions it keeps itself, it reads the topic tree and assignments,
-   * which move the catalog revision whenever they change, and the visible
+   * suggestions it keeps itself, it reads the workstreams and groups and assignments,
+   * which move the workstream tree revision whenever they change, and the visible
    * roots and the preference.
    */
   checkIfChanged(): void {
@@ -287,7 +287,7 @@ export class Suggestions {
 
   private inputs(): string {
     return JSON.stringify([
-      this.deps.topics.revision(),
+      this.deps.workstreamStore.revision(),
       this.deps.enabled(),
       this.deps
         .roots()
@@ -365,7 +365,7 @@ export class Suggestions {
     const entries: Record<string, string> = {};
     if (decision === "decline") {
       for (const row of rows) this.settle(row.id, "declined", null);
-      // An edit needing a topic a declined one would create is moot now.
+      // An edit needing a workstream a declined one would create is moot now.
       this.retire();
       this.deps.onChange(false);
       this.check();
@@ -377,7 +377,7 @@ export class Suggestions {
         applied.push(row.id);
       } catch (error) {
         const reason = error instanceof Error ? error.message : String(error);
-        // It can still apply once the topic it needs exists.
+        // It can still apply once the workstream it needs exists.
         if (!(error instanceof NotYet)) this.settle(row.id, "stale", reason);
         failed.push({ id: row.id, reason });
       }
@@ -391,7 +391,7 @@ export class Suggestions {
   /**
    * Puts a decided suggestion back up for review, for Undo right after the
    * decision. The caller first undoes an accepted one's Activity entry, which
-   * restores the topics as they were; a suggestion that no longer applies is
+   * restores the workstreams as they were; a suggestion that no longer applies is
    * then retired as usual.
    */
   reopen(id: string): void {
@@ -409,7 +409,7 @@ export class Suggestions {
   // Splits ----------------------------------------------------------------
 
   private async splits(manual: boolean): Promise<void> {
-    const topics = this.deps.topics.list();
+    const workstreams = this.deps.workstreamStore.list();
     const held = this.held();
     const pending = new Set(
       (
@@ -418,42 +418,44 @@ export class Suggestions {
             "SELECT body FROM ws_suggestion WHERE status = 'pending' AND kind = 'split'",
           )
           .all() as { body: string }[]
-      ).map((row) => (JSON.parse(row.body) as Split).topicId),
+      ).map((row) => (JSON.parse(row.body) as Split).workstreamId),
     );
-    const requests = this.deps.topics.divisionRequests();
-    for (const topic of topics) {
-      const count = held[topic.id] ?? 0;
-      const hasChildren = topics.some((child) => child.parentId === topic.id);
+    const requests = this.deps.workstreamStore.divisionRequests();
+    for (const workstream of workstreams) {
+      const count = held[workstream.id] ?? 0;
+      const hasChildren = workstreams.some(
+        (child) => child.parentId === workstream.id,
+      );
       if (
-        topic.parentId !== null ||
+        workstream.parentId !== null ||
         count === 0 ||
         (count < 2 && !hasChildren) ||
-        pending.has(topic.id)
+        pending.has(workstream.id)
       )
         continue;
-      if (!manual && !requests[topic.id]) continue;
+      if (!manual && !requests[workstream.id]) continue;
       const threads = this.deps.splitThreads
-        ? await this.deps.splitThreads(topic.id)
-        : this.threads().filter((t) => t.topicId === topic.id);
-      if (this.declinedSplit(topic.id, threads)) continue;
-      this.deps.topics.consumeDivisionRequest(topic.id);
+        ? await this.deps.splitThreads(workstream.id)
+        : this.threads().filter((t) => t.workstreamId === workstream.id);
+      if (this.declinedSplit(workstream.id, threads)) continue;
+      this.deps.workstreamStore.consumeDivisionRequest(workstream.id);
       const { value, traceId } = await this.deps.inference.run(
         "split",
         {
-          topics,
+          workstreams,
           held,
-          topicId: topic.id,
-          proposedScope: requests[topic.id],
+          workstreamId: workstream.id,
+          proposedScope: requests[workstream.id],
           threads,
           decisions: this.decisions(),
         },
         {
           model: await this.deps.model(),
-          label: topicPath(topic.id, topics),
+          label: workstreamPath(workstream.id, workstreams),
           links: threads.map((t) => ({ kind: "thread" as const, ref: t.id })),
         },
       );
-      if (value.split.subgroups.length > 0)
+      if (value.split.workstreams.length > 0)
         this.propose(
           randomUUID(),
           "split",
@@ -471,7 +473,7 @@ export class Suggestions {
 
   /** You declined a split of these same threads; asking again changes nothing. */
   private declinedSplit(
-    topicId: string,
+    workstreamId: string,
     threads: readonly { id: string }[],
   ): boolean {
     const members = JSON.stringify(threads.map((t) => t.id).sort());
@@ -484,8 +486,8 @@ export class Suggestions {
     ).some((row) => {
       const split = JSON.parse(row.body) as Split;
       return (
-        split.topicId === topicId &&
-        JSON.stringify(split.subgroups.flatMap((g) => g.threadIds).sort()) ===
+        split.workstreamId === workstreamId &&
+        JSON.stringify(split.workstreams.flatMap((g) => g.threadIds).sort()) ===
           members
       );
     });
@@ -503,12 +505,12 @@ export class Suggestions {
     return { at: null };
   }
 
-  /** Topic definitions and visible root filing, excluding titles and status. */
+  /** Workstream definitions and visible root filing, excluding titles and status. */
   private fingerprint(): string {
-    const topics = this.deps.topics.list();
-    const assignments = this.deps.topics.assignments();
+    const workstreams = this.deps.workstreamStore.list();
+    const assignments = this.deps.workstreamStore.assignments();
     return JSON.stringify([
-      topics
+      workstreams
         .map((t) => [
           t.id,
           t.name,
@@ -519,14 +521,14 @@ export class Suggestions {
         .sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
       this.deps
         .roots()
-        .map((root) => [root.id, assignments[root.id]?.entityId ?? null])
+        .map((root) => [root.id, assignments[root.id]?.workstreamId ?? null])
         .sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
     ]);
   }
 
   private async tidy(manual: boolean): Promise<void> {
     const memo = this.memo();
-    const topics = this.deps.topics.list();
+    const workstreams = this.deps.workstreamStore.list();
     const roots = this.deps.roots();
     const fingerprint = this.fingerprint();
     if (!manual) {
@@ -572,7 +574,7 @@ export class Suggestions {
       } satisfies TidyMemo),
     );
     const input = {
-      topics,
+      workstreams,
       held: this.held(),
       threads: this.threads(),
       coordination: this.deps.coordination(),
@@ -584,7 +586,7 @@ export class Suggestions {
     try {
       ({ value, traceId } = await this.deps.inference.run("tidy", input, {
         model: await this.deps.model(),
-        label: `${roots.length} threads, ${topics.length} topics`,
+        label: `${roots.length} threads, ${workstreams.length} workstreams`,
       }));
     } catch (error) {
       this.failedFingerprint = fingerprint;
@@ -609,7 +611,7 @@ export class Suggestions {
     this.failedFingerprint = null;
   }
 
-  /** Proposes the moves topic names imply (see `prefixMoves`). */
+  /** Proposes the moves workstream names imply (see `prefixMoves`). */
   private prefixes(): void {
     const pass = randomUUID();
     for (const { edit, reason } of prefixMoves(this.tree()))
@@ -670,56 +672,56 @@ export class Suggestions {
   /** Stored root assignments, so a reviewed division includes archived filing. */
   private held(): Held {
     const out: Record<string, number> = {};
-    const assignments = this.deps.topics.assignments();
+    const assignments = this.deps.workstreamStore.assignments();
     for (const assignment of Object.values(assignments)) {
-      const id = assignment.entityId;
+      const id = assignment.workstreamId;
       if (id && !assignment.inheritedFrom) out[id] = (out[id] ?? 0) + 1;
     }
     return out;
   }
 
   private threads(): SuggestThread[] {
-    const assignments = this.deps.topics.assignments();
+    const assignments = this.deps.workstreamStore.assignments();
     return this.deps.roots().map((root) => ({
       id: root.id,
       title: root.title,
       checkout: this.deps.checkout(root.id),
-      topicId: assignments[root.id]?.entityId ?? null,
+      workstreamId: assignments[root.id]?.workstreamId ?? null,
     }));
   }
 
   private tree(): TreeState {
-    const assignments = this.deps.topics.assignments();
+    const assignments = this.deps.workstreamStore.assignments();
     return {
-      topics: this.deps.topics.list(),
+      workstreams: this.deps.workstreamStore.list(),
       held: this.held(),
-      threadTopic: Object.fromEntries(
+      threadWorkstream: Object.fromEntries(
         Object.values(assignments)
           .filter((assignment) => !assignment.inheritedFrom)
-          .map((assignment) => [assignment.threadId, assignment.entityId]),
+          .map((assignment) => [assignment.threadId, assignment.workstreamId]),
       ),
     };
   }
 
   /** Names for descriptions; `new:` references read as their names. */
   private names() {
-    const topics = this.deps.topics.list();
+    const workstreams = this.deps.workstreamStore.list();
     const titles = new Map(this.deps.roots().map((r) => [r.id, r.title]));
     return {
-      topic: (ref: string | null) => {
+      workstream: (ref: string | null) => {
         if (ref === null) return "the top level";
         if (ref.startsWith("new:")) return ref.slice(4);
         try {
-          return topicPath(ref, topics);
+          return workstreamPath(ref, workstreams);
         } catch {
-          return "a removed topic";
+          return "a removed workstream";
         }
       },
       thread: (id: string) => titles.get(id) ?? "a thread",
     };
   }
 
-  /** Topics accepted suggestions of a pass created, by lowercased name. */
+  /** Workstreams accepted suggestions of a pass created, by lowercased name. */
   private created(pass: string): Map<string, string> {
     try {
       return new Map(
@@ -738,7 +740,10 @@ export class Suggestions {
   private review(
     row: Row,
     tree: TreeState,
-    known: { topics: readonly Topic[]; titles: ReadonlyMap<string, string> },
+    known: {
+      workstreams: readonly Workstream[];
+      titles: ReadonlyMap<string, string>;
+    },
   ): {
     change: SuggestionChange | null;
     delta: ChangeDelta | null;
@@ -755,7 +760,7 @@ export class Suggestions {
       )
         .map((r) => this.resolve(JSON.parse(r.body) as TidyEdit, row.pass_id))
         .flatMap((e) =>
-          e.op === "create"
+          e.op === "group"
             ? [
                 [
                   e.name.toLowerCase(),
@@ -765,14 +770,14 @@ export class Suggestions {
             : [],
         ),
     );
-    const now = "subgroups" in body ? splitNow(body, tree) : null;
+    const now = "workstreams" in body ? splitNow(body, tree) : null;
     const edit = now ? now.split : this.resolve(body as TidyEdit, row.pass_id);
     const context: ChangeContext = {
-      topics: known.topics,
-      threadTopic: tree.threadTopic,
+      workstreams: known.workstreams,
+      threadWorkstream: tree.threadWorkstream,
       title: (id) =>
         known.titles.get(id) ??
-        ("subgroups" in body ? body.threadTitles?.[id] : undefined) ??
+        ("workstreams" in body ? body.threadTitles?.[id] : undefined) ??
         "Untitled thread",
       visible: (id) => known.titles.has(id),
       creates,
@@ -794,7 +799,7 @@ export class Suggestions {
   /**
    * Settles waiting suggestions that would change nothing, now or ever: a
    * split none of whose threads remain, an edit naming something gone or
-   * already done, or one needing a topic its pass will no longer create.
+   * already done, or one needing a workstream its pass will no longer create.
    * Ones that break a rule only for now stay waiting, out of date.
    */
   private retire(): void {
@@ -822,7 +827,7 @@ export class Suggestions {
     return this.uncreated(edit, row.pass_id) ?? mootEdit(edit, tree);
   }
 
-  /** Why an edit can't apply: a topic it needs won't be created anymore. */
+  /** Why an edit can't apply: a workstream it needs won't be created anymore. */
   private uncreated(edit: TidyEdit, pass: string): string | null {
     const creating = new Set(
       (
@@ -833,14 +838,14 @@ export class Suggestions {
           .all(pass) as { body: string }[]
       )
         .map((r) => JSON.parse(r.body) as TidyEdit)
-        .filter((e) => e.op === "create")
+        .filter((e) => e.op === "group")
         .map((e) => (e as { name: string }).name.toLowerCase()),
     );
     return refs(edit).some(
       (ref) =>
         ref?.startsWith("new:") && !creating.has(ref.slice(4).toLowerCase()),
     )
-      ? "It needs a topic another suggestion would have created."
+      ? "It needs a workstream another suggestion would have created."
       : null;
   }
 
@@ -848,12 +853,12 @@ export class Suggestions {
     if (row.kind === "split")
       return splitNow(JSON.parse(row.body) as Split, tree).problem;
     const edit = this.resolve(JSON.parse(row.body) as TidyEdit, row.pass_id);
-    // A topic another suggestion of the pass would create, while that one
+    // A workstream another suggestion of the pass would create, while that one
     // still waits; once it's declined or stale, this one can't apply.
     return this.uncreated(edit, row.pass_id) ?? refusal(edit, tree);
   }
 
-  /** Replaces `new:` references with topics accepted suggestions created. */
+  /** Replaces `new:` references with workstreams accepted suggestions created. */
   private resolve(edit: TidyEdit, pass: string): TidyEdit {
     const created = this.created(pass);
     const ref = (value: string | null) =>
@@ -863,18 +868,22 @@ export class Suggestions {
     switch (edit.op) {
       case "merge":
         return { ...edit, from: ref(edit.from)!, into: ref(edit.into)! };
-      case "reparent":
-        return { ...edit, topic: ref(edit.topic)!, parent: ref(edit.parent) };
+      case "move-workstream":
+        return {
+          ...edit,
+          workstream: ref(edit.workstream)!,
+          parent: ref(edit.parent),
+        };
       case "rename":
-        return { ...edit, topic: ref(edit.topic)! };
-      case "create":
+        return { ...edit, workstream: ref(edit.workstream)! };
+      case "group":
         return {
           ...edit,
           parent: ref(edit.parent),
           children: edit.children.map((c) => ref(c)!),
         };
-      case "move":
-        return { ...edit, topic: ref(edit.topic)! };
+      case "move-thread":
+        return { ...edit, workstream: ref(edit.workstream)! };
     }
   }
 
@@ -888,22 +897,22 @@ export class Suggestions {
     const now = splitNow(JSON.parse(row.body) as Split, this.tree());
     if (now.problem || now.arrivals.length === 0) return now.split;
     const split = now.split;
-    const topics = this.deps.topics.list();
+    const workstreams = this.deps.workstreamStore.list();
     const key = (name: string) => name.trim().toLowerCase();
     const children = new Set(
-      topics
-        .filter((t) => t.parentId === split.topicId)
+      workstreams
+        .filter((t) => t.parentId === split.workstreamId)
         .map((t) => key(t.name)),
     );
-    // The subgroups it would create stand in as subgroups, so the call files
-    // the newcomers among them as it files threads beside subgroups.
-    const proposed = split.subgroups
+    // The workstreams it would create stand in as existing ones, so the call
+    // moves the newcomers among them as it moves threads beside them.
+    const proposed = split.workstreams
       .filter((g) => !children.has(key(g.name)))
       .map((g) => ({
         id: `proposed:${key(g.name)}`,
         name: g.name,
         description: g.description,
-        parentId: split.topicId,
+        parentId: split.workstreamId,
         aliases: [],
       }));
     const arrivals = new Set(now.arrivals);
@@ -913,18 +922,18 @@ export class Suggestions {
         await this.deps.inference.run(
           "split",
           {
-            topics: [...topics, ...proposed],
+            workstreams: [...workstreams, ...proposed],
             held: this.held(),
-            topicId: split.topicId,
+            workstreamId: split.workstreamId,
             threads: (this.deps.splitThreads
-              ? await this.deps.splitThreads(split.topicId)
+              ? await this.deps.splitThreads(split.workstreamId)
               : this.threads()
             ).filter((t) => arrivals.has(t.id)),
             decisions: this.decisions(),
           },
           {
             model: await this.deps.model(),
-            label: `${topicPath(split.topicId, topics)}: threads that joined`,
+            label: `${workstreamPath(split.workstreamId, workstreams)}: threads that joined`,
             links: now.arrivals.map((id) => ({
               kind: "thread" as const,
               ref: id,
@@ -937,71 +946,71 @@ export class Suggestions {
         `Couldn't file the threads that joined since: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
-    const subgroups = split.subgroups.map((g) => ({
+    const created = split.workstreams.map((g) => ({
       ...g,
       threadIds: [...g.threadIds],
     }));
-    for (const group of value.split.subgroups) {
-      const match = subgroups.find((g) => key(g.name) === key(group.name));
+    for (const group of value.split.workstreams) {
+      const match = created.find((g) => key(g.name) === key(group.name));
       if (match) match.threadIds.push(...group.threadIds);
-      else subgroups.push({ ...group, threadIds: [...group.threadIds] });
+      else created.push({ ...group, threadIds: [...group.threadIds] });
     }
-    return { ...split, subgroups };
+    return { ...split, workstreams: created };
   }
 
   /** Applies an accepted suggestion; returns its Activity entry's id. */
   private apply(row: Row, filed?: Split): string {
-    const topics = this.deps.topics;
+    const workstreamStore = this.deps.workstreamStore;
     const db = this.deps.db;
     const body = JSON.parse(row.body) as TidyEdit | Split;
     return db.transaction(() => {
-      const snapshot = snapshotTopics(db, this.now());
+      const snapshot = snapshotWorkstreams(db, this.now());
       const threads: { id: string; name: string }[] = [];
-      if ("subgroups" in body) {
+      if ("workstreams" in body) {
         const now = splitNow(body, this.tree());
         if (now.problem) throw new Error(now.problem);
         const split = filed ?? now.split;
-        const listed = new Set(split.subgroups.flatMap((g) => g.threadIds));
+        const listed = new Set(split.workstreams.flatMap((g) => g.threadIds));
         if (now.arrivals.some((id) => !listed.has(id)))
           throw new NotYet("More threads joined its group; accept it again.");
-        topics.split(
-          split.topicId,
-          split.subgroups.filter((g) => g.threadIds.length > 0),
+        workstreamStore.split(
+          split.workstreamId,
+          split.workstreams.filter((g) => g.threadIds.length > 0),
         );
       } else {
         const edit = this.resolve(body, row.pass_id);
         if (refs(edit).some((ref) => ref?.startsWith("new:")))
           throw new NotYet(
-            "It needs a topic another suggestion creates; accept that one first.",
+            "It needs a workstream another suggestion creates; accept that one first.",
           );
         const problem = refusal(edit, this.tree());
         if (problem) throw new Error(problem);
         switch (edit.op) {
           case "merge":
-            topics.merge(edit.from, edit.into);
+            workstreamStore.merge(edit.from, edit.into);
             break;
-          case "reparent": {
-            const moved = topics.reparent(edit.topic, edit.parent);
+          case "move-workstream": {
+            const moved = workstreamStore.move(edit.workstream, edit.parent);
             // The old name stays an alias, so a proposal that uses it still
-            // finds the topic.
+            // finds the workstream.
             if (edit.name !== undefined && edit.name !== moved.name)
-              topics.edit(moved.id, {
+              workstreamStore.edit(moved.id, {
                 name: edit.name,
                 aliases: [...moved.aliases, moved.name],
               });
             break;
           }
           case "rename":
-            topics.rename(edit.topic, edit.name);
+            workstreamStore.rename(edit.workstream, edit.name);
             break;
-          case "create": {
-            const created = topics.create(
+          case "group": {
+            const created = workstreamStore.create(
               edit.name,
               edit.description,
               edit.parent,
             );
             for (const child of edit.children)
-              topics.reparent(child, created.id);
+              workstreamStore.move(child, created.id);
             const map = Object.fromEntries(this.created(row.pass_id));
             map[edit.name.toLowerCase()] = created.id;
             setMeta(
@@ -1011,13 +1020,14 @@ export class Suggestions {
             );
             break;
           }
-          case "move": {
-            const current = topics.assignment(edit.thread);
-            topics.assign(edit.thread, edit.topic, {
-              provenance: current.provenance === "manual" ? "manual" : "full",
+          case "move-thread": {
+            const current = workstreamStore.assignment(edit.thread);
+            workstreamStore.assign(edit.thread, edit.workstream, {
+              provenance:
+                current.provenance === "manual" ? "manual" : "automatic",
               // An accepted refile keeps the basis it was settled from, so
               // placement leaves it alone until a new request arrives.
-              evidence: topics.basis(edit.thread),
+              evidence: workstreamStore.basis(edit.thread),
             });
             threads.push({
               id: edit.thread,
@@ -1031,15 +1041,15 @@ export class Suggestions {
       }
       this.settle(row.id, "accepted", null);
       return this.deps.journal.add({
-        action: "suggestion",
-        source: "user",
+        action: "suggestion-accepted",
+        source: "you",
         rationale: row.summary,
         threads,
         workstreams: [],
         undo: {
-          kind: "restore-topics",
+          kind: "restore-workstreams",
           snapshotId: snapshot,
-          fingerprint: topicsFingerprint(db),
+          fingerprint: workstreamsFingerprint(db),
         },
         detail: row.reason || null,
       }).id;
@@ -1048,21 +1058,21 @@ export class Suggestions {
 
   /** What you decided by hand, for tidy's memory. */
   private decisions(): string[] {
-    const topics = this.deps.topics.list();
+    const workstreams = this.deps.workstreamStore.list();
     const titles = new Map(this.deps.roots().map((r) => [r.id, r.title]));
-    const assignments = this.deps.topics.assignments();
+    const assignments = this.deps.workstreamStore.assignments();
     const filed = Object.values(assignments)
       .filter(
         (a) =>
           a.provenance === "manual" &&
-          a.entityId &&
+          a.workstreamId &&
           !a.inheritedFrom &&
           titles.has(a.threadId),
       )
       .slice(0, 20)
       .map(
         (a) =>
-          `You filed “${titles.get(a.threadId)}” under ${topicPath(a.entityId!, topics)}`,
+          `You moved “${titles.get(a.threadId)}” to ${workstreamPath(a.workstreamId!, workstreams)}`,
       );
     const accepted = (
       this.deps.db

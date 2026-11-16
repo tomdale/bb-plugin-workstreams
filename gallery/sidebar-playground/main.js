@@ -2601,7 +2601,7 @@ function syncUrl() {
 function ordered(list) {
   if ($("sort").value === "manual") return [...list];
   const label = (item) =>
-    item.parent ? `${item.parent}: ${item.name}` : item.name;
+    item.parent ? `${item.parent} › ${item.name}` : item.name;
   return [...list].sort((a, b) =>
     $("sort").value === "activity"
       ? b.activity - a.activity
@@ -2944,7 +2944,7 @@ function renderUnit(item, mode, panel, lower, hasParent) {
   heading.setAttribute("aria-expanded", String(!isCollapsed));
   heading.setAttribute(
     "aria-label",
-    `${item.parent ? item.parent + ": " : ""}${item.name}`,
+    `${item.parent ? item.parent + " › " : ""}${item.name}`,
   );
   const chev = document.createElement("span");
   chev.className = "chev";
@@ -2956,7 +2956,7 @@ function renderUnit(item, mode, panel, lower, hasParent) {
     panel,
     name,
     mode === "prefix" && item.parent
-      ? `${item.parent}: ${item.name}`
+      ? `${item.parent} › ${item.name}`
       : item.name,
   );
   afterComponentsMounted(panel, () => {
@@ -3219,7 +3219,7 @@ function renderPanel(id, mode) {
       if (useAppGaps && previousItem) {
         const gapGroup = (item) => ({
           id: item.id,
-          name: item.parent ? `${item.parent}: ${item.name}` : item.name,
+          name: item.parent ? `${item.parent} › ${item.name}` : item.name,
         });
         family.style.marginTop = `${workstreamGap(gapGroup(previousItem), gapGroup(group.items[0]), previousCollapsed)}px`;
       }

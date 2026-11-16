@@ -410,7 +410,7 @@ describe("selectUpNext", () => {
     const focused = selectUpNext(projection, {
       kindOf,
       now: clock,
-      prioritized: new Set(["sec_b"]),
+      focused: new Set(["sec_b"]),
     });
     expect(focused.focused).toBe(true);
     // The rules then apply to prioritized threads alone.
@@ -429,19 +429,19 @@ describe("selectUpNext", () => {
     const selection = selectUpNext(projection, {
       kindOf,
       now: clock,
-      prioritized: new Set(["sec_b"]),
+      focused: new Set(["sec_b"]),
     });
     expect(selection.focused).toBe(false);
     expect(ids(selection.rows)).toEqual(["ou1", "qr1"]);
   });
 
   describe("Show more", () => {
-    const more = (threads: readonly TestThread[], prioritized?: string[]) =>
+    const more = (threads: readonly TestThread[], focused?: string[]) =>
       ids(
         selectUpNext(projectWorkstreams(threads, sections, { now }), {
           kindOf,
           now: clock,
-          prioritized: prioritized && new Set(prioritized),
+          focused: focused && new Set(focused),
         }).more,
       );
 
@@ -486,12 +486,12 @@ describe("selectUpNext", () => {
     const stale = now - 8 * DAY_MS;
     const select = (
       threads: readonly TestThread[],
-      prioritized?: ReadonlySet<string>,
+      focused?: ReadonlySet<string>,
     ) =>
       selectUpNext(projectWorkstreams(threads, sections, { now }), {
         kindOf,
         now,
-        prioritized,
+        focused,
       });
 
     it("ranks a stale review or decision with the threads not blocked on you, keeping its read state", () => {

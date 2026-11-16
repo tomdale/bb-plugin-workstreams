@@ -1,14 +1,14 @@
 /*
- * The recap and topic of threads the `state` snapshot leaves out: archived
+ * The recap and workstream of threads the `state` snapshot leaves out: archived
  * and hidden threads. Their records change only through recap writes, whose
- * `changed` signal names the thread, and topic writes, which move the
- * catalog revision, so a record is read once and again only after one of
+ * `changed` signal names the thread, and workstream writes, which move the
+ * workstream tree revision, so a record is read once and again only after one of
  * those, a reconnect, or a server restart.
  */
 import type { useRpc } from "@get-bb/plugin-sdk/app";
 import type { RpcContract } from "../server/contract.ts";
 import type { Recap } from "../domain/recap.ts";
-import type { TopicAssignment } from "../domain/topics.ts";
+import type { WorkstreamAssignment } from "../domain/topics.ts";
 import { readChangedSignal } from "../domain/changes.ts";
 import { shareJson } from "./structuralSharing.ts";
 
@@ -17,14 +17,14 @@ type Rpc = ReturnType<typeof useRpc<RpcContract>>;
 export type ThreadRecord = {
   recap: Recap | null;
   dismissed: boolean;
-  assignment: TopicAssignment;
+  assignment: WorkstreamAssignment;
 };
 
 type Entry = {
   threadId: string;
   value: ThreadRecord | undefined;
   listeners: Set<() => void>;
-  /** The catalog revision of the latest read, finished or not. */
+  /** The workstream tree revision of the latest read, finished or not. */
   revision: number | null;
   stale: boolean;
   reading: boolean;
@@ -38,7 +38,7 @@ export class ThreadRecords {
 
   constructor(
     private readonly rpc: Rpc,
-    private readonly catalogRevision: () => number | null,
+    private readonly treeRevision: () => number | null,
   ) {}
 
   /** The thread's record; undefined until its first read finishes. */
@@ -61,7 +61,7 @@ export class ThreadRecords {
     }
     entry.listeners.add(listener);
     this.evict();
-    if (entry.revision !== this.catalogRevision()) entry.stale = true;
+    if (entry.revision !== this.treeRevision()) entry.stale = true;
     this.read(entry);
     return () => {
       entry.listeners.delete(listener);
@@ -78,9 +78,9 @@ export class ThreadRecords {
     }
   }
 
-  /** The snapshot's catalog revision moved: assignments may have changed. */
-  catalogChanged(): void {
-    const revision = this.catalogRevision();
+  /** The snapshot's workstream tree revision moved: assignments may have changed. */
+  treeChanged(): void {
+    const revision = this.treeRevision();
     for (const entry of this.entries.values())
       if (entry.revision !== revision) this.stale(entry);
   }
@@ -99,7 +99,7 @@ export class ThreadRecords {
     if (!entry.stale || entry.reading || entry.listeners.size === 0) return;
     entry.stale = false;
     entry.reading = true;
-    entry.revision = this.catalogRevision();
+    entry.revision = this.treeRevision();
     void this.rpc
       .call("recap_get", { threadId: entry.threadId })
       .then(({ recap, dismissed, assignment }) => {

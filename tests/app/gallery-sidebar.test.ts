@@ -384,17 +384,17 @@ describe.skipIf(browserUnavailable)("gallery sidebar", () => {
           .getAttribute("aria-expanded"),
       ).toBe("false");
       const trialLowerWorkstream = page.locator(
-        '#after .heading[aria-label="Studio: Workstreams"]',
+        '#after .heading[aria-label="Studio › Workstreams"]',
       );
       await trialLowerWorkstream.click();
       expect(await trialLowerWorkstream.getAttribute("aria-expanded")).toBe(
         "true",
       );
       const currentApp = page.locator(
-        '#before .heading[aria-label="Studio: App"]',
+        '#before .heading[aria-label="Studio › App"]',
       );
       const trialApp = page.locator(
-        '#after .heading[aria-label="Studio: App"]',
+        '#after .heading[aria-label="Studio › App"]',
       );
       const currentExpanded = await currentApp.getAttribute("aria-expanded");
       const trialExpanded = await trialApp.getAttribute("aria-expanded");
@@ -409,7 +409,7 @@ describe.skipIf(browserUnavailable)("gallery sidebar", () => {
         await page.evaluate(() =>
           document.activeElement?.getAttribute("aria-label"),
         ),
-      ).toBe("Studio: App");
+      ).toBe("Studio › App");
       expect(await trialLowerWorkstream.getAttribute("aria-expanded")).toBe(
         "true",
       );
@@ -567,14 +567,14 @@ describe.skipIf(browserUnavailable)("gallery sidebar", () => {
           .locator("#after .heading")
           .first()
           .getAttribute("aria-label"),
-      ).toBe("Studio: App");
+      ).toBe("Studio › App");
       const manualOrder = [
-        "Studio: App",
-        "Studio: Workstreams",
-        "Agent: Automations",
-        "Agent: Code review",
-        "Agent: Research",
-        "Tools: CLI",
+        "Studio › App",
+        "Studio › Workstreams",
+        "Agent › Automations",
+        "Agent › Code review",
+        "Agent › Research",
+        "Tools › CLI",
         "Prompting",
         "Quality",
       ];

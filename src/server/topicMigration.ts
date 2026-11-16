@@ -1,34 +1,34 @@
 import { createHash, randomUUID } from "node:crypto";
 import {
-  topicMigrationInput,
-  type TopicMigrationInput,
-  type TopicMigrationPlan,
+  workstreamMigrationInput,
+  type WorkstreamMigrationInput,
+  type WorkstreamMigrationPlan,
 } from "../domain/topicMigration.ts";
 import {
-  assertTopicLevels,
+  assertWorkstreamLevels,
   takesThreads,
-  type Topic,
+  type Workstream,
 } from "../domain/topics.ts";
-import { topicPath } from "../domain/topic-path.ts";
+import { pathNames, workstreamPath } from "../domain/topic-path.ts";
 import { getMeta, setMeta, type Database } from "./db.ts";
-import type { TopicStore } from "./topics.ts";
+import type { WorkstreamStore } from "./topics.ts";
 import type { Journal } from "./journal.ts";
 import { UserError } from "./service.ts";
 
 type Subject = {
   thread_id: string;
-  entity_id: string | null;
+  workstream_id: string | null;
   source: string;
   evidence: string | null;
 };
-const KEY = "topic_migration_preview";
+const KEY = "migration_preview";
 
-/** A topic migration is an explicit reviewed transaction, never a schema migration. */
-export class TopicMigration {
+/** A workstream migration is an explicit reviewed transaction, never a schema migration. */
+export class WorkstreamMigration {
   constructor(
     private readonly deps: {
       db: Database;
-      topics: TopicStore;
+      workstreamStore: WorkstreamStore;
       journal: Journal;
     },
   ) {}
@@ -36,79 +36,87 @@ export class TopicMigration {
   private subjects(): Subject[] {
     return this.deps.db
       .prepare(
-        "SELECT thread_id, entity_id, source, evidence FROM ws_corpus_subject ORDER BY thread_id",
+        "SELECT thread_id, workstream_id, source, evidence FROM ws_thread_workstream ORDER BY thread_id",
       )
       .all() as Subject[];
   }
 
   private fingerprint(): string {
     return createHash("sha256")
-      .update(JSON.stringify([this.deps.topics.list(), this.subjects()]))
+      .update(
+        JSON.stringify([this.deps.workstreamStore.list(), this.subjects()]),
+      )
       .digest("hex");
   }
 
-  preview(raw: TopicMigrationInput = {}): TopicMigrationPlan {
-    const input = topicMigrationInput.parse(raw);
-    const topics = this.deps.topics.list();
-    const byId = new Map(topics.map((topic) => [topic.id, topic]));
+  preview(raw: WorkstreamMigrationInput = {}): WorkstreamMigrationPlan {
+    const input = workstreamMigrationInput.parse(raw);
+    const workstreams = this.deps.workstreamStore.list();
+    const byId = new Map(
+      workstreams.map((workstream) => [workstream.id, workstream]),
+    );
     const fold = new Map<string, string>();
-    for (const topic of topics) {
-      let at = topic;
+    for (const workstream of workstreams) {
+      let at = workstream;
       const seen = new Set<string>();
       while (at.parentId && byId.get(at.parentId)?.parentId) {
         if (seen.has(at.id))
           throw new UserError(
-            "Repair the topic cycle before previewing a migration.",
+            "Fix the workstream that is inside itself before previewing a migration.",
           );
         seen.add(at.id);
         at = byId.get(at.parentId)!;
       }
-      fold.set(topic.id, at.id);
+      fold.set(workstream.id, at.id);
     }
-    const proposed: Topic[] = topics
-      .filter((topic) => fold.get(topic.id) === topic.id)
-      .map((topic) => ({ ...topic, aliases: [...topic.aliases] }));
+    const proposed: Workstream[] = workstreams
+      .filter((workstream) => fold.get(workstream.id) === workstream.id)
+      .map((workstream) => ({
+        ...workstream,
+        aliases: [...workstream.aliases],
+      }));
     const newIds = new Map<string, string>();
-    for (const topic of input.newTopics) {
-      if (newIds.has(topic.key) || byId.has(topic.key))
-        throw new UserError("New topic keys must be unique.");
-      newIds.set(topic.key, randomUUID());
+    for (const workstream of input.newWorkstreams) {
+      if (newIds.has(workstream.key) || byId.has(workstream.key))
+        throw new UserError("New workstream keys must be unique.");
+      newIds.set(workstream.key, randomUUID());
     }
-    for (const topic of input.newTopics)
+    for (const workstream of input.newWorkstreams)
       proposed.push({
-        id: newIds.get(topic.key)!,
-        name: topic.name,
-        description: topic.description,
-        parentId: topic.parentId
-          ? (newIds.get(topic.parentId) ?? topic.parentId)
+        id: newIds.get(workstream.key)!,
+        name: workstream.name,
+        description: workstream.description,
+        parentId: workstream.parentId
+          ? (newIds.get(workstream.parentId) ?? workstream.parentId)
           : null,
-        aliases: topic.aliases,
+        aliases: workstream.aliases,
         projectId: null,
         projectSource: null,
         projectRevision: 0,
       });
-    assertTopicLevels(proposed);
-    const removed = topics
-      .filter((topic) => fold.get(topic.id) !== topic.id)
-      .map((topic) => ({
-        id: topic.id,
-        path: topicPath(topic.id, topics),
-        targetId: fold.get(topic.id)!,
-        projectId: topic.projectId ?? null,
-        projectSource: topic.projectSource ?? null,
+    assertWorkstreamLevels(proposed);
+    const removed = workstreams
+      .filter((workstream) => fold.get(workstream.id) !== workstream.id)
+      .map((workstream) => ({
+        id: workstream.id,
+        path: workstreamPath(workstream.id, workstreams),
+        targetId: fold.get(workstream.id)!,
+        projectId: workstream.projectId ?? null,
+        projectSource: workstream.projectSource ?? null,
       }));
-    for (const topic of removed) {
-      const target = proposed.find((item) => item.id === topic.targetId)!;
-      if (!target.aliases.includes(topic.path)) target.aliases.push(topic.path);
+    for (const workstream of removed) {
+      const target = proposed.find((item) => item.id === workstream.targetId)!;
+      if (!target.aliases.includes(workstream.path))
+        target.aliases.push(workstream.path);
     }
     const siblings = new Map<string, string>();
-    for (const topic of proposed) {
-      for (const name of [topic.name, ...topic.aliases]) {
-        const key = `${topic.parentId ?? ""}\u0000${name.trim().toLowerCase()}`;
+    for (const workstream of proposed) {
+      for (const name of [workstream.name, ...workstream.aliases]) {
+        const key = `${workstream.parentId ?? ""}\u0000${name.trim().toLowerCase()}`;
         const previous = siblings.get(key);
-        if (previous && previous !== topic.id)
-          throw new UserError(`Topic name or alias conflicts: ${name}`);
-        siblings.set(key, topic.id);
+        if (previous && previous !== workstream.id)
+          throw new UserError(`Workstream name or alias conflicts: ${name}`);
+        siblings.set(key, workstream.id);
       }
     }
     const subjects = this.subjects();
@@ -121,7 +129,7 @@ export class TopicMigration {
         );
       choices.set(
         choice.threadId,
-        newIds.get(choice.topicId) ?? choice.topicId,
+        newIds.get(choice.workstreamId) ?? choice.workstreamId,
       );
     }
     const resetIds = new Set(input.resetThreadIds);
@@ -130,73 +138,71 @@ export class TopicMigration {
       input.resetThreadIds.some((id) => !known.has(id) || choices.has(id))
     )
       throw new UserError(
-        "Reset choices must name known assignments once and cannot also refile them.",
+        "Reset choices must name known threads once and can't also move them.",
       );
-    const resets: TopicMigrationPlan["resets"] = [];
-    const changes: TopicMigrationPlan["changes"] = [];
-    const blockers: TopicMigrationPlan["blockers"] = [];
+    const resets: WorkstreamMigrationPlan["resets"] = [];
+    const changes: WorkstreamMigrationPlan["changes"] = [];
+    const blockers: WorkstreamMigrationPlan["blockers"] = [];
     for (const subject of subjects) {
       if (resetIds.has(subject.thread_id)) {
         if (subject.source === "manual")
-          throw new UserError(
-            "A migration reset cannot discard a manual filing choice.",
-          );
-        if (!subject.entity_id)
-          throw new UserError("The assignment is already Unfiled.");
+          throw new UserError("A migration reset can't undo a move you made.");
+        if (!subject.workstream_id)
+          throw new UserError("That thread already has no workstream.");
         resets.push({
           threadId: subject.thread_id,
-          from: topicPath(subject.entity_id, topics),
+          from: workstreamPath(subject.workstream_id, workstreams),
           source: subject.source,
         });
         continue;
       }
-      if (!subject.entity_id) {
+      if (!subject.workstream_id) {
         if (choices.has(subject.thread_id))
           throw new UserError(
-            "A topic migration does not file Unfiled threads.",
+            "A migration doesn't move threads that have no workstream.",
           );
         continue;
       }
       const destination =
-        choices.get(subject.thread_id) ?? fold.get(subject.entity_id);
-      const target = proposed.find((topic) => topic.id === destination);
+        choices.get(subject.thread_id) ?? fold.get(subject.workstream_id);
+      const target = proposed.find(
+        (workstream) => workstream.id === destination,
+      );
       if (!target)
         throw new UserError("A migration choice names an unknown destination.");
       if (!takesThreads(target.id, proposed)) {
         blockers.push({
           threadId: subject.thread_id,
-          topicId: target.id,
-          reason:
-            "Choose a meaningfully named leaf topic for this stored assignment.",
+          workstreamId: target.id,
+          reason: "Choose a meaningfully named workstream for this thread.",
         });
         continue;
       }
-      if (target.id !== subject.entity_id)
+      if (target.id !== subject.workstream_id)
         changes.push({
           threadId: subject.thread_id,
-          from: topicPath(subject.entity_id, topics),
-          to: topicPath(target.id, proposed),
-          topicId: target.id,
+          from: workstreamPath(subject.workstream_id, workstreams),
+          to: workstreamPath(target.id, proposed),
+          workstreamId: target.id,
           source: subject.source,
         });
     }
-    for (const topic of removed) {
-      const previous = byId.get(topic.id)!;
+    for (const workstream of removed) {
+      const previous = byId.get(workstream.id)!;
       if (
         previous.projectSource === "manual" ||
         previous.projectSource === "disabled"
       )
         blockers.push({
           threadId: null,
-          topicId: topic.id,
-          reason:
-            "Review this topic's explicit project association before removing it.",
+          workstreamId: workstream.id,
+          reason: "Review this workstream's project before removing it.",
         });
     }
     const plan = {
       id: randomUUID(),
       fingerprint: this.fingerprint(),
-      topics: proposed,
+      workstreams: proposed,
       removed,
       changes,
       resets,
@@ -209,12 +215,12 @@ export class TopicMigration {
   apply(planId: string): { backupId: string; changed: number; reset: number } {
     return this.deps.db.transaction(() => {
       const raw = getMeta(this.deps.db, KEY);
-      const plan = raw ? (JSON.parse(raw) as TopicMigrationPlan) : null;
+      const plan = raw ? (JSON.parse(raw) as WorkstreamMigrationPlan) : null;
       if (!plan || plan.id !== planId)
-        throw new UserError("Preview this topic migration before applying it.");
+        throw new UserError("Preview this migration before applying it.");
       if (plan.fingerprint !== this.fingerprint())
         throw new UserError(
-          "Topics or assignments changed. Review a fresh migration preview.",
+          "Workstreams or their threads changed. Review a fresh migration preview.",
         );
       if (plan.blockers.length)
         throw new UserError(
@@ -224,84 +230,91 @@ export class TopicMigration {
         !plan.removed.length &&
         !plan.changes.length &&
         !plan.resets.length &&
-        this.deps.topics.list().length === plan.topics.length
+        this.deps.workstreamStore.list().length === plan.workstreams.length
       )
         throw new UserError("The migration would change nothing.");
       const backupId = randomUUID();
       setMeta(
         this.deps.db,
-        `topic_migration_backup:${backupId}`,
+        `migration_backup:${backupId}`,
         JSON.stringify({
           at: Date.now(),
-          entities: this.deps.db
-            .prepare("SELECT * FROM ws_corpus_entity")
+          workstreams: this.deps.db
+            .prepare("SELECT * FROM ws_workstream")
             .all(),
           subjects: this.deps.db
-            .prepare("SELECT * FROM ws_corpus_subject")
+            .prepare("SELECT * FROM ws_thread_workstream")
             .all(),
-          groups: this.deps.db.prepare("SELECT * FROM ws_corpus_group").all(),
+          groups: this.deps.db
+            .prepare("SELECT * FROM ws_workstream_section")
+            .all(),
           layout: getMeta(this.deps.db, "layout"),
         }),
       );
       const existing = new Set(
-        this.deps.topics.list().map((topic) => topic.id),
+        this.deps.workstreamStore.list().map((workstream) => workstream.id),
       );
       const insert = this.deps.db.prepare(
-        "INSERT INTO ws_corpus_entity(id, name, description, parent_id, aliases, origin) VALUES (?, ?, ?, ?, ?, 'user')",
+        "INSERT INTO ws_workstream(id, name, description, parent_id, aliases, origin) VALUES (?, ?, ?, ?, ?, 'user')",
       );
-      const pending = plan.topics.filter((topic) => !existing.has(topic.id));
+      const pending = plan.workstreams.filter(
+        (workstream) => !existing.has(workstream.id),
+      );
       while (pending.length) {
         const index = pending.findIndex(
-          (topic) => !topic.parentId || existing.has(topic.parentId),
+          (workstream) =>
+            !workstream.parentId || existing.has(workstream.parentId),
         );
         if (index < 0)
-          throw new UserError("The migration has invalid new topic ancestry.");
-        const [topic] = pending.splice(index, 1);
+          throw new UserError(
+            "The migration puts a new workstream in an invalid group.",
+          );
+        const [workstream] = pending.splice(index, 1);
         insert.run(
-          topic!.id,
-          topic!.name,
-          topic!.description,
-          topic!.parentId,
-          JSON.stringify(topic!.aliases),
+          workstream!.id,
+          workstream!.name,
+          workstream!.description,
+          workstream!.parentId,
+          JSON.stringify(workstream!.aliases),
         );
-        existing.add(topic!.id);
+        existing.add(workstream!.id);
       }
-      for (const topic of plan.topics)
+      for (const workstream of plan.workstreams)
         this.deps.db
-          .prepare("UPDATE ws_corpus_entity SET aliases = ? WHERE id = ?")
-          .run(JSON.stringify(topic.aliases), topic.id);
+          .prepare("UPDATE ws_workstream SET aliases = ? WHERE id = ?")
+          .run(JSON.stringify(workstream.aliases), workstream.id);
       for (const change of plan.changes)
         this.deps.db
           .prepare(
-            "UPDATE ws_corpus_subject SET entity_id = ? WHERE thread_id = ?",
+            "UPDATE ws_thread_workstream SET workstream_id = ? WHERE thread_id = ?",
           )
-          .run(change.topicId, change.threadId);
+          .run(change.workstreamId, change.threadId);
       for (const reset of plan.resets)
         this.deps.db
           .prepare(
-            "DELETE FROM ws_corpus_subject WHERE thread_id = ? AND source <> 'manual'",
+            "DELETE FROM ws_thread_workstream WHERE thread_id = ? AND source <> 'manual'",
           )
           .run(reset.threadId);
-      for (const topic of [...plan.removed].sort(
-        (a, b) => b.path.split(":").length - a.path.split(":").length,
+      for (const workstream of [...plan.removed].sort(
+        (a, b) => pathNames(b.path).length - pathNames(a.path).length,
       )) {
         this.deps.db
-          .prepare("DELETE FROM ws_corpus_group WHERE entity_id = ?")
-          .run(topic.id);
+          .prepare("DELETE FROM ws_workstream_section WHERE workstream_id = ?")
+          .run(workstream.id);
         this.deps.db
-          .prepare("DELETE FROM ws_corpus_entity WHERE id = ?")
-          .run(topic.id);
+          .prepare("DELETE FROM ws_workstream WHERE id = ?")
+          .run(workstream.id);
       }
-      assertTopicLevels(this.deps.topics.list());
-      this.deps.topics.bumpRevision();
+      assertWorkstreamLevels(this.deps.workstreamStore.list());
+      this.deps.workstreamStore.bumpRevision();
       this.deps.journal.add({
-        action: "batch",
-        source: "user",
-        rationale: "Applied reviewed two-level topic migration",
+        action: "thread-moved",
+        source: "you",
+        rationale: "Applied a two-level migration preview",
         threads: [],
         workstreams: [],
         undo: null,
-        detail: `${plan.changes.length} refiled; ${plan.resets.length} classifications reset; recovery snapshot ${backupId}`,
+        detail: `${plan.changes.length} moved; ${plan.resets.length} automatic choices reset; backup ${backupId}`,
       });
       this.deps.db.prepare("DELETE FROM ws_meta WHERE key = ?").run(KEY);
       return {
@@ -313,8 +326,8 @@ export class TopicMigration {
   }
 
   backup(id: string): unknown {
-    const raw = getMeta(this.deps.db, `topic_migration_backup:${id}`);
-    if (!raw) throw new UserError("Unknown topic migration backup.");
+    const raw = getMeta(this.deps.db, `migration_backup:${id}`);
+    if (!raw) throw new UserError("Unknown migration backup.");
     return JSON.parse(raw);
   }
 }

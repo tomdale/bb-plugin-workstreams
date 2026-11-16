@@ -14,18 +14,18 @@ describe("WorkstreamName", () => {
     expect(container.textContent).toBe("Workstreams");
   });
 
-  it("shows an area's owner subdued and hides the colon visually", () => {
+  it("shows an area's owner subdued and hides the mark visually", () => {
     const { container, getByText } = render(
-      <WorkstreamName name="Workstreams: Recaps" />,
+      <WorkstreamName name="Workstreams › Recaps" />,
     );
     expect(getByText("Workstreams").className).toContain("ws-text-prefix");
-    expect(getByText(":").className).toContain("sr-only");
-    expect(container.textContent).toBe("Workstreams: Recaps");
+    expect(getByText("›").className).toContain("sr-only");
+    expect(container.textContent).toBe("Workstreams › Recaps");
   });
 
   it("accents only the workstream name, leaving the parent to its own color", () => {
     const { getByText } = render(
-      <WorkstreamName name="Vercel Agent: Automations" accent />,
+      <WorkstreamName name="Vercel Agent › Automations" accent />,
     );
     // The owner carries only the prefix role, and its color comes from the
     // container rather than the area's hue, so one parent reads alike under
@@ -38,7 +38,7 @@ describe("WorkstreamName", () => {
   it("gives the parent the container's color, or the muted ink without one", () => {
     const { getByText } = render(
       <WorkstreamName
-        name="Vercel Agent: Automations"
+        name="Vercel Agent › Automations"
         accent
         prefixColor={{ hue: 200, level: 0 }}
       />,
@@ -46,7 +46,7 @@ describe("WorkstreamName", () => {
     const vars = getByText("Vercel Agent").style;
     expect(vars.getPropertyValue("--ws-hue")).toBe("200");
     expect(vars.getPropertyValue("--ws-color-light")).toContain("oklch");
-    const plain = render(<WorkstreamName name="Workstreams: Recaps" />);
+    const plain = render(<WorkstreamName name="Workstreams › Recaps" />);
     expect(
       plain.getByText("Workstreams").style.getPropertyValue("--ws-color-light"),
     ).toBe("var(--muted-foreground)");
@@ -61,7 +61,7 @@ describe("WorkstreamName", () => {
     expect(plain.className).not.toContain("ws-text-workstream");
     const { getByText } = render(
       <WorkstreamName
-        name="Vercel Agent: Automations"
+        name="Vercel Agent › Automations"
         className="text-[12px]"
       />,
     );
@@ -75,6 +75,6 @@ describe("WorkstreamName", () => {
   it("treats a leading or trailing colon as a plain name", () => {
     expect(splitWorkstreamName(":test")).toBeNull();
     expect(splitWorkstreamName("test:")).toBeNull();
-    expect(splitWorkstreamName("A: B")).toEqual({ owner: "A", area: "B" });
+    expect(splitWorkstreamName("A › B")).toEqual({ owner: "A", area: "B" });
   });
 });

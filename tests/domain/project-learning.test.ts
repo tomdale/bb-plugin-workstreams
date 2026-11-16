@@ -3,13 +3,13 @@ import {
   projectLearningPlan,
   type ProjectRoot,
 } from "../../src/domain/projectLearning.ts";
-import type { Topic } from "../../src/domain/topics.ts";
+import type { Workstream } from "../../src/domain/topics.ts";
 
-const topic = (
+const workstream = (
   id: string,
   parentId: string | null = null,
-  patch: Partial<Topic> = {},
-): Topic => ({
+  patch: Partial<Workstream> = {},
+): Workstream => ({
   id,
   parentId,
   name: id,
@@ -17,17 +17,17 @@ const topic = (
   aliases: [],
   ...patch,
 });
-const roots = (topicId: string, projectId = "p1", n = 3): ProjectRoot[] =>
+const roots = (workstreamId: string, projectId = "p1", n = 3): ProjectRoot[] =>
   Array.from({ length: n }, (_, i) => ({
-    id: `${topicId}-${projectId}-${i}`,
+    id: `${workstreamId}-${projectId}-${i}`,
     name: "Root",
-    topicId,
+    workstreamId,
     projectId,
   }));
 const available = new Set(["p1", "p2"]);
 
 it("requires three distinct roots agreeing on one available project", () => {
-  const t = topic("a");
+  const t = workstream("a");
   expect(projectLearningPlan([t], roots("a", "p1", 2), available)).toEqual([]);
   expect(
     projectLearningPlan(
@@ -52,21 +52,21 @@ it("requires three distinct roots agreeing on one available project", () => {
 });
 
 it("learns narrow topics first and associates parents only when all children agree", () => {
-  const topics = [topic("parent"), topic("a", "parent"), topic("b", "parent")];
+  const workstreams = [workstream("parent"), workstream("a", "parent"), workstream("b", "parent")];
   expect(
-    projectLearningPlan(topics, roots("a"), available).map((d) => d.topicId),
+    projectLearningPlan(workstreams, roots("a"), available).map((d) => d.workstreamId),
   ).toEqual(["a"]);
   expect(
-    projectLearningPlan(topics, [...roots("a"), ...roots("b")], available).map(
-      (d) => d.topicId,
+    projectLearningPlan(workstreams, [...roots("a"), ...roots("b")], available).map(
+      (d) => d.workstreamId,
     ),
   ).toEqual(["a", "b", "parent"]);
   expect(
     projectLearningPlan(
-      topics,
+      workstreams,
       [...roots("a"), ...roots("b", "p2")],
       available,
-    ).map((d) => d.topicId),
+    ).map((d) => d.workstreamId),
   ).toEqual(["a", "b"]);
 });
 
@@ -74,7 +74,7 @@ it("preserves manual choices and disabled learning, including a parent's explici
   for (const projectSource of ["manual", "disabled"] as const)
     expect(
       projectLearningPlan(
-        [topic("a", null, { projectId: "p2", projectSource })],
+        [workstream("a", null, { projectId: "p2", projectSource })],
         roots("a"),
         available,
       ),
@@ -82,18 +82,18 @@ it("preserves manual choices and disabled learning, including a parent's explici
   expect(
     projectLearningPlan(
       [
-        topic("parent"),
-        topic("a", "parent"),
-        topic("b", "parent", { projectSource: "disabled" }),
+        workstream("parent"),
+        workstream("a", "parent"),
+        workstream("b", "parent", { projectSource: "disabled" }),
       ],
       [...roots("a"), ...roots("b")],
       available,
-    ).map((d) => d.topicId),
+    ).map((d) => d.workstreamId),
   ).toEqual(["a"]);
 });
 
 it("suggests replacements for consistent alternative history and removal for mixed history", () => {
-  const t = topic("a", null, { projectId: "p1", projectSource: "learned" });
+  const t = workstream("a", null, { projectId: "p1", projectSource: "learned" });
   expect(projectLearningPlan([t], roots("a", "p2"), available)).toMatchObject([
     { kind: "correct", projectId: "p2" },
   ]);

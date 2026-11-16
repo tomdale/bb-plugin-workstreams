@@ -1,8 +1,8 @@
 import { expect, it } from "vitest";
-import { topicProject } from "../../src/domain/topicProject.ts";
-import type { Topic } from "../../src/domain/topics.ts";
+import { chosenProject } from "../../src/domain/topicProject.ts";
+import type { Workstream } from "../../src/domain/topics.ts";
 
-const topics: Topic[] = [
+const workstreams: Workstream[] = [
   {
     id: "root",
     name: "Root",
@@ -29,15 +29,15 @@ const topics: Topic[] = [
 ];
 
 it("uses the nearest topic's associated project, including a subtopic's override", () => {
-  expect(topicProject("root", topics)).toBe("project-root");
-  expect(topicProject("child", topics)).toBe("project-root");
-  expect(topicProject("override", topics)).toBe("project-child");
+  expect(chosenProject("root", workstreams)).toBe("project-root");
+  expect(chosenProject("child", workstreams)).toBe("project-root");
+  expect(chosenProject("override", workstreams)).toBe("project-child");
 });
 
 it("leaves unknown, unassociated, and cyclic topics without a project", () => {
-  expect(topicProject(null, topics)).toBeNull();
-  expect(topicProject("missing", topics)).toBeNull();
+  expect(chosenProject(null, workstreams)).toBeNull();
+  expect(chosenProject("missing", workstreams)).toBeNull();
   expect(
-    topicProject("child", [{ ...topics[1]!, parentId: "child" }]),
+    chosenProject("child", [{ ...workstreams[1]!, parentId: "child" }]),
   ).toBeNull();
 });

@@ -2,27 +2,28 @@ import type { CSSProperties } from "react";
 import { cn } from "@/lib/utils";
 import {
   workstreamColorStyle,
-  type TopicColor,
+  type WorkstreamColor,
 } from "../domain/workstreamColor.ts";
+import { PATH_MARK } from "../domain/topic-path.ts";
 
-/** Splits "<Owner>: <Area>" into its parts; null for a plain name. */
+/** Splits "<Group> › <Workstream>" into its parts; null for a plain name. */
 export function splitWorkstreamName(
   name: string,
 ): { owner: string; area: string } | null {
-  const at = name.indexOf(":");
+  const at = name.indexOf(PATH_MARK);
   if (at <= 0) return null;
   const owner = name.slice(0, at).trim();
-  const area = name.slice(at + 1).trim();
+  const area = name.slice(at + PATH_MARK.length).trim();
   return owner && area ? { owner, area } : null;
 }
 
 /**
- * The owner's color variables. A caller that knows the container's topic
+ * The owner's color variables. A caller that knows the container's workstream
  * passes its color, so the parent tier keeps one color under every area; a
  * name with no known parent falls back to the theme's muted ink, even inside
  * a header that sets its area's hue.
  */
-function prefixColors(prefixColor?: TopicColor): CSSProperties {
+function prefixColors(prefixColor?: WorkstreamColor): CSSProperties {
   return (
     prefixColor
       ? workstreamColorStyle(prefixColor)
@@ -34,9 +35,9 @@ function prefixColors(prefixColor?: TopicColor): CSSProperties {
 }
 
 /**
- * A workstream's name. An area of a larger product ("Workstreams: Recaps")
- * shows the owner subdued before the area, without the colon; the colon is
- * kept in the accessible text so screen readers hear the full name.
+ * A workstream's name. A workstream in a group ("Workstreams › Recaps")
+ * shows the group subdued before it, without the mark; the mark stays in the
+ * accessible text so screen readers hear the full name.
  *
  * The owner wears the container's own color, dimmed (`.ws-text-prefix`), so
  * one parent reads alike beneath every area instead of taking a tint of
@@ -56,7 +57,7 @@ export function WorkstreamName({
   name: string;
   className?: string;
   /** The color of the container the label's prefix names, when it has one. */
-  prefixColor?: TopicColor;
+  prefixColor?: WorkstreamColor;
   muted?: boolean;
   accent?: boolean;
 }) {
@@ -81,8 +82,8 @@ export function WorkstreamName({
     <span className={cn("truncate font-[450] leading-[1.2]", className)}>
       <span className="ws-text-prefix" style={prefixColors(prefixColor)}>
         {parts.owner}
-      </span>
-      <span className="sr-only">:</span>{" "}
+      </span>{" "}
+      <span className="sr-only">›</span>{" "}
       <span
         className={cn(
           "ws-text-inline-workstream",

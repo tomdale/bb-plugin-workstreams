@@ -1,5 +1,5 @@
 /*
- * Categories arrange a topic's current root collection.
+ * Categories arrange a workstream's current root collection.
  */
 import { z } from "zod";
 import { HEADER, redact, stripFence, tagged } from "./analysis.ts";
@@ -22,7 +22,7 @@ export type CategoryRoot = {
 };
 
 export type CategoryCollection = {
-  topicId: string;
+  workstreamId: string;
   label: string;
   roots: CategoryRoot[];
 };
@@ -105,13 +105,13 @@ export function categoryPrompt(input: CategoryInput): string {
   const categories = categoryIds(input);
   return `${HEADER}
 
-Organize the current collection of agent threads within one topic into useful sidebar categories. These categories describe this collection, not permanent product or feature identity.
+Organize the current collection of agent threads within one workstream into useful sidebar categories. These categories describe this collection, not permanent product or feature identity.
 
 Read every thread in context of the others. Choose clear distinctions that make the collection meaningfully easier to scan. A category groups threads that share one theme; use a singleton only for work that shares a theme with no other thread, and regroup an arrangement that is mostly singletons around the themes its threads share. Do not force equal sizes, matching names, or a General/Other catch-all. Choose the number of categories the collection supports. Use at least two when there are no current categories; an existing arrangement may contract to one category as its collection changes.
 
-When current categories are supplied, file each thread they omit into the existing category whose theme it shares. Keep existing names and memberships unless changing them has a meaningful organizational benefit. Minor or superficial improvements do not justify changes. You may recategorize the whole collection when its work supports clearer boundaries. Reuse an existing category ID when its meaning survives; use null for a new category. A category's name states the one theme its members share, without repeating the topic's name or chaining distinct themes; join scopes within a theme with "&", never "and" or a comma. Rename a category whose name no longer covers its members. A thread's status or stage alone does not establish what it is about.
+When current categories are supplied, put each thread they omit into the existing category whose theme it shares. Keep existing names and memberships unless changing them has a meaningful organizational benefit. Minor or superficial improvements do not justify changes. You may recategorize the whole collection when its work supports clearer boundaries. Reuse an existing category ID when its meaning survives; use null for a new category. A category's name states the one theme its members share, without repeating the workstream's name or chaining distinct themes; join scopes within a theme with "&", never "and" or a comma. Rename a category whose name no longer covers its members. A thread's status or stage alone does not establish what it is about.
 
-${tagged("current_topic", clean(input.label, 300))}
+${tagged("current_workstream", clean(input.label, 300))}
 
 ${tagged(
   "threads",
@@ -291,11 +291,11 @@ export function categoryFitPrompt(input: CategoryFitInput): string {
     );
   return `${HEADER}
 
-A topic's current agent threads are arranged into sidebar categories. Some threads are new to the topic or their work changed. Decide whether each of them fits an existing category as it stands.
+A workstream's current agent threads are arranged into sidebar categories. Some threads are new to the workstream or their work changed. Decide whether each of them fits an existing category as it stands.
 
 A thread fits a category when it shares the one theme the category's name and members share. Choose null when no category's theme covers it, when it would fit only by stretching a category's theme, or when it shares a theme with another listed thread that no category covers. A thread's status or stage alone does not establish what it is about.
 
-${tagged("current_topic", clean(input.label, 300))}
+${tagged("current_workstream", clean(input.label, 300))}
 
 The current categories and the threads that stay in them:
 ${tagged(

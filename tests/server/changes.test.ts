@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { ChangeFeed } from "../../src/server/changes.ts";
 import type { ChangedSignal } from "../../src/domain/changes.ts";
 import { openDatabase } from "../../src/server/db.ts";
-import { TopicStore } from "../../src/server/topics.ts";
+import { WorkstreamStore } from "../../src/server/topics.ts";
 import { createTestPluginHost } from "./test-host.ts";
 import { fakeWorld } from "./fake-bb.ts";
 
@@ -31,7 +31,7 @@ describe("change feed", () => {
     await tick();
     expect(published).toHaveLength(1);
     expect(published[0]).toMatchObject({
-      revisions: { recaps: 2, analysis: 1, catalog: 0, order: 0 },
+      revisions: { recaps: 2, analysis: 1, tree: 0, order: 0 },
       threadIds: ["a", "b"],
     });
   });
@@ -66,8 +66,8 @@ describe("client snapshot scope", () => {
     const host = createTestPluginHost({ pluginId: "visible-assignments" });
     hosts.push(host);
     const db = openDatabase(host.bb);
-    const topics = new TopicStore(db);
-    const topic = topics.create("Billing", "Invoices");
+    const workstreamStore = new WorkstreamStore(db);
+    const workstream = workstreamStore.create("Billing", "Invoices");
     const seen = db.prepare(
       "INSERT INTO ws_seen_thread(thread_id, section_id, parent_thread_id, title) VALUES (?, NULL, ?, ?)",
     );
@@ -75,22 +75,22 @@ describe("client snapshot scope", () => {
     seen.run("child", "root", "Child");
     // A child whose archived parent is no longer seen inherits its topic.
     seen.run("orphan", "archived-parent", "Orphan");
-    seen.run("unfiled", null, "Unfiled");
-    topics.assign("root", topic.id, { provenance: "manual" });
-    topics.assign("archived-parent", topic.id, { provenance: "full" });
-    topics.assign("archived", topic.id, { provenance: "quick" });
-    const all = topics.assignments();
-    const visible = topics.visibleAssignments();
+    seen.run("other", null, "Other");
+    workstreamStore.assign("root", workstream.id, { provenance: "manual" });
+    workstreamStore.assign("archived-parent", workstream.id, { provenance: "automatic" });
+    workstreamStore.assign("archived", workstream.id, { provenance: "composer" });
+    const all = workstreamStore.assignments();
+    const visible = workstreamStore.visibleAssignments();
     expect(Object.keys(visible).sort()).toEqual([
       "child",
       "orphan",
+      "other",
       "root",
-      "unfiled",
     ]);
     for (const [id, assignment] of Object.entries(visible))
       expect(assignment).toEqual(all[id]);
     expect(visible.orphan).toMatchObject({
-      entityId: topic.id,
+      workstreamId: workstream.id,
       inheritedFrom: "archived-parent",
     });
   });
@@ -102,7 +102,7 @@ describe("client snapshot scope", () => {
       string,
       unknown
     >;
-    expect(full).not.toHaveProperty("organization");
+    expect(full).not.toHaveProperty("organizeStatus");
     expect(full.changes).toMatchObject({ epoch: expect.any(String) });
     const slice = (await w.harness.behavior.callRpc("stateSlices", {
       slices: ["snoozes", "suggestions"],
@@ -142,9 +142,9 @@ describe("client snapshot scope", () => {
     await tick();
     const before = (await w.harness.behavior.callRpc("state", null)) as {
       changes: { revisions: Record<string, number> };
-      catalog: { assignments: Record<string, unknown> };
+      tree: { assignments: Record<string, unknown> };
     };
-    expect(before.catalog.assignments.t1).toBeDefined();
+    expect(before.tree.assignments.t1).toBeDefined();
     w.threads.set("t1", { ...w.threads.get("t1")!, archivedAt: Date.now() });
     const { changed } = (await w.harness.behavior.callRpc("refresh", null)) as {
       changed: boolean;
@@ -152,11 +152,11 @@ describe("client snapshot scope", () => {
     expect(changed).toBe(false);
     const after = (await w.harness.behavior.callRpc("state", null)) as {
       changes: { revisions: Record<string, number> };
-      catalog: { assignments: Record<string, unknown> };
+      tree: { assignments: Record<string, unknown> };
     };
-    expect(after.catalog.assignments.t1).toBeUndefined();
-    expect(after.changes.revisions.catalog).toBeGreaterThan(
-      before.changes.revisions.catalog!,
+    expect(after.tree.assignments.t1).toBeUndefined();
+    expect(after.changes.revisions.tree).toBeGreaterThan(
+      before.changes.revisions.tree!,
     );
   });
 
@@ -199,7 +199,7 @@ describe("client snapshot scope", () => {
     } as never);
     await tick();
     const after = await read();
-    for (const slice of ["analysis", "recaps", "catalog"])
+    for (const slice of ["analysis", "recaps", "tree"])
       expect(after[slice]).toBeGreaterThan(before[slice]!);
     for (const slice of ["order", "snoozes", "suggestions"])
       expect(after[slice]).toBe(before[slice]);

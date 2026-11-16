@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { ledgerKind, ledgerRows } from "../../src/domain/ledger.ts";
-import type { TopicPlace } from "../../src/domain/suggestion-change.ts";
+import type { WorkstreamPlace } from "../../src/domain/suggestion-change.ts";
 
-const at = (...names: string[]): TopicPlace =>
+const at = (...names: string[]): WorkstreamPlace =>
   names.map((name) => ({ name, created: false }));
-const fresh = (place: TopicPlace, name: string): TopicPlace => [
+const fresh = (place: WorkstreamPlace, name: string): WorkstreamPlace => [
   ...place,
   { name, created: true },
 ];
@@ -39,31 +39,31 @@ describe("ledgerRows", () => {
     ]);
   });
 
-  it("shows an unfiled thread's Now as Unfiled", () => {
+  it("shows a thread in no workstream as No workstream", () => {
     const [row] = ledgerRows({
-      op: "refile",
+      op: "move-thread",
       moves: [
         { from: null, to: at("Sync"), threads: [thread("u")], carried: 0 },
       ],
     });
-    expect(row).toMatchObject({ now: "Unfiled", unfiled: true, after: "Sync" });
+    expect(row).toMatchObject({ now: "No workstream", other: true, after: "Sync" });
   });
 
   it("names group changes by group: a move under a parent, a rename, a merge", () => {
     const rows = (
-      op: "reparent" | "rename" | "merge",
-      from: TopicPlace,
-      to: TopicPlace,
+      op: "move-workstream" | "rename" | "merge",
+      from: WorkstreamPlace,
+      to: WorkstreamPlace,
     ) =>
       ledgerRows({ op, moves: [{ from, to, threads: [], carried: 2 }] }).map(
         (r) => [r.subject, r.now, r.verb, r.after],
       );
-    expect(rows("reparent", at("Workforest"), at("bb", "Workforest"))).toEqual([
+    expect(rows("move-workstream", at("Workforest"), at("bb", "Workforest"))).toEqual([
       ["Workforest", "Top level", null, "bb"],
     ]);
     expect(
       rows(
-        "reparent",
+        "move-workstream",
         at("Vercel Agent Code Review"),
         at("Vercel Agent", "Code Review"),
       ),

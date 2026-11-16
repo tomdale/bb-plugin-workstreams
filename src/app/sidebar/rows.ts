@@ -1,6 +1,6 @@
 import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import {
-  UNFILED_NAME,
+  OTHER_NAME,
   type Group,
   type Projection,
   type Row,
@@ -9,7 +9,7 @@ import { groupRoots, type WorkstreamNode } from "../../domain/groups.ts";
 import type { BandSort } from "./useBandOptions.ts";
 
 export type ThreadRow = Row<PluginSidebarThread>;
-export type Placement =
+export type RowLocation =
   "group" | "up-next" | "pinned" | "recent" | "snoozed" | "archived";
 type SnoozeOf = (
   thread: PluginSidebarThread,
@@ -20,7 +20,7 @@ type SnoozeOf = (
  * row reads these from here, so a placement's behavior is one table entry
  * rather than a set of flags set at each call site.
  */
-export type PlacementTraits = {
+export type RowLocationTraits = {
   /**
    * A flat band over the workstream list: each row is drawn at depth 0 with
    * its children, when expanded, indented relative to it, and its children
@@ -50,9 +50,9 @@ const band = {
   inGroup: false,
   disclosure: true,
   snooze: "snooze",
-} as const satisfies PlacementTraits;
+} as const satisfies RowLocationTraits;
 
-export const PLACEMENT_TRAITS: Record<Placement, PlacementTraits> = {
+export const LOCATION_TRAITS: Record<RowLocation, RowLocationTraits> = {
   group: {
     ...band,
     overlay: false,
@@ -72,16 +72,16 @@ export const PLACEMENT_TRAITS: Record<Placement, PlacementTraits> = {
 };
 
 /** A row drawn outside any placement, such as a row in isolation. */
-export const STANDALONE_TRAITS: PlacementTraits = {
-  ...PLACEMENT_TRAITS.group,
+export const STANDALONE_TRAITS: RowLocationTraits = {
+  ...LOCATION_TRAITS.group,
   inGroup: false,
 };
 
 /** Overlay copies fold independently of the thread's workstream row. */
-export const foldKey = (placement: Placement, id: string) =>
+export const foldKey = (placement: RowLocation, id: string) =>
   placement === "group" ? `thread:${id}` : `${placement}:thread:${id}`;
-export const foldDefault = (placement: Placement) =>
-  PLACEMENT_TRAITS[placement].overlay;
+export const foldDefault = (placement: RowLocation) =>
+  LOCATION_TRAITS[placement].overlay;
 
 /** A row as drawn: how deep it sits in its list, and its list key. */
 export type RowEntry = {
@@ -98,12 +98,12 @@ export type RowEntry = {
  */
 export function visibleEntries(
   tree: readonly ThreadRow[],
-  placement: Placement,
+  placement: RowLocation,
   folded: (id: string) => boolean,
 ): RowEntry[] {
   const root = tree[0];
   if (!root) return [];
-  const { overlay } = PLACEMENT_TRAITS[placement];
+  const { overlay } = LOCATION_TRAITS[placement];
   return unfoldedRows(tree, folded).map((row) => ({
     row,
     depth: overlay ? row.depth - root.depth : row.depth,
@@ -129,10 +129,10 @@ export function treesOf(rows: readonly ThreadRow[]): ThreadRow[][] {
  * so the row's marks stay current while it moves.
  */
 export function rowsById<T extends PluginSidebarThread>(
-  projection: Pick<Projection<T>, "groups" | "unsorted" | "dormant">,
+  projection: Pick<Projection<T>, "groups" | "other" | "dormant">,
 ): Map<string, Row<T>> {
   return new Map(
-    [...projection.groups, projection.unsorted, ...projection.dormant]
+    [...projection.groups, projection.other, ...projection.dormant]
       .flatMap((group) => group.rows)
       .map((row) => [row.thread.id, row]),
   );
@@ -217,7 +217,7 @@ export function planBandRows(
   if (!options.grouped) return [{ id: null, name: null, trees: ordered }];
   const groups = new Map<string | null, ThreadRow[][]>();
   for (const tree of ordered) {
-    // A workstream the sidebar doesn't list files under Unfiled.
+    // A workstream the sidebar doesn't list files under Other.
     const workstreamId = tree[0]!.workstreamId;
     const id = workstreamId && nameOf.has(workstreamId) ? workstreamId : null;
     const group = groups.get(id) ?? [];
@@ -225,7 +225,7 @@ export function planBandRows(
     groups.set(id, group);
   }
   const name = (id: string | null) =>
-    id ? (nameOf.get(id) ?? UNFILED_NAME) : UNFILED_NAME;
+    id ? (nameOf.get(id) ?? OTHER_NAME) : OTHER_NAME;
   return [...groups]
     .sort(([a], [b]) => name(a).localeCompare(name(b)))
     .map(([id, trees]) => ({ id, name: name(id), trees }));

@@ -144,7 +144,7 @@ it("filters internal calls, exposes metadata and event internals, and opens the 
   expect(await slot.findByText("bad")).toBeTruthy();
   chooseOption(
     slot.getByRole("combobox", { name: "Filter by action" }),
-    "Move",
+    "Thread moved",
   );
   expect(await slot.findByText("Moved a thread")).toBeTruthy();
   expect(slot.queryByText("bad")).toBeNull();
@@ -238,7 +238,7 @@ it("reports when filters match no activity", async () => {
   await slot.findByText("Moved a thread");
   chooseOption(
     slot.getByRole("combobox", { name: "Filter by action" }),
-    "Removed topic",
+    "Workstream removed",
   );
   expect(await slot.findByText("No matching activity.")).toBeTruthy();
 });

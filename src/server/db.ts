@@ -2,7 +2,7 @@ import type { BbPluginApi } from "@get-bb/plugin-sdk";
 
 export type Database = ReturnType<BbPluginApi["storage"]["database"]>;
 
-// The established ws_corpus_* table names hold topics, assignments, and section bindings.
+// The established ws_corpus_* table names hold workstreams, assignments, and section bindings.
 /**
  * A JSON value read at `path` in `column`, as json_set should write it back:
  * json_extract alone returns booleans as 0 or 1 and objects as text.
@@ -341,12 +341,12 @@ const MIGRATIONS = [
   "INSERT OR REPLACE INTO ws_corpus_subject_v2(thread_id, entity_id, evidence, source) SELECT thread_id, entity_id, evidence, source FROM ws_corpus_subject",
   "DROP TABLE ws_corpus_subject",
   "ALTER TABLE ws_corpus_subject_v2 RENAME TO ws_corpus_subject",
-  // Topics Workstreams discovered may be pruned once unused; yours never are.
+  // Workstreams Workstreams discovered may be pruned once unused; yours never are.
   "ALTER TABLE ws_corpus_entity ADD COLUMN origin TEXT NOT NULL DEFAULT 'user'",
   "UPDATE ws_corpus_subject SET source = 'full' WHERE source IN ('automatic', 'legacy')",
   "DROP TABLE IF EXISTS ws_drift_dismissed",
   "DROP TABLE IF EXISTS ws_project_shape",
-  // Workstreams follow topics, so where a thread was placed and by whom no
+  // Workstreams follow workstreams, so where a thread was placed and by whom no
   // longer decides anything.
   "DROP TABLE IF EXISTS ws_placement",
   "DELETE FROM ws_trace_link WHERE trace_id IN (SELECT id FROM ws_trace WHERE kind IN ('analysis', 'opening-goal', 'classify', 'regroup', 'route'))",
@@ -360,10 +360,10 @@ const MIGRATIONS = [
   )`,
   "CREATE INDEX ws_name_observation_thread ON ws_name_observation(thread_id)",
   // Storage from before sources were named `manual`, `inherited`, `full`, and
-  // `quick` recorded a topic you chose as `selected`. It is still your choice:
+  // `quick` recorded a workstream you chose as `selected`. It is still your choice:
   // read as automatic, it would be replaced by the next analysis.
   "UPDATE ws_corpus_subject SET source = 'manual' WHERE source = 'selected'",
-  // `classified` is the earlier name for an automatic topic, which is `full`.
+  // `classified` is the earlier name for an automatic workstream, which is `full`.
   "UPDATE ws_corpus_subject SET source = 'full' WHERE source = 'classified'",
   "ALTER TABLE ws_corpus_entity ADD COLUMN partitioned INTEGER NOT NULL DEFAULT 0",
   // Each root's checkout, and whether its requests point at other
@@ -374,7 +374,7 @@ const MIGRATIONS = [
     elsewhere INTEGER NOT NULL DEFAULT 0
   )`,
   "CREATE INDEX ws_thread_checkout_path ON ws_thread_checkout(path)",
-  // Organizing suggestions, and the topic tree before each accepted one.
+  // Organizing suggestions, and the workstreams and groups before each accepted one.
   `CREATE TABLE ws_suggestion (
     id TEXT PRIMARY KEY,
     pass_id TEXT NOT NULL,
@@ -608,6 +608,75 @@ const MIGRATIONS = [
     '$.events."child-stalled"',
     "key = 'snooze-prefs'",
   ),
+  // A workstream holds threads and a group holds workstreams; both are rows
+  // of ws_workstream. The sections Workstreams created are ws_section.
+  "ALTER TABLE ws_workstream RENAME TO ws_section",
+  "ALTER TABLE ws_corpus_entity RENAME TO ws_workstream",
+  "ALTER TABLE ws_corpus_group RENAME TO ws_workstream_section",
+  "ALTER TABLE ws_workstream_section RENAME COLUMN entity_id TO workstream_id",
+  "ALTER TABLE ws_corpus_subject RENAME TO ws_thread_workstream",
+  "ALTER TABLE ws_thread_workstream RENAME COLUMN entity_id TO workstream_id",
+  "ALTER TABLE ws_topic_color RENAME TO ws_workstream_color",
+  "ALTER TABLE ws_workstream_color RENAME COLUMN topic_id TO workstream_id",
+  "ALTER TABLE ws_project_suggestion RENAME COLUMN entity_id TO workstream_id",
+  "ALTER TABLE ws_project_root RENAME TO ws_project_listing",
+  // A backup is the workstreams and assignments before an accepted
+  // suggestion, kept as raw rows, so its rows take the new column names.
+  "ALTER TABLE ws_topic_snapshot RENAME TO ws_backup",
+  "ALTER TABLE ws_backup RENAME COLUMN entities TO workstreams",
+  "ALTER TABLE ws_backup RENAME COLUMN subjects TO assignments",
+  `UPDATE ws_backup SET assignments = replace(assignments, '"entity_id":', '"workstream_id":')`,
+  // Stored JSON names workstreams the way the code does. The keys are
+  // distinctive enough to rename as text, at any depth.
+  `UPDATE ws_suggestion SET body = replace(replace(replace(replace(body, '"topicId":', '"workstreamId":'), '"topic":', '"workstream":'), '"subgroups":', '"workstreams":'), '"entityId":', '"workstreamId":')`,
+  `UPDATE ws_journal SET undo = replace(replace(undo, '"entityId":', '"workstreamId":'), '"restore-topics"', '"restore-workstreams"')
+   WHERE undo IS NOT NULL`,
+  `UPDATE ws_project_suggestion SET evidence = replace(evidence, '"topicId":', '"workstreamId":')`,
+  `UPDATE ws_analysis SET result = replace(result, '"topicError":', '"workstreamError":')`,
+  `UPDATE ws_meta SET value = replace(value, '"topicId":', '"workstreamId":') WHERE key = 'layout'`,
+  "UPDATE ws_meta SET key = 'tree_revision' WHERE key = 'catalog_revision'",
+  "UPDATE ws_meta SET key = 'split_requests' WHERE key = 'topic_division_requests'",
+  "UPDATE ws_meta SET key = 'workstream_categories' WHERE key = 'topic_categories'",
+  "UPDATE ws_meta SET key = 'migration_backup:' || substr(key, 24) WHERE key LIKE 'topic\\_migration\\_backup:%' ESCAPE '\\'",
+  // Previews and the organizer's status are recomputed on demand.
+  "DELETE FROM ws_meta WHERE key IN ('topic_reclassification_plan', 'topic_migration_preview', 'live_organization')",
+  // Focused workstreams were stored as focused, and Other was unsorted.
+  `UPDATE ws_meta SET value = replace(replace(replace(value, '"prioritized":', '"focused":'), '"unsorted"', '"other"'), '"__unsorted"', '"__other"')
+   WHERE key = 'sidebar-order'`,
+  // Where a thread's workstream came from: the turn-end or start call
+  // chose it (`automatic`), or the composer showed it for an earlier draft
+  // (`composer`).
+  "UPDATE ws_thread_workstream SET source = 'automatic' WHERE source = 'full'",
+  "UPDATE ws_thread_workstream SET source = 'composer' WHERE source = 'quick'",
+  // Suggested edits use the move, group, and merge verbs.
+  `UPDATE ws_suggestion SET body = replace(replace(replace(body, '"op":"move"', '"op":"move-thread"'), '"op":"reparent"', '"op":"move-workstream"'), '"op":"create"', '"op":"group"')`,
+  // Recorded model calls hold each prompt's input as it was then, and replay
+  // reads it with today's field names, so calls recorded before the rename
+  // can't be replayed and are removed.
+  "DELETE FROM ws_trace_link WHERE trace_id IN (SELECT id FROM ws_trace)",
+  "DELETE FROM ws_trace",
+  // Activity names each change for its subject, in the past tense, and says
+  // who made it: you, Workstreams, or someone outside Workstreams.
+  "DELETE FROM ws_journal WHERE action = 'edit-workstream'",
+  `UPDATE ws_journal SET action = CASE action
+     WHEN 'route' THEN 'thread-started'
+     WHEN 'move' THEN 'thread-moved'
+     WHEN 'batch' THEN 'thread-moved'
+     WHEN 'retitle' THEN 'title-updated'
+     WHEN 'create-workstream' THEN 'workstream-created'
+     WHEN 'rename-workstream' THEN 'workstream-renamed'
+     WHEN 'delete-workstream' THEN 'workstream-removed'
+     WHEN 'remove-topic' THEN 'workstream-removed'
+     WHEN 'categories' THEN 'categories-updated'
+     WHEN 'suggestion' THEN 'suggestion-accepted'
+     WHEN 'project-association' THEN 'project-learned'
+     WHEN 'undo' THEN 'change-undone'
+     ELSE action END`,
+  `UPDATE ws_journal SET source = CASE source
+     WHEN 'user' THEN 'you'
+     WHEN 'external' THEN 'outside'
+     ELSE 'workstreams' END`,
+  "UPDATE ws_journal SET status = 'declined' WHERE status = 'dismissed'",
 ];
 
 export function openDatabase(bb: BbPluginApi): Database {

@@ -1,71 +1,70 @@
 import { randomUUID } from "node:crypto";
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
-import {
-  reclassificationPlanSchema,
-  type ReclassificationPlan,
-} from "./contract.ts";
+import { repairPreviewSchema, type RepairPreview } from "./contract.ts";
 import type { Analyzer } from "./analyzer.ts";
-import type { TopicStore } from "./topics.ts";
+import type { WorkstreamStore } from "./topics.ts";
 import { getMeta, setMeta, type Database } from "./db.ts";
 import { assignmentEvidence, threadEvidence } from "./evidence.ts";
-import { topicPath } from "../domain/topic-path.ts";
-const KEY = "topic_reclassification_plan";
+import { PATH_SEPARATOR, workstreamPath } from "../domain/topic-path.ts";
+const KEY = "repair_preview";
 const LIFETIME = 30 * 60_000;
 function missing(error: unknown): boolean {
   const e = error as { status?: number; statusCode?: number; code?: string };
   return e?.status === 404 || e?.statusCode === 404 || e?.code === "not_found";
 }
 
-/** Reviewable topic repair, independent of goal/title and status application. */
-export class Reclassification {
+/** Reviewable workstream repair, independent of goal/title and status application. */
+export class Repair {
   private applying = false;
   constructor(
     private readonly deps: {
       db: Database;
       sdk: () => BbPluginApi["sdk"];
-      topics: TopicStore;
+      workstreamStore: WorkstreamStore;
       analyzer: Analyzer;
-      onChange: (row: ReclassificationPlan["rows"][number]) => void;
+      onChange: (row: RepairPreview["rows"][number]) => void;
     },
   ) {}
-  async preview(threadIds: readonly string[]): Promise<ReclassificationPlan> {
+  async preview(threadIds: readonly string[]): Promise<RepairPreview> {
     if (this.applying)
       throw new Error(
-        "Topic repair is being applied. Wait before previewing again.",
+        "A preview is being applied. Wait before previewing again.",
       );
     if (!threadIds.length || threadIds.length > 100)
       throw new Error(
-        "Preview 1–100 roots. For larger sets, preview one root with bb workstreams topics preview <thread-id>.",
+        "Preview 1–100 threads. For larger sets, preview one thread at a time with bb workstreams preview <thread-id>.",
       );
-    const plan: ReclassificationPlan = {
+    const plan: RepairPreview = {
       id: randomUUID(),
       at: Date.now(),
-      definitionKey: this.deps.topics.definitionKey(),
+      definitionKey: this.deps.workstreamStore.definitionKey(),
       rows: [],
       excludedManual: 0,
     };
     for (const threadId of new Set(threadIds)) {
-      const current = this.deps.topics.assignment(threadId);
+      const current = this.deps.workstreamStore.assignment(threadId);
       if (current.provenance === "manual") {
         plan.excludedManual++;
         continue;
       }
       try {
-        if (this.deps.topics.findRootThread(threadId) !== threadId)
-          throw new Error("Delegates use their root's topic.");
-        const row = await this.deps.analyzer.previewTopic(threadId);
+        if (
+          this.deps.workstreamStore.findParentmostThread(threadId) !== threadId
+        )
+          throw new Error("A child thread goes wherever its parent goes.");
+        const row = await this.deps.analyzer.previewWorkstream(threadId);
         const proposal = row.answer.proposed;
-        const entities = this.deps.topics.list();
-        const to = row.answer.subjectId
-          ? topicPath(row.answer.subjectId, entities)
+        const workstreams = this.deps.workstreamStore.list();
+        const to = row.answer.workstreamId
+          ? workstreamPath(row.answer.workstreamId, workstreams)
           : proposal
             ? [
                 ...(proposal.parentId
-                  ? [topicPath(proposal.parentId, entities)]
+                  ? [workstreamPath(proposal.parentId, workstreams)]
                   : []),
                 ...(proposal.ancestors ?? []).map((a) => a.name),
                 proposal.name,
-              ].join(": ")
+              ].join(PATH_SEPARATOR)
             : null;
         plan.rows.push({ ...row, to, error: null });
       } catch (error) {
@@ -85,7 +84,7 @@ export class Reclassification {
     }
     if (this.applying)
       throw new Error(
-        "Topic repair is being applied. Preview again after it finishes.",
+        "A preview is being applied. Preview again after it finishes.",
       );
     setMeta(this.deps.db, KEY, JSON.stringify(plan));
     return plan;
@@ -93,20 +92,20 @@ export class Reclassification {
   private read() {
     try {
       const raw = getMeta(this.deps.db, KEY);
-      return raw ? reclassificationPlanSchema.parse(JSON.parse(raw)) : null;
+      return raw ? repairPreviewSchema.parse(JSON.parse(raw)) : null;
     } catch {
       return null;
     }
   }
   async apply(planId: string): Promise<{ changed: number; skipped: number }> {
     if (this.applying)
-      throw new Error("Topic repair is already being applied.");
+      throw new Error("That preview is already being applied.");
     const plan = this.read();
     if (!plan || plan.id !== planId)
       throw new Error("That reclassification preview is unavailable.");
     if (
       Date.now() - plan.at > LIFETIME ||
-      this.deps.topics.definitionKey() !== plan.definitionKey
+      this.deps.workstreamStore.definitionKey() !== plan.definitionKey
     )
       throw new Error(
         "The preview expired or the catalog changed. Preview again.",
@@ -128,13 +127,13 @@ export class Reclassification {
               if (missing(error)) return null;
               throw error;
             });
-          const assignment = this.deps.topics.assignment(row.threadId);
+          const assignment = this.deps.workstreamStore.assignment(row.threadId);
           const hint = live
             ? (projects.find((p) => p.id === live.projectId)?.name ?? null)
             : null;
           if (this.read()?.id !== planId)
             throw new Error("Another preview replaced this plan.");
-          if (this.deps.topics.definitionKey() !== plan.definitionKey)
+          if (this.deps.workstreamStore.definitionKey() !== plan.definitionKey)
             throw new Error("The catalog changed; preview again.");
           if (
             !live ||
@@ -145,7 +144,7 @@ export class Reclassification {
           )
             skipped++;
           else if (
-            this.deps.topics.applyAnalysis(
+            this.deps.workstreamStore.applyAnalysis(
               row.threadId,
               {
                 ...row.answer,
@@ -153,7 +152,7 @@ export class Reclassification {
                   row.answer.scopeShift ||
                   assignment.provenance === "inherited",
               },
-              "full",
+              "automatic",
               row.basis ?? null,
             )
           ) {
@@ -163,7 +162,7 @@ export class Reclassification {
         }
         // A transient read can be retried without replaying this applied prefix.
         plan.rows.shift();
-        plan.definitionKey = this.deps.topics.definitionKey();
+        plan.definitionKey = this.deps.workstreamStore.definitionKey();
         setMeta(this.deps.db, KEY, JSON.stringify(plan));
         // Notifications cannot make a committed row replayable on retry.
         if (applied) this.deps.onChange(row);
@@ -172,7 +171,7 @@ export class Reclassification {
       return { changed, skipped };
     } catch (error) {
       throw new Error(
-        `Topic repair paused after ${changed} changes. ${error instanceof Error ? error.message : String(error)} For a temporary read failure, retry the same plan; its applied rows are preserved.`,
+        `Applying the preview paused after ${changed} moves. ${error instanceof Error ? error.message : String(error)} For a temporary read failure, retry the same preview; the moves it already made are kept.`,
       );
     } finally {
       this.applying = false;

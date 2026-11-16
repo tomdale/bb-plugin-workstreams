@@ -39,12 +39,15 @@ function subscribe(listener: () => void) {
     window.removeEventListener(CHANGED, listener);
   };
 }
-/** Topic identity survives native section deletion and recreation. */
-export function groupCollapseKey(sectionId: string, topicId?: string): string {
-  return topicId ? `topic:${topicId}` : sectionId;
+/** Workstream identity survives native section deletion and recreation. */
+export function groupCollapseKey(
+  sectionId: string,
+  workstreamId?: string,
+): string {
+  return workstreamId ? `workstream:${workstreamId}` : sectionId;
 }
 
-/** Shared per-client visual state, independent of automatic topic grouping. */
+/** Shared per-client visual state, independent of automatic workstream grouping. */
 export function useCollapsed() {
   const raw = useSyncExternalStore(subscribe, snapshot, () => "{}");
   const state = useMemo(() => parse(raw), [raw]);

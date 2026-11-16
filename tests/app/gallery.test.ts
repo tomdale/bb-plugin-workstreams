@@ -193,7 +193,7 @@ describe.skipIf(browserUnavailable)("gallery specimens", () => {
         .waitFor();
       // The split's five flows are ribbons laid out between the two sidebars.
       const ribbons = wide.getByRole("button", {
-        name: /^\d+ threads? to Support Tools: /,
+        name: /^\d+ threads? to Support Tools › /,
       });
       expect(await ribbons.count()).toBe(5);
       const box = await ribbons.first().boundingBox();

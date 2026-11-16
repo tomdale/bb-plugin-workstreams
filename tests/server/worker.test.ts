@@ -58,7 +58,7 @@ it("uses the worker path only when gatewayModel returns null", async () => {
   const { traces } = JSON.parse(recorded.stdout) as {
     traces: { kind: string; usage: unknown }[];
   };
-  const analysis = traces.filter((t) => t.kind === "full-analysis");
+  const analysis = traces.filter((t) => t.kind === "turn-end");
   expect(analysis).toHaveLength(1);
   expect(analysis[0]!.usage).toBeNull();
 });

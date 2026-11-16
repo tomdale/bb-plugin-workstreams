@@ -1,13 +1,13 @@
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { Icon } from "@/components/ui/icon";
-import { UNSORTED_ID, type Group, type Row } from "../../domain/project.ts";
+import { OTHER_ID, type Group, type Row } from "../../domain/project.ts";
 import { categoryRows } from "../../domain/categoryRows.ts";
 import type { WorkstreamNode } from "../../domain/groups.ts";
 import { shortWake, type ThreadSnooze } from "../../domain/snooze.ts";
 import {
   workstreamColorStyle,
-  type TopicColor,
+  type WorkstreamColor,
 } from "../../domain/workstreamColor.ts";
 import { WorkstreamName } from "../WorkstreamName.tsx";
 import type { ServerState, WorkView } from "../useWorkstreams.ts";
@@ -37,7 +37,7 @@ export type HomeEnv = {
   showAge: boolean;
   threadCount: CountWhen;
   needsYouCount: CountWhen;
-  colorOf: (sectionId: string, topicId?: string | null) => TopicColor;
+  colorOf: (sectionId: string, workstreamId?: string | null) => WorkstreamColor;
   isOpen: (id: string, byDefault: boolean) => boolean;
   toggle: (id: string, byDefault: boolean) => void;
   setAll: (ids: readonly string[], open: boolean) => void;
@@ -53,7 +53,7 @@ const showsCount = (when: CountWhen, collapsed: boolean) =>
 
 /**
  * Everything below Up Next: the workstreams that have threads, focused
- * ones first, then the rest, Unfiled, a Dormant fold, and a Snoozed fold.
+ * ones first, then the rest, Other, a Dormant fold, and a Snoozed fold.
  * While a workstream is focused the rest wait behind a toggle, as in the
  * sidebar. Groups start closed except focused ones (see `startsOpen`), and
  * Expand all opens every group at once.
@@ -75,7 +75,7 @@ export function WorkstreamGroups({
   const visibleGroups = [
     ...plan.pinned,
     ...(lowerShown
-      ? [...plan.populated, ...(plan.unfiled ? [plan.unfiled] : [])]
+      ? [...plan.populated, ...(plan.other ? [plan.other] : [])]
       : []),
   ];
   const allOpen = visibleGroups.every((group) =>
@@ -167,7 +167,7 @@ export function WorkstreamGroups({
           {lowerShown ? (
             <>
               {plan.populated.map((group) => renderGroup(group))}
-              {plan.unfiled ? renderGroup(plan.unfiled, true) : null}
+              {plan.other ? renderGroup(plan.other, true) : null}
               {plan.dormant.length > 0 ? (
                 <Fold
                   id={DORMANT_KEY}
@@ -234,14 +234,14 @@ export function WorkstreamGroups({
 const inlineGroups = (
   group: WorkstreamNode<Thread>,
 ): WorkstreamNode<Thread>[] =>
-  group.subgroups
+  group.workstreams
     .filter((sub) => sub.inline)
     .flatMap((sub) => [sub, ...inlineGroups(sub)]);
 
 /**
  * A workstream: a header that opens and closes its threads, then those of
- * its subgroups drawn inline, each labeled with its subgroup, then its other
- * subgroups (see `arrangeGroups`), which start open and fold on their own.
+ * its workstreams drawn inline, each labeled with its workstream, then its other
+ * workstreams (see `arrangeGroups`), which start open and fold on their own.
  */
 function GroupSection({
   group,
@@ -256,18 +256,20 @@ function GroupSection({
   onToggle: () => void;
   muted: boolean;
   env: HomeEnv;
-  /** A subgroup: indented, without a dot, and not sticky. */
+  /** A workstream: indented, without a dot, and not sticky. */
   nested?: boolean;
 }) {
-  const isUnfiled = group.id === UNSORTED_ID;
-  const subgroups =
-    "subgroups" in group ? group.subgroups.filter((sub) => !sub.inline) : [];
+  const hasNoWorkstream = group.id === OTHER_ID;
+  const workstreams =
+    "workstreams" in group
+      ? group.workstreams.filter((sub) => !sub.inline)
+      : [];
   // Its own rows, then each inline group's, labeled with that group's name.
   const blocks = useMemo(
     () =>
       [
         { group, label: undefined as string | undefined },
-        ...("subgroups" in group ? inlineGroups(group) : []).map((sub) => ({
+        ...("workstreams" in group ? inlineGroups(group) : []).map((sub) => ({
           group: sub,
           label: sub.label.split(/:\s*/).at(-1),
         })),
@@ -324,13 +326,13 @@ function GroupSection({
       className="ws-home-group"
       data-open={open || undefined}
       data-muted={muted || undefined}
-      data-prioritized={group.prioritized || undefined}
+      data-focused={group.focused || undefined}
       data-nested={nested || undefined}
     >
       <h3 className="ws-home-group-head">
         <button type="button" aria-expanded={open} onClick={onToggle}>
           <Icon name="ChevronRight" className="ws-home-chevron" aria-hidden />
-          {nested ? null : isUnfiled ? (
+          {nested ? null : hasNoWorkstream ? (
             <StatusDot size="md" hollow />
           ) : (
             <StatusDot
@@ -340,7 +342,7 @@ function GroupSection({
                 workstreamColorStyle(
                   env.colorOf(
                     group.id,
-                    "topicId" in group ? group.topicId : undefined,
+                    "workstreamId" in group ? group.workstreamId : undefined,
                   ),
                 ) as React.CSSProperties
               }
@@ -349,14 +351,17 @@ function GroupSection({
           <WorkstreamName
             name={"label" in group ? group.label : group.name}
             prefixColor={
-              "parentTopicId" in group && group.parentTopicId
-                ? env.colorOf(group.parentTopicId, group.parentTopicId)
+              "parentWorkstreamId" in group && group.parentWorkstreamId
+                ? env.colorOf(
+                    group.parentWorkstreamId,
+                    group.parentWorkstreamId,
+                  )
                 : undefined
             }
             muted={muted}
             className="ws-home-group-name"
           />
-          {group.prioritized && !nested ? (
+          {group.focused && !nested ? (
             <>
               <FocusIcon filled className="ws-home-flag-icon" />
               <span className="sr-only">, focused</span>
@@ -420,7 +425,7 @@ function GroupSection({
         </ul>
       ) : null}
       {open
-        ? subgroups.map((sub) => (
+        ? workstreams.map((sub) => (
             <GroupSection
               key={sub.id}
               group={sub}

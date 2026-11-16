@@ -437,7 +437,7 @@ section:has(> [data-bb-plugin-root] > [data-ws-home="hidden"]) {
 .ws-home-group[data-muted] .ws-home-group-name {
   color: var(--muted-foreground);
 }
-/* A subgroup sits inside its workstream: indented, without a divider, and
+/* A workstream sits inside its workstream: indented, without a divider, and
    scrolling with it rather than sticking. */
 .ws-home-group[data-nested] {
   border-top: none;

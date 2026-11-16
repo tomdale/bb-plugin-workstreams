@@ -30,7 +30,7 @@ import {
   allocateChildColor,
   allocateFamilyColor,
   workstreamColorStyle,
-  type TopicColor,
+  type WorkstreamColor,
 } from "../../src/domain/workstreamColor";
 import { ExampleChoice } from "../ExampleChoice";
 import {
@@ -116,7 +116,7 @@ function RoleSample({
   );
 }
 
-function topicSamples(family: TopicColor) {
+function workstreamSamples(family: WorkstreamColor) {
   const firstChild = allocateChildColor(family, [], [family]);
   const secondChild = allocateChildColor(
     family,
@@ -166,10 +166,10 @@ function recapFor(recapState: Recap["state"]): Recap {
   };
 }
 
-function Identity({ family }: { family: TopicColor }) {
+function Identity({ family }: { family: WorkstreamColor }) {
   return (
     <div className="space-y-3">
-      {topicSamples(family).map((item) => (
+      {workstreamSamples(family).map((item) => (
         <div
           key={item.name}
           className="min-w-0"

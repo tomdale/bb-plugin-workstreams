@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { makePluginAgentConfigurationContext } from "@get-bb/plugin-sdk/testing";
 import { RECAP_TOOL } from "../../src/domain/recap.ts";
 import { fakeWorld } from "./fake-bb.ts";
-import { TopicStore } from "../../src/server/topics.ts";
+import { WorkstreamStore } from "../../src/server/topics.ts";
 import { openDatabase } from "../../src/server/db.ts";
 import type { OrganizerState } from "../../src/server/contract.ts";
 import { AgentRecaps } from "../../src/server/recap.ts";
@@ -21,14 +21,14 @@ afterEach(async () => {
 });
 
 const getOrg = async (w: World): Promise<OrganizerState> => {
-  const result = (await w.harness.behavior.callRpc("organization", null)) as {
+  const result = (await w.harness.behavior.callRpc("organizeStatus", null)) as {
     state: OrganizerState;
   };
   return result.state;
 };
 
 const rebuildOrg = async (w: World): Promise<OrganizerState> => {
-  const result = (await w.harness.behavior.callRpc("organization", {
+  const result = (await w.harness.behavior.callRpc("organizeStatus", {
     action: "rebuild",
   })) as { state: OrganizerState };
   return result.state;
@@ -43,13 +43,13 @@ describe("automatic update coordinator lifecycle", () => {
           recap: "working",
           state: "needs-input",
           title: "Lantern work",
-          subjectId: lanternId,
+          workstreamId: lanternId,
           proposed: null,
         }),
     });
     const w = world;
-    const corpus = new TopicStore(openDatabase(w.bb));
-    lanternId = corpus.create("Lantern", "Product").id;
+    const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
+    lanternId = workstreamStore.create("Lantern", "Product").id;
     w.addThread("t1", { title: "Lantern core fix", sectionId: null });
     w.addThread("t2", { title: "Lantern styling", sectionId: null });
     await w.harness.behavior.callRpc("refresh", null);
@@ -58,7 +58,7 @@ describe("automatic update coordinator lifecycle", () => {
 
     const state = await rebuildOrg(w);
     expect(state.status).toBe("idle");
-    expect(state.counts.activeRoots).toBe(2);
+    expect(state.counts.activeThreads).toBe(2);
     expect(state.groups.map((g) => g.name)).toEqual(["Lantern"]);
     const section = w.sections.find((s) => s.name === "Lantern")!;
     expect(w.threads.get("t1")?.sectionId).toBe(section.id);
@@ -82,10 +82,10 @@ describe("automatic update coordinator lifecycle", () => {
   it("new root: a thread created from another starts with its topic", async () => {
     world = await fakeWorld();
     const w = world;
-    const corpus = new TopicStore(openDatabase(w.bb));
-    const lantern = corpus.create("Lantern", "Product");
+    const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
+    const lantern = workstreamStore.create("Lantern", "Product");
     w.addThread("t1", { title: "Lantern task 1" });
-    corpus.assign("t1", lantern.id, { provenance: "full" });
+    workstreamStore.assign("t1", lantern.id, { provenance: "automatic" });
     await rebuildOrg(w);
 
     // A fork of t1 inherits its topic as soon as it exists.
@@ -94,36 +94,36 @@ describe("automatic update coordinator lifecycle", () => {
       sourceThreadId: "t1",
     });
     await w.harness.behavior.emitThreadEvent("thread.created", { thread: t2 });
-    expect(corpus.assignment("t2")).toMatchObject({
-      entityId: lantern.id,
+    expect(workstreamStore.assignment("t2")).toMatchObject({
+      workstreamId: lantern.id,
       provenance: "inherited",
     });
     const state = await rebuildOrg(w);
-    expect(state.counts.activeRoots).toBe(2);
+    expect(state.counts.activeThreads).toBe(2);
     const section = w.sections.find((s) => s.name === "Lantern")!;
     expect(w.threads.get("t2")?.sectionId).toBe(section.id);
   });
   it("correct identity: manual assignment is authoritative and moves the root", async () => {
     world = await fakeWorld();
     const w = world;
-    const corpus = new TopicStore(openDatabase(w.bb));
-    const lantern = corpus.create("Lantern", "Product");
-    const compass = corpus.create("Compass", "Product");
+    const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
+    const lantern = workstreamStore.create("Lantern", "Product");
+    const compass = workstreamStore.create("Compass", "Product");
 
     w.addThread("t1", { title: "Ambiguous task" });
     // Initially assign to Lantern
-    await w.harness.behavior.callRpc("taskAssign", {
+    await w.harness.behavior.callRpc("threadMove", {
       threadId: "t1",
-      entityId: lantern.id,
+      workstreamId: lantern.id,
     });
     let state = await rebuildOrg(w);
     const lanternSec = w.sections.find((s) => s.name === "Lantern")!;
     expect(w.threads.get("t1")?.sectionId).toBe(lanternSec.id);
 
     // Manually reassign to Compass
-    await w.harness.behavior.callRpc("taskAssign", {
+    await w.harness.behavior.callRpc("threadMove", {
       threadId: "t1",
-      entityId: compass.id,
+      workstreamId: compass.id,
     });
     state = await rebuildOrg(w);
     const compassSec = w.sections.find((s) => s.name === "Compass")!;
@@ -134,13 +134,13 @@ describe("automatic update coordinator lifecycle", () => {
   it("archive: removes the emptied section on the next pass", async () => {
     world = await fakeWorld();
     const w = world;
-    const corpus = new TopicStore(openDatabase(w.bb));
-    const lantern = corpus.create("Lantern", "Product");
+    const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
+    const lantern = workstreamStore.create("Lantern", "Product");
 
     w.addThread("t1", { title: "Lantern task" });
-    await w.harness.behavior.callRpc("taskAssign", {
+    await w.harness.behavior.callRpc("threadMove", {
       threadId: "t1",
-      entityId: lantern.id,
+      workstreamId: lantern.id,
     });
     await rebuildOrg(w);
     expect(w.sections.some((s) => s.name === "Lantern")).toBe(true);
@@ -151,7 +151,7 @@ describe("automatic update coordinator lifecycle", () => {
     await w.harness.behavior.emitThreadEvent("thread.archived", { thread: t1 });
 
     const state = await rebuildOrg(w);
-    expect(state.counts.activeRoots).toBe(0);
+    expect(state.counts.activeThreads).toBe(0);
     expect(state.groups).toHaveLength(0);
     // Nothing is left to file in it, so the workstream goes with its threads.
     expect(w.sections.some((s) => s.name === "Lantern")).toBe(false);
@@ -162,22 +162,22 @@ describe("automatic update coordinator lifecycle", () => {
     world = await fakeWorld();
     const w = world;
     const db = openDatabase(w.bb);
-    const corpus = new TopicStore(db);
-    const lantern = corpus.create("Lantern", "Product");
-    const shelves = corpus.create("Shelves", "Feature", lantern.id);
+    const workstreamStore = new WorkstreamStore(db);
+    const lantern = workstreamStore.create("Lantern", "Product");
+    const shelves = workstreamStore.create("Shelves", "Feature", lantern.id);
 
     // 4 tasks on Shelves
     for (let i = 1; i <= 4; i++) {
       w.addThread(`t${i}`, { title: `Shelves task ${i}` });
-      await w.harness.behavior.callRpc("taskAssign", {
+      await w.harness.behavior.callRpc("threadMove", {
         threadId: `t${i}`,
-        entityId: shelves.id,
+        workstreamId: shelves.id,
       });
     }
 
     let state = await rebuildOrg(w);
-    expect(state.counts.activeRoots).toBe(4);
-    expect(state.counts.completedRoots).toBe(0);
+    expect(state.counts.activeThreads).toBe(4);
+    expect(state.counts.completedThreads).toBe(0);
 
     // Mark 3 tasks done in analysis table
     const now = Date.now();
@@ -208,12 +208,12 @@ describe("automatic update coordinator lifecycle", () => {
 
     // Now active count is 1, completed count is 3
     state = await rebuildOrg(w);
-    expect(state.counts.activeRoots).toBe(1);
-    expect(state.counts.completedRoots).toBe(3);
+    expect(state.counts.activeThreads).toBe(1);
+    expect(state.counts.completedThreads).toBe(3);
     // Four visible roots on one topic stay its one workstream, regardless of
     // completion state.
     expect(state.groups).toHaveLength(1);
-    expect(state.groups[0]!.name).toBe("Lantern: Shelves");
+    expect(state.groups[0]!.name).toBe("Lantern › Shelves");
     expect(state.groups[0]!.completedCount).toBe(3);
     expect(state.groups[0]!.activeCount).toBe(1);
 
@@ -224,58 +224,58 @@ describe("automatic update coordinator lifecycle", () => {
     thread1.latestAttentionAt = now + 1000;
     // revision now outranks assessment revision
     state = await rebuildOrg(w);
-    expect(state.counts.activeRoots).toBe(2);
-    expect(state.counts.completedRoots).toBe(2);
+    expect(state.counts.activeThreads).toBe(2);
+    expect(state.counts.completedThreads).toBe(2);
   });
 
   it("reparent: derived groups follow catalog reparenting", async () => {
     world = await fakeWorld();
     const w = world;
-    const corpus = new TopicStore(openDatabase(w.bb));
-    const p1 = corpus.create("ProductOne", "Product 1");
-    const p2 = corpus.create("ProductTwo", "Product 2");
-    const feat = corpus.create("FeatureX", "Feature", p1.id);
+    const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
+    const p1 = workstreamStore.create("ProductOne", "Product 1");
+    const p2 = workstreamStore.create("ProductTwo", "Product 2");
+    const feat = workstreamStore.create("FeatureX", "Feature", p1.id);
 
     w.addThread("t1", { title: "Feature X task" });
-    await w.harness.behavior.callRpc("taskAssign", {
+    await w.harness.behavior.callRpc("threadMove", {
       threadId: "t1",
-      entityId: feat.id,
+      workstreamId: feat.id,
     });
     // A root topic with no threads of its own is a context, so the feature
     // lists its thread under its own name.
     let state = await rebuildOrg(w);
-    expect(state.groups[0]!.name).toBe("ProductOne: FeatureX");
+    expect(state.groups[0]!.name).toBe("ProductOne › FeatureX");
 
     // Reparent feat to p2
-    await w.harness.behavior.callRpc("catalogReparent", {
-      entityId: feat.id,
+    await w.harness.behavior.callRpc("workstreamMove", {
+      workstreamId: feat.id,
       parentId: p2.id,
     });
     state = await rebuildOrg(w);
-    expect(state.groups[0]!.name).toBe("ProductTwo: FeatureX");
-    const p2Sec = w.sections.find((s) => s.name === "ProductTwo: FeatureX")!;
+    expect(state.groups[0]!.name).toBe("ProductTwo › FeatureX");
+    const p2Sec = w.sections.find((s) => s.name === "ProductTwo › FeatureX")!;
     expect(w.threads.get("t1")?.sectionId).toBe(p2Sec.id);
   });
 
   it("merge: merges entity and updates derived workstream placement", async () => {
     world = await fakeWorld();
     const w = world;
-    const corpus = new TopicStore(openDatabase(w.bb));
-    const oldProd = corpus.create("OldProduct", "Old");
-    const newProd = corpus.create("NewProduct", "New");
+    const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
+    const oldProd = workstreamStore.create("OldProduct", "Old");
+    const newProd = workstreamStore.create("NewProduct", "New");
 
     w.addThread("t1", { title: "Task 1" });
-    await w.harness.behavior.callRpc("taskAssign", {
+    await w.harness.behavior.callRpc("threadMove", {
       threadId: "t1",
-      entityId: oldProd.id,
+      workstreamId: oldProd.id,
     });
     let state = await rebuildOrg(w);
     expect(state.groups[0]!.name).toBe("OldProduct");
 
     // Merge oldProd into newProd
-    await w.harness.behavior.callRpc("catalogMerge", {
-      sourceEntityId: oldProd.id,
-      targetEntityId: newProd.id,
+    await w.harness.behavior.callRpc("workstreamMerge", {
+      sourceWorkstreamId: oldProd.id,
+      targetWorkstreamId: newProd.id,
     });
     state = await rebuildOrg(w);
     expect(state.groups[0]!.name).toBe("NewProduct");
@@ -286,22 +286,22 @@ describe("automatic update coordinator lifecycle", () => {
   it("no child inflation: child worker threads do not increment active counts", async () => {
     world = await fakeWorld();
     const w = world;
-    const corpus = new TopicStore(openDatabase(w.bb));
-    const lantern = corpus.create("Lantern", "Product");
+    const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
+    const lantern = workstreamStore.create("Lantern", "Product");
 
     w.addThread("root1", { title: "Root task" });
     w.addThread("child1", { title: "Child worker 1", parentThreadId: "root1" });
     w.addThread("child2", { title: "Child worker 2", parentThreadId: "root1" });
 
-    await w.harness.behavior.callRpc("taskAssign", {
+    await w.harness.behavior.callRpc("threadMove", {
       threadId: "root1",
-      entityId: lantern.id,
+      workstreamId: lantern.id,
     });
 
     const state = await rebuildOrg(w);
     // Only 1 root counted!
-    expect(state.counts.totalRoots).toBe(1);
-    expect(state.counts.activeRoots).toBe(1);
+    expect(state.counts.totalThreads).toBe(1);
+    expect(state.counts.activeThreads).toBe(1);
     expect(state.groups[0]!.totalCount).toBe(1);
   });
 
@@ -309,16 +309,16 @@ describe("automatic update coordinator lifecycle", () => {
     world = await fakeWorld();
     const w = world;
     const db = openDatabase(w.bb);
-    const corpus = new TopicStore(db);
-    const lantern = corpus.create("Lantern", "Product");
+    const workstreamStore = new WorkstreamStore(db);
+    const lantern = workstreamStore.create("Lantern", "Product");
 
     // All tasks completed
     const now = Date.now();
     for (let i = 1; i <= 3; i++) {
       w.addThread(`t${i}`, { title: `Task ${i}` });
-      await w.harness.behavior.callRpc("taskAssign", {
+      await w.harness.behavior.callRpc("threadMove", {
         threadId: `t${i}`,
-        entityId: lantern.id,
+        workstreamId: lantern.id,
       });
       const thread = w.threads.get(`t${i}`)!;
       thread.status = "idle";
@@ -345,8 +345,8 @@ describe("automatic update coordinator lifecycle", () => {
     }
 
     const state = await rebuildOrg(w);
-    expect(state.counts.activeRoots).toBe(0);
-    expect(state.counts.completedRoots).toBe(3);
+    expect(state.counts.activeThreads).toBe(0);
+    expect(state.counts.completedThreads).toBe(3);
     // Product root is retained so all 3 completed tasks remain navigable!
     expect(state.groups).toHaveLength(1);
     expect(state.groups[0]!.name).toBe("Lantern");
@@ -361,23 +361,23 @@ describe("automatic update coordinator lifecycle", () => {
     w.addThread("u1", { title: "Completely unresolved task" });
 
     const state = await rebuildOrg(w);
-    expect(state.counts.unresolvedRoots).toBe(1);
-    expect(state.unresolved).toHaveLength(1);
-    expect(state.unresolved[0]!.id).toBe("u1");
-    expect(state.unresolved[0]!.reason).toContain("No topic");
+    expect(state.counts.noWorkstreamThreads).toBe(1);
+    expect(state.noWorkstream).toHaveLength(1);
+    expect(state.noWorkstream[0]!.id).toBe("u1");
+    expect(state.noWorkstream[0]!.reason).toContain("no workstream");
     expect(w.threads.get("u1")?.sectionId).toBeNull();
   });
 
   it("stable group IDs: section ID is preserved when derived identity persists", async () => {
     world = await fakeWorld();
     const w = world;
-    const corpus = new TopicStore(openDatabase(w.bb));
-    const lantern = corpus.create("Lantern", "Product");
+    const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
+    const lantern = workstreamStore.create("Lantern", "Product");
 
     w.addThread("t1", { title: "Task 1" });
-    await w.harness.behavior.callRpc("taskAssign", {
+    await w.harness.behavior.callRpc("threadMove", {
       threadId: "t1",
-      entityId: lantern.id,
+      workstreamId: lantern.id,
     });
 
     await rebuildOrg(w);
@@ -385,9 +385,9 @@ describe("automatic update coordinator lifecycle", () => {
 
     // Trigger second pass with new thread in same product
     w.addThread("t2", { title: "Task 2" });
-    await w.harness.behavior.callRpc("taskAssign", {
+    await w.harness.behavior.callRpc("threadMove", {
       threadId: "t2",
-      entityId: lantern.id,
+      workstreamId: lantern.id,
     });
     const state2 = await rebuildOrg(w);
     const sec2 = w.sections.find((s) => s.name === "Lantern")!.id;
@@ -403,7 +403,7 @@ describe("automatic update coordinator lifecycle", () => {
       complete: ({ prompt }) => {
         if (prompt.includes("Classify the most specific")) {
           classifyCalls++;
-          return JSON.stringify({ subjectId: null, proposed: null });
+          return JSON.stringify({ workstreamId: null, proposed: null });
         }
         return JSON.stringify({
           recap: "ok",
@@ -427,13 +427,13 @@ describe("automatic update coordinator lifecycle", () => {
   it("no loops from derived writes", async () => {
     world = await fakeWorld();
     const w = world;
-    const corpus = new TopicStore(openDatabase(w.bb));
-    const lantern = corpus.create("Lantern", "Product");
+    const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
+    const lantern = workstreamStore.create("Lantern", "Product");
 
     w.addThread("t1", { title: "Task 1" });
-    await w.harness.behavior.callRpc("taskAssign", {
+    await w.harness.behavior.callRpc("threadMove", {
       threadId: "t1",
-      entityId: lantern.id,
+      workstreamId: lantern.id,
     });
 
     await rebuildOrg(w);
@@ -447,12 +447,20 @@ describe("automatic update coordinator lifecycle", () => {
   it("multi-product partitions: derives groups across multiple products simultaneously without unknown identity errors", async () => {
     world = await fakeWorld();
     const w = world;
-    const corpus = new TopicStore(openDatabase(w.bb));
-    const prodA = corpus.create("ProductAlpha", "Product A");
-    const featA = corpus.create("FeatureA", "Feature under A", prodA.id);
-    const otherA = corpus.create("OtherA", "Other under A", prodA.id);
-    const prodB = corpus.create("ProductBeta", "Product B");
-    const featB = corpus.create("FeatureB", "Feature under B", prodB.id);
+    const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
+    const prodA = workstreamStore.create("ProductAlpha", "Product A");
+    const featA = workstreamStore.create(
+      "FeatureA",
+      "Feature under A",
+      prodA.id,
+    );
+    const otherA = workstreamStore.create("OtherA", "Other under A", prodA.id);
+    const prodB = workstreamStore.create("ProductBeta", "Product B");
+    const featB = workstreamStore.create(
+      "FeatureB",
+      "Feature under B",
+      prodB.id,
+    );
 
     // Add threads for Product A and Product B
     w.addThread("t-a1", { title: "Task A1" });
@@ -460,19 +468,19 @@ describe("automatic update coordinator lifecycle", () => {
     w.addThread("t-b1", { title: "Task B1" });
     w.addThread("t-b2", { title: "Task B2" });
 
-    corpus.assign("t-a1", featA.id, { provenance: "manual" });
-    corpus.assign("t-a2", otherA.id, { provenance: "manual" });
-    corpus.assign("t-b1", featB.id, { provenance: "manual" });
-    corpus.assign("t-b2", featB.id, { provenance: "manual" });
+    workstreamStore.assign("t-a1", featA.id, { provenance: "manual" });
+    workstreamStore.assign("t-a2", otherA.id, { provenance: "manual" });
+    workstreamStore.assign("t-b1", featB.id, { provenance: "manual" });
+    workstreamStore.assign("t-b2", featB.id, { provenance: "manual" });
 
     const state = await rebuildOrg(w);
     expect(state.status).toBe("idle");
     expect(state.error).toBeNull();
     const groupNames = state.groups.map((g) => g.name);
     expect(groupNames.sort()).toEqual([
-      "ProductAlpha: FeatureA",
-      "ProductAlpha: OtherA",
-      "ProductBeta: FeatureB",
+      "ProductAlpha › FeatureA",
+      "ProductAlpha › OtherA",
+      "ProductBeta › FeatureB",
     ]);
   });
 
@@ -483,41 +491,41 @@ describe("automatic update coordinator lifecycle", () => {
           recap: "ok",
           state: "needs-input",
           title: "Task",
-          subjectId: prodId,
+          workstreamId: prodId,
           proposed: null,
         }),
     });
     let prodId = "";
     const w = world;
-    const corpus = new TopicStore(openDatabase(w.bb));
-    prodId = corpus.create("ProductA", "Product").id;
+    const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
+    prodId = workstreamStore.create("ProductA", "Product").id;
     w.addThread("t1", { title: "Task 1", status: "idle" });
     w.converse("t1", ["Do the thing"]);
     await w.harness.behavior.callRpc("refresh", null);
-    await w.harness.behavior.callRpc("taskAssign", {
+    await w.harness.behavior.callRpc("threadMove", {
       threadId: "t1",
-      entityId: null,
+      workstreamId: null,
     });
     await w.harness.behavior.runCli(["analyze", "t1"]);
-    expect(corpus.assignment("t1")).toMatchObject({
-      status: "unresolved",
+    expect(workstreamStore.assignment("t1")).toMatchObject({
+      status: "none",
       provenance: "manual",
     });
   });
   it("section cleanup: rebound section is not deleted during cleanup", async () => {
     world = await fakeWorld();
     const w = world;
-    const corpus = new TopicStore(openDatabase(w.bb));
-    const prodA = corpus.create("Alpha", "Product Alpha");
-    const prodB = corpus.create("Beta", "Product Beta");
+    const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
+    const prodA = workstreamStore.create("Alpha", "Product Alpha");
+    const prodB = workstreamStore.create("Beta", "Product Beta");
 
     // Existing section named Beta already bound to Alpha
     const sec = w.addSection("Beta");
-    corpus.bindGroup(sec.id, prodA.id);
+    workstreamStore.bindGroup(sec.id, prodA.id);
 
     // Thread t1 assigned to Beta
     w.addThread("t1", { title: "Beta task" });
-    corpus.assign("t1", prodB.id, { provenance: "manual" });
+    workstreamStore.assign("t1", prodB.id, { provenance: "manual" });
 
     const state = await rebuildOrg(w);
     expect(state.status).toBe("idle");
@@ -532,23 +540,23 @@ describe("automatic update coordinator lifecycle", () => {
   it("completed retention: completed root/sibling tasks retain navigation when active tasks expand to child features", async () => {
     world = await fakeWorld();
     const w = world;
-    const corpus = new TopicStore(openDatabase(w.bb));
-    const prod = corpus.create("Lantern", "Product");
-    const f1 = corpus.create("Core", "Core feature", prod.id);
-    const f2 = corpus.create("UI", "UI feature", prod.id);
-    const f3 = corpus.create("Docs", "Docs feature", prod.id);
+    const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
+    const prod = workstreamStore.create("Lantern", "Product");
+    const f1 = workstreamStore.create("Core", "Core feature", prod.id);
+    const f2 = workstreamStore.create("UI", "UI feature", prod.id);
+    const f3 = workstreamStore.create("Docs", "Docs feature", prod.id);
 
     // 4 active tasks in Core, 4 active tasks in UI (above the threshold)
     for (let i = 1; i <= 4; i++) {
       w.addThread(`core-${i}`, { title: `Core task ${i}` });
-      corpus.assign(`core-${i}`, f1.id, { provenance: "manual" });
+      workstreamStore.assign(`core-${i}`, f1.id, { provenance: "manual" });
       w.addThread(`ui-${i}`, { title: `UI task ${i}` });
-      corpus.assign(`ui-${i}`, f2.id, { provenance: "manual" });
+      workstreamStore.assign(`ui-${i}`, f2.id, { provenance: "manual" });
     }
 
     // 1 completed task on Core, 1 completed task on Docs (f3)
     w.addThread("done-root", { title: "Lantern initial setup" });
-    corpus.assign("done-root", f1.id, { provenance: "manual" });
+    workstreamStore.assign("done-root", f1.id, { provenance: "manual" });
     w.turn("done-root", "completed");
     await w.harness.behavior.emitThreadEvent("thread.idle", {
       thread: w.threads.get("done-root")!,
@@ -556,7 +564,7 @@ describe("automatic update coordinator lifecycle", () => {
     });
 
     w.addThread("done-docs", { title: "Docs task" });
-    corpus.assign("done-docs", f3.id, { provenance: "manual" });
+    workstreamStore.assign("done-docs", f3.id, { provenance: "manual" });
     w.turn("done-docs", "completed");
     await w.harness.behavior.emitThreadEvent("thread.idle", {
       thread: w.threads.get("done-docs")!,
@@ -567,10 +575,10 @@ describe("automatic update coordinator lifecycle", () => {
     expect(state.status).toBe("idle");
 
     // Completed tasks must NOT be in unresolved
-    expect(state.unresolved.filter((u) => u.id === "done-root")).toHaveLength(
+    expect(state.noWorkstream.filter((u) => u.id === "done-root")).toHaveLength(
       0,
     );
-    expect(state.unresolved.filter((u) => u.id === "done-docs")).toHaveLength(
+    expect(state.noWorkstream.filter((u) => u.id === "done-docs")).toHaveLength(
       0,
     );
 
@@ -581,29 +589,29 @@ describe("automatic update coordinator lifecycle", () => {
     expect(doneDocsThread?.sectionId).not.toBeNull();
 
     // Each completed root keeps its own topic's workstream.
-    const coreGroup = state.groups.find((g) => g.name === "Lantern: Core");
-    expect(coreGroup?.roots.some((r) => r.id === "done-root")).toBe(true);
-    const docsGroup = state.groups.find((g) => g.name === "Lantern: Docs");
-    expect(docsGroup?.roots.some((r) => r.id === "done-docs")).toBe(true);
+    const coreGroup = state.groups.find((g) => g.name === "Lantern › Core");
+    expect(coreGroup?.threads.some((r) => r.id === "done-root")).toBe(true);
+    const docsGroup = state.groups.find((g) => g.name === "Lantern › Docs");
+    expect(docsGroup?.threads.some((r) => r.id === "done-docs")).toBe(true);
   });
 
   it("section safety: adopted external user-created section is not deleted when empty", async () => {
     world = await fakeWorld();
     const w = world;
-    const corpus = new TopicStore(openDatabase(w.bb));
-    const prod = corpus.create("Docs", "Docs Product");
+    const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
+    const prod = workstreamStore.create("Docs", "Docs Product");
 
     // User created native section named Docs in BB before Workstreams ran
     const userSec = w.addSection("Docs");
     openDatabase(w.bb)
       .prepare(
-        "INSERT INTO ws_workstream (section_id, created_by) VALUES (?, 'user') ON CONFLICT(section_id) DO UPDATE SET created_by = 'user'",
+        "INSERT INTO ws_section (section_id, created_by) VALUES (?, 'user') ON CONFLICT(section_id) DO UPDATE SET created_by = 'user'",
       )
       .run(userSec.id);
 
     // Active task in Docs adopts the user section
     w.addThread("t1", { title: "Docs task" });
-    corpus.assign("t1", prod.id, { provenance: "manual" });
+    workstreamStore.assign("t1", prod.id, { provenance: "manual" });
 
     const state1 = await rebuildOrg(w);
     expect(state1.groups[0]!.sectionId).toBe(userSec.id);
@@ -631,14 +639,14 @@ describe("automatic update coordinator lifecycle", () => {
   it("partial mutations state truth: partial native mutations are reflected in state on sync failure", async () => {
     world = await fakeWorld();
     const w = world;
-    const corpus = new TopicStore(openDatabase(w.bb));
-    const prodA = corpus.create("Alpha", "Product Alpha");
-    const prodB = corpus.create("Beta", "Product Beta");
+    const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
+    const prodA = workstreamStore.create("Alpha", "Product Alpha");
+    const prodB = workstreamStore.create("Beta", "Product Beta");
 
     w.addThread("t-alpha", { title: "Alpha task" });
     w.addThread("t-beta", { title: "Beta task" });
-    corpus.assign("t-alpha", prodA.id, { provenance: "manual" });
-    corpus.assign("t-beta", prodB.id, { provenance: "manual" });
+    workstreamStore.assign("t-alpha", prodA.id, { provenance: "manual" });
+    workstreamStore.assign("t-beta", prodB.id, { provenance: "manual" });
 
     // Inject SDK failure on thread update for t-beta
     let failBeta = true;
@@ -668,18 +676,18 @@ describe("automatic update coordinator lifecycle", () => {
   it("event lifecycle: topic changes trigger the organizer without a rebuild", async () => {
     world = await fakeWorld();
     const w = world;
-    const corpus = new TopicStore(openDatabase(w.bb));
-    const lantern = corpus.create("Lantern", "Product");
-    const compass = corpus.create("Compass", "Navigation product");
+    const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
+    const lantern = workstreamStore.create("Lantern", "Product");
+    const compass = workstreamStore.create("Compass", "Navigation product");
     const t1 = w.addThread("t1", {
       title: "Lantern core fix",
       sectionId: null,
     });
     await w.harness.behavior.emitThreadEvent("thread.created", { thread: t1 });
 
-    await w.harness.behavior.callRpc("taskAssign", {
+    await w.harness.behavior.callRpc("threadMove", {
       threadId: "t1",
-      entityId: lantern.id,
+      workstreamId: lantern.id,
     });
     await vi.waitFor(
       () => {
@@ -690,9 +698,9 @@ describe("automatic update coordinator lifecycle", () => {
       { timeout: 2000 },
     );
 
-    await w.harness.behavior.callRpc("taskAssign", {
+    await w.harness.behavior.callRpc("threadMove", {
       threadId: "t1",
-      entityId: compass.id,
+      workstreamId: compass.id,
     });
     await vi.waitFor(
       () => {
@@ -710,15 +718,15 @@ describe("organizer pass cost", () => {
   const passReads = async (roots: number) => {
     world = await fakeWorld();
     const w = world;
-    const corpus = new TopicStore(openDatabase(w.bb));
-    const lantern = corpus.create("Lantern", "Product");
+    const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
+    const lantern = workstreamStore.create("Lantern", "Product");
     for (let i = 0; i < roots; i++) {
       w.addThread(`t${i}`, { title: `Lantern task ${i}` });
-      corpus.assign(`t${i}`, lantern.id, { provenance: "manual" });
+      workstreamStore.assign(`t${i}`, lantern.id, { provenance: "manual" });
     }
     await rebuildOrg(w);
-    const list = vi.spyOn(TopicStore.prototype, "list");
-    const assignment = vi.spyOn(TopicStore.prototype, "assignment");
+    const list = vi.spyOn(WorkstreamStore.prototype, "list");
+    const assignment = vi.spyOn(WorkstreamStore.prototype, "assignment");
     const recaps = vi.spyOn(AgentRecaps.prototype, "all");
     try {
       await rebuildOrg(w);
@@ -745,11 +753,11 @@ describe("organizer pass cost", () => {
   it("drops a plan whose topics changed while it waited on BB, then applies the new one", async () => {
     world = await fakeWorld();
     const w = world;
-    const corpus = new TopicStore(openDatabase(w.bb));
-    const lantern = corpus.create("Lantern", "Product");
-    const compass = corpus.create("Compass", "Navigation");
+    const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
+    const lantern = workstreamStore.create("Lantern", "Product");
+    const compass = workstreamStore.create("Compass", "Navigation");
     w.addThread("t1", { title: "Task" });
-    corpus.assign("t1", lantern.id, { provenance: "manual" });
+    workstreamStore.assign("t1", lantern.id, { provenance: "manual" });
     let moved = false;
     const created: string[] = [];
     w.harness.sdk.stub("threadSections.create", async ({ name }) => {
@@ -757,7 +765,7 @@ describe("organizer pass cost", () => {
       // The user picks another topic while BB creates the section.
       if (!moved) {
         moved = true;
-        corpus.assign("t1", compass.id, { provenance: "manual" });
+        workstreamStore.assign("t1", compass.id, { provenance: "manual" });
       }
       return w.addSection(name) as never;
     });
@@ -825,7 +833,7 @@ describe("organizer triggers", () => {
         sdk: () => host.bb.sdk,
         db,
         service,
-        topics: new TopicStore(db),
+        workstreamStore: new WorkstreamStore(db),
         analyzer: { get: () => undefined } as unknown as Analyzer,
         members: async () => [],
         onChange: () => {},
@@ -865,7 +873,12 @@ const organizerEntries = async (w: World): Promise<Entry[]> => {
   const { entries } = (await w.harness.behavior.callRpc("journal", null)) as {
     entries: Entry[];
   };
-  return entries.filter((e) => e.action === "batch" && e.source === "auto");
+  return entries.filter(
+    (e) =>
+      e.source === "workstreams" &&
+      e.action !== "categories-updated" &&
+      e.action !== "title-updated",
+  );
 };
 
 /** The thread's agent reports `state` for its latest turn. */
@@ -887,30 +900,30 @@ describe("organizer status and Activity", () => {
   it("counts a thread whose agent reported it complete as completed", async () => {
     world = await fakeWorld();
     const w = world;
-    const corpus = new TopicStore(openDatabase(w.bb));
-    const lantern = corpus.create("Lantern", "Product");
+    const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
+    const lantern = workstreamStore.create("Lantern", "Product");
     w.addThread("t1", { status: "idle", latestAttentionAt: 500 });
     w.addThread("t2", { status: "idle", latestAttentionAt: 500 });
-    corpus.assign("t1", lantern.id, { provenance: "manual" });
-    corpus.assign("t2", lantern.id, { provenance: "manual" });
+    workstreamStore.assign("t1", lantern.id, { provenance: "manual" });
+    workstreamStore.assign("t2", lantern.id, { provenance: "manual" });
     await w.harness.behavior.callRpc("refresh", null);
 
     await report(w, "t1", "complete");
     const state = await rebuildOrg(w);
 
-    expect(state.counts.completedRoots).toBe(1);
-    expect(state.counts.activeRoots).toBe(1);
-    const member = state.groups[0]!.roots.find((r) => r.id === "t1");
+    expect(state.counts.completedThreads).toBe(1);
+    expect(state.counts.activeThreads).toBe(1);
+    const member = state.groups[0]!.threads.find((r) => r.id === "t1");
     expect(member?.completed).toBe(true);
   });
 
   it("records each pass's section changes as one automatic entry", async () => {
     world = await fakeWorld();
     const w = world;
-    const corpus = new TopicStore(openDatabase(w.bb));
-    const lantern = corpus.create("Lantern", "Product");
+    const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
+    const lantern = workstreamStore.create("Lantern", "Product");
     w.addThread("t1", { title: "Lantern core fix", sectionId: null });
-    corpus.assign("t1", lantern.id, { provenance: "manual" });
+    workstreamStore.assign("t1", lantern.id, { provenance: "manual" });
 
     await rebuildOrg(w);
     const section = w.sections.find((s) => s.name === "Lantern")!;
@@ -918,13 +931,13 @@ describe("organizer status and Activity", () => {
     expect(rest).toHaveLength(0);
     expect(entry).toMatchObject({
       status: "applied",
-      rationale: "Organized by topic: 1 thread moved, 1 workstream created",
+      rationale: "1 thread moved, 1 workstream created",
       threads: [{ id: "t1", name: "Lantern core fix" }],
       workstreams: [{ id: section.id, name: "Lantern" }],
       undo: null,
     });
     expect(entry!.detail).toContain(
-      "Moved “Lantern core fix” from Unfiled to Lantern",
+      "Moved “Lantern core fix” from Other to Lantern",
     );
 
     // A pass that changes nothing records nothing.
@@ -935,10 +948,10 @@ describe("organizer status and Activity", () => {
   it("moves a thread back after a move made outside Workstreams, and says so", async () => {
     world = await fakeWorld();
     const w = world;
-    const corpus = new TopicStore(openDatabase(w.bb));
-    const lantern = corpus.create("Lantern", "Product");
+    const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
+    const lantern = workstreamStore.create("Lantern", "Product");
     w.addThread("t1", { title: "Lantern core fix", sectionId: null });
-    corpus.assign("t1", lantern.id, { provenance: "manual" });
+    workstreamStore.assign("t1", lantern.id, { provenance: "manual" });
     await rebuildOrg(w);
     const home = w.sections.find((s) => s.name === "Lantern")!;
 

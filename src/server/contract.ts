@@ -1,4 +1,4 @@
-import { topicMigrationInput } from "../domain/topicMigration.ts";
+import { workstreamMigrationInput } from "../domain/topicMigration.ts";
 import { categoryGenerationSchema } from "../domain/categories.ts";
 import type { LayoutNode } from "../domain/layout.ts";
 import type {
@@ -39,7 +39,7 @@ const analysisSchema = z.object({
   title: z.string().nullable().default(null),
   goal: z.string().nullable().default(null),
   digest: z.string().nullable().default(null),
-  topicError: z.string().optional(),
+  workstreamError: z.string().optional(),
   revision: z.number(),
   at: z.number(),
   model: z.string(),
@@ -51,14 +51,14 @@ const analysisSchema = z.object({
 const assignmentProvenanceSchema = z.enum([
   "manual",
   "inherited",
-  "full",
-  "quick",
+  "automatic",
+  "composer",
 ]);
-const assignmentStatusSchema = z.enum(["assigned", "unresolved"]);
+const assignmentStatusSchema = z.enum(["assigned", "none"]);
 
-const topicAssignmentSchema = z.object({
+const workstreamAssignmentSchema = z.object({
   threadId: z.string(),
-  entityId: z.string().nullable(),
+  workstreamId: z.string().nullable(),
   status: assignmentStatusSchema,
   provenance: assignmentProvenanceSchema.nullable(),
   label: z.string().nullable(),
@@ -71,8 +71,8 @@ const organizerStateGroupMemberSchema = z.object({
   id: z.string(),
   title: z.string(),
   completed: z.boolean(),
-  topicId: z.string().nullable(),
-  topicLabel: z.string().nullable(),
+  workstreamId: z.string().nullable(),
+  workstreamLabel: z.string().nullable(),
   provenance: assignmentProvenanceSchema.nullable(),
   reason: z.string(),
 });
@@ -85,10 +85,10 @@ const organizerStateGroupSchema = z.object({
   activeCount: z.number(),
   completedCount: z.number(),
   totalCount: z.number(),
-  roots: z.array(organizerStateGroupMemberSchema),
+  threads: z.array(organizerStateGroupMemberSchema),
 });
 
-const organizerStateNoTopicSchema = z.object({
+const organizerStateNoWorkstreamSchema = z.object({
   id: z.string(),
   title: z.string(),
   completed: z.boolean(),
@@ -97,35 +97,26 @@ const organizerStateNoTopicSchema = z.object({
 });
 
 const organizerStateCountsSchema = z.object({
-  activeRoots: z.number(),
-  completedRoots: z.number(),
-  totalRoots: z.number(),
-  unresolvedRoots: z.number(),
+  activeThreads: z.number(),
+  completedThreads: z.number(),
+  totalThreads: z.number(),
+  noWorkstreamThreads: z.number(),
   activeWorkstreams: z.number(),
 });
 
 const organizerStateSchema = z.object({
-  status: z.enum(["idle", "classifying", "deriving", "syncing", "failed"]),
-  progress: z
-    .object({
-      stage: z.enum(["classifying", "deriving", "syncing"]),
-      completed: z.number().int().nonnegative(),
-      total: z.number().int().nonnegative(),
-      cached: z.number().int().nonnegative(),
-      unresolved: z.number().int().nonnegative(),
-    })
-    .nullable(),
+  status: z.enum(["idle", "failed"]),
   error: z.string().nullable(),
   lastUpdatedAt: z.number().nullable(),
   groups: z.array(organizerStateGroupSchema),
-  unresolved: z.array(organizerStateNoTopicSchema),
+  noWorkstream: z.array(organizerStateNoWorkstreamSchema),
   counts: organizerStateCountsSchema,
 });
 
 export type OrganizerState = z.infer<typeof organizerStateSchema>;
 export type OrganizerStateGroup = z.infer<typeof organizerStateGroupSchema>;
 export type OrganizerStateUnresolved = z.infer<
-  typeof organizerStateNoTopicSchema
+  typeof organizerStateNoWorkstreamSchema
 >;
 export type OrganizerStateCounts = z.infer<typeof organizerStateCountsSchema>;
 
@@ -134,14 +125,14 @@ const draftAncestorSchema = z.object({
   description: z.string().default(""),
 });
 
-const draftSubjectProposalSchema = z.object({
+const draftWorkstreamProposalSchema = z.object({
   name: z.string().min(1),
   description: z.string().default(""),
   parentId: z.string().nullable().optional(),
   ancestors: z.array(draftAncestorSchema).nullable().optional(),
 });
 
-export const reclassificationPlanSchema = z.object({
+export const repairPreviewSchema = z.object({
   id: z.string(),
   at: z.number(),
   definitionKey: z.string(),
@@ -160,26 +151,26 @@ export const reclassificationPlanSchema = z.object({
       traceId: z.string().nullable().optional(),
       answer: z
         .object({
-          subjectId: z.string().nullable(),
-          proposed: draftSubjectProposalSchema.nullable(),
+          workstreamId: z.string().nullable(),
+          proposed: draftWorkstreamProposalSchema.nullable(),
           scopeShift: z.boolean(),
         })
         .optional(),
     }),
   ),
 });
-export type ReclassificationPlan = z.infer<typeof reclassificationPlanSchema>;
+export type RepairPreview = z.infer<typeof repairPreviewSchema>;
 
 /**
- * The topic the New thread composer shows for a draft. `automatic` is the
+ * The workstream the New thread composer shows for a draft. `automatic` is the
  * start call's preview, with the title it would give the thread; `answered`
  * marks a preview of exactly the text sent, which is then that thread's
- * start. `inherited` is the topic of the workstream whose ＋ opened the
+ * start. `inherited` is the workstream of the workstream whose ＋ opened the
  * composer.
  */
 const taskIdentitySubmissionSchema = z.object({
-  entityId: z.string().min(1).nullable().optional(),
-  proposal: draftSubjectProposalSchema.nullable().optional(),
+  workstreamId: z.string().min(1).nullable().optional(),
+  proposal: draftWorkstreamProposalSchema.nullable().optional(),
   provenance: z.enum(["manual", "automatic", "inherited"]).optional(),
   sectionId: z.string().min(1).nullable().optional(),
   title: z.string().max(200).nullable().optional(),
@@ -193,8 +184,8 @@ export const projectChoiceSchema = z.object({
 
 const projectSuggestionSchema = z.object({
   id: z.string(),
-  entityId: z.string(),
-  topic: z.string(),
+  workstreamId: z.string(),
+  workstream: z.string(),
   fromProject: z.string(),
   toProject: z.string().nullable(),
   reason: z.string(),
@@ -203,7 +194,7 @@ const projectSuggestionSchema = z.object({
   ),
 });
 
-const entitySchema = z.object({
+const workstreamSchema = z.object({
   id: z.string(),
   name: z.string(),
   description: z.string(),
@@ -219,7 +210,7 @@ const entitySchema = z.object({
 
 const layoutNodeSchema: z.ZodType<LayoutNode> = z.lazy(() =>
   z.object({
-    topicId: z.string(),
+    workstreamId: z.string(),
     prefix: z.array(z.string()),
     name: z.string(),
     lists: z.boolean(),
@@ -228,10 +219,10 @@ const layoutNodeSchema: z.ZodType<LayoutNode> = z.lazy(() =>
   }),
 );
 
-const catalogStateSchema = z.object({
-  entities: z.array(entitySchema),
+const treeStateSchema = z.object({
+  workstreams: z.array(workstreamSchema),
   groups: z.record(z.string(), z.string()),
-  assignments: z.record(z.string(), topicAssignmentSchema),
+  assignments: z.record(z.string(), workstreamAssignmentSchema),
   revision: z.number(),
   layout: z.array(layoutNodeSchema).optional(),
   categories: z.record(z.string(), categoryGenerationSchema).optional(),
@@ -246,24 +237,24 @@ const catalogStateSchema = z.object({
     .optional(),
 });
 
-const topicPlaceSchema = z.array(
+const workstreamPlaceSchema = z.array(
   z.object({ name: z.string(), created: z.boolean() }),
 );
 
 const suggestionChangeSchema: z.ZodType<SuggestionChange> = z.object({
   op: z.enum([
-    "refile",
+    "move-thread",
     "split",
-    "file",
+    "repair",
     "merge",
-    "reparent",
+    "move-workstream",
     "rename",
-    "create",
+    "group",
   ]),
   moves: z.array(
     z.object({
-      from: topicPlaceSchema.nullable(),
-      to: topicPlaceSchema,
+      from: workstreamPlaceSchema.nullable(),
+      to: workstreamPlaceSchema,
       threads: z.array(z.object({ id: z.string(), title: z.string() })),
       carried: z.number(),
     }),
@@ -271,7 +262,7 @@ const suggestionChangeSchema: z.ZodType<SuggestionChange> = z.object({
 });
 
 const suggestionDeltaSchema: z.ZodType<ChangeDelta> = z.object({
-  topics: z.array(
+  workstreams: z.array(
     z.object({
       id: z.string(),
       name: z.string(),
@@ -280,10 +271,14 @@ const suggestionDeltaSchema: z.ZodType<ChangeDelta> = z.object({
   ),
   removed: z.array(z.string()),
   assignments: z.array(
-    z.object({ threadId: z.string(), topicId: z.string().nullable() }),
+    z.object({ threadId: z.string(), workstreamId: z.string().nullable() }),
   ),
   held: z.array(
-    z.object({ threadId: z.string(), topicId: z.string(), title: z.string() }),
+    z.object({
+      threadId: z.string(),
+      workstreamId: z.string(),
+      title: z.string(),
+    }),
   ),
   archived: z.number(),
   touched: z.array(z.string()),
@@ -343,7 +338,7 @@ const snoozeSchema = z.object({
 const orderSchema = z.object({
   workstreams: z.array(z.string()),
   threads: z.record(z.string(), z.array(z.string())),
-  prioritized: z.array(z.string()),
+  focused: z.array(z.string()),
 });
 
 /** What a new thread from a composer draft would start with. */
@@ -351,10 +346,10 @@ const previewSchema = z.object({
   id: z.string(),
   confidence: z.enum(["high", "medium", "low"]),
   reason: z.string(),
-  /** The topic's label, for display. */
+  /** The workstream's label, for display. */
   subject: z.string().nullable(),
-  subjectId: z.string().nullable().optional(),
-  proposal: draftSubjectProposalSchema.nullable().optional(),
+  workstreamId: z.string().nullable().optional(),
+  proposal: draftWorkstreamProposalSchema.nullable().optional(),
   /** The title the new thread would start with. */
   title: z.string().nullable().optional(),
   /** The trimmed draft text a model answer is for. */
@@ -379,7 +374,7 @@ const stateFields = {
   snoozePrefs: snoozePrefsSchema,
   /** Organizing suggestions waiting for your decision. */
   pendingSuggestions: z.number(),
-  catalog: catalogStateSchema,
+  tree: treeStateSchema,
 };
 
 /**
@@ -392,8 +387,8 @@ const stateSchema = z.object({
   dismissedRecaps: stateFields.dismissedRecaps.default([]),
   snoozes: stateFields.snoozes.default({}),
   pendingSuggestions: stateFields.pendingSuggestions.default(0),
-  catalog: stateFields.catalog.default({
-    entities: [],
+  tree: stateFields.tree.default({
+    workstreams: [],
     groups: {},
     assignments: {},
     revision: 1,
@@ -403,11 +398,11 @@ const stateSchema = z.object({
 });
 
 export const rpcContract = defineRpcContract({
-  reclassificationPreview: {
+  repairPreview: {
     input: z.object({ threadIds: z.array(z.string()).min(1).max(100) }),
-    output: reclassificationPlanSchema,
+    output: repairPreviewSchema,
   },
-  reclassificationApply: {
+  repairApply: {
     input: z.object({ planId: z.string() }),
     output: z.object({ changed: z.number(), skipped: z.number() }),
   },
@@ -448,7 +443,7 @@ export const rpcContract = defineRpcContract({
   },
   /**
    * The New thread composer's preview of a draft: the start call's title
-   * and topic for the new thread, or the topic of a mentioned workstream.
+   * and workstream for the new thread, or the workstream of a mentioned workstream.
    * Changes nothing.
    */
   preview: {
@@ -472,7 +467,7 @@ export const rpcContract = defineRpcContract({
     output: z.object({ canceled: z.boolean() }),
   },
   /**
-   * The topic the New thread composer shows for a draft, reported
+   * The workstream the New thread composer shows for a draft, reported
    * as the draft changes so the dispatch hook can file the thread a plain
    * Enter creates (`ComposedDrafts`). Empty text forgets the draft.
    */
@@ -497,8 +492,8 @@ export const rpcContract = defineRpcContract({
       waitingCancelled: z.boolean(),
       capped: z.boolean(),
       corrections: z.number(),
-      /** The thread's topic, for threads outside the `state` snapshot. */
-      assignment: topicAssignmentSchema,
+      /** The thread's workstream, for threads outside the `state` snapshot. */
+      assignment: workstreamAssignmentSchema,
       /** Where the thread's files live, to resolve the recap's file links. */
       files: z
         .object({
@@ -592,12 +587,12 @@ export const rpcContract = defineRpcContract({
     input: z.object({ patch: recapPrefsSchema.partial() }),
     output: z.object({ prefs: recapPrefsSchema }),
   },
-  topicMigrationPreview: {
-    input: topicMigrationInput.nullable(),
+  workstreamMigrationPreview: {
+    input: workstreamMigrationInput.nullable(),
     output: z.object({
       id: z.string(),
       fingerprint: z.string(),
-      topics: z.array(entitySchema),
+      workstreams: z.array(workstreamSchema),
       removed: z.array(
         z.object({
           id: z.string(),
@@ -615,7 +610,7 @@ export const rpcContract = defineRpcContract({
           threadId: z.string(),
           from: z.string(),
           to: z.string(),
-          topicId: z.string(),
+          workstreamId: z.string(),
           source: z.string(),
         }),
       ),
@@ -629,13 +624,13 @@ export const rpcContract = defineRpcContract({
       blockers: z.array(
         z.object({
           threadId: z.string().nullable(),
-          topicId: z.string(),
+          workstreamId: z.string(),
           reason: z.string(),
         }),
       ),
     }),
   },
-  topicMigrationApply: {
+  workstreamMigrationApply: {
     input: z.object({ planId: z.string().min(1) }),
     output: z.object({
       backupId: z.string(),
@@ -643,46 +638,46 @@ export const rpcContract = defineRpcContract({
       reset: z.number(),
     }),
   },
-  topicMigrationBackup: {
+  workstreamMigrationBackup: {
     input: z.object({ backupId: z.string().min(1) }),
     output: z.unknown(),
   },
-  catalog: {
+  tree: {
     input: z.null(),
-    output: catalogStateSchema,
+    output: treeStateSchema,
   },
-  catalogCreate: {
+  workstreamCreate: {
     input: z.object({
       name: z.string().min(1).max(200),
       description: z.string().max(1000).default(""),
       parentId: z.string().min(1).nullable().optional(),
       aliases: z.array(z.string().max(80)).default([]),
     }),
-    output: z.object({ entity: entitySchema }),
+    output: z.object({ workstream: workstreamSchema }),
   },
-  catalogRename: {
+  workstreamRename: {
     input: z.object({
-      entityId: z.string().min(1),
+      workstreamId: z.string().min(1),
       name: z.string().min(1).max(200),
     }),
-    output: z.object({ entity: entitySchema }),
+    output: z.object({ workstream: workstreamSchema }),
   },
-  catalogReparent: {
+  workstreamMove: {
     input: z.object({
-      entityId: z.string().min(1),
+      workstreamId: z.string().min(1),
       parentId: z.string().min(1).nullable(),
     }),
-    output: z.object({ entity: entitySchema }),
+    output: z.object({ workstream: workstreamSchema }),
   },
-  catalogUpdateMetadata: {
+  workstreamUpdate: {
     input: z.object({
-      entityId: z.string().min(1),
+      workstreamId: z.string().min(1),
       description: z.string().max(1000).optional(),
       aliases: z.array(z.string().max(80)).optional(),
       projectId: z.string().min(1).nullable().optional(),
       projectAutomatic: z.boolean().optional(),
     }),
-    output: z.object({ entity: entitySchema }),
+    output: z.object({ workstream: workstreamSchema }),
   },
   projectSuggestions: {
     input: z.null(),
@@ -695,36 +690,36 @@ export const rpcContract = defineRpcContract({
     }),
     output: z.object({ entry: entrySchema }),
   },
-  catalogMerge: {
+  workstreamMerge: {
     input: z.object({
-      sourceEntityId: z.string().min(1),
-      targetEntityId: z.string().min(1),
+      sourceWorkstreamId: z.string().min(1),
+      targetWorkstreamId: z.string().min(1),
     }),
-    output: z.object({ target: entitySchema }),
+    output: z.object({ target: workstreamSchema }),
   },
   /** Chooses an existing leaf within the user's destination group and sets it manually. */
-  taskMove: {
+  threadMoveToGroup: {
     input: z.object({
       threadId: z.string().min(1),
-      entityId: z.string().min(1),
+      workstreamId: z.string().min(1),
     }),
-    output: z.object({ assignment: topicAssignmentSchema }),
+    output: z.object({ assignment: workstreamAssignmentSchema }),
   },
-  /** Sets a thread's topic yourself; null means it has no topic. */
-  taskAssign: {
+  /** Sets a thread's workstream yourself; null means it has no workstream. */
+  threadMove: {
     input: z.object({
       threadId: z.string().min(1),
-      entityId: z.string().min(1).nullable(),
+      workstreamId: z.string().min(1).nullable(),
     }),
-    output: z.object({ assignment: topicAssignmentSchema }),
+    output: z.object({ assignment: workstreamAssignmentSchema }),
   },
   /**
-   * Hands a thread's topic back to Workstreams ("Automatic") and settles it
-   * now with Full analysis.
+   * Hands a thread's workstream back to Workstreams ("Automatic") and settles it
+   * now with the turn-end call.
    */
-  taskReclassify: {
+  threadAutomatic: {
     input: z.object({ threadId: z.string().min(1) }),
-    output: z.object({ assignment: topicAssignmentSchema }),
+    output: z.object({ assignment: workstreamAssignmentSchema }),
   },
   /** The whole client snapshot, for a first load or a reconnect. */
   state: {
@@ -769,13 +764,13 @@ export const rpcContract = defineRpcContract({
   },
   /**
    * Stores the sidebar's arrangement: every workstream top to bottom, the
-   * prioritized workstreams (a set), or one group's root threads (a section
+   * focused workstreams (a set), or one group's threads (a section
    * id or "unsorted") top to bottom.
    */
   reorder: {
     input: z.discriminatedUnion("kind", [
       z.object({ kind: z.literal("workstreams"), ids: idList }),
-      z.object({ kind: z.literal("prioritized"), ids: idList }),
+      z.object({ kind: z.literal("focused"), ids: idList }),
       z.object({
         kind: z.literal("threads"),
         groupId: z.string().min(1),
@@ -807,7 +802,7 @@ export const rpcContract = defineRpcContract({
   /**
    * The Workstreams page queue's actions on a thread. `threadSend` sends the
    * user's message (queued behind a turn underway); `threadArchive` archives
-   * the thread with its delegates, and `threadUnarchive` brings it back, for
+   * the thread with its child threads, and `threadUnarchive` brings it back, for
    * Undo.
    */
   threadSend: {
@@ -852,7 +847,7 @@ export const rpcContract = defineRpcContract({
       ),
     }),
   },
-  organization: {
+  organizeStatus: {
     input: z
       .object({
         action: z.enum(["get", "rebuild"]).optional(),

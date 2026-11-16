@@ -23,7 +23,7 @@ import {
   workstreamProjectConflict,
 } from "../../domain/topicProject.ts";
 import {
-  carryPickedTopic,
+  carryPickedWorkstream,
   preserveProjectChoice,
   takeProjectChoice,
 } from "./project-choice.ts";
@@ -76,7 +76,7 @@ export function NewThreadRouting() {
         },
         takeProjectChoice(scope.projectId, draftKey),
       );
-      // Opened from a workstream's ＋: the thread starts with its topic.
+      // Opened from a workstream's ＋: the thread starts with its workstream.
       const preset = takeComposerPreset();
       if (preset) nativeModel.selectWorkstream(preset.target, preset.label);
       nativeModel.observe(composer.text);
@@ -86,7 +86,11 @@ export function NewThreadRouting() {
     setModel(nativeModel);
     return () => {
       if (releaseRoutingModel(draftKey, nativeModel))
-        carryPickedTopic(draftKey, scope.projectId, nativeModel.snapshot());
+        carryPickedWorkstream(
+          draftKey,
+          scope.projectId,
+          nativeModel.snapshot(),
+        );
       setModel((current) => (current === nativeModel ? null : current));
       setComposerRoot(null);
     };
@@ -102,19 +106,20 @@ export function NewThreadRouting() {
     model?.subscribeView ?? emptySubscribe,
     model?.viewSnapshot ?? emptySnapshot,
   );
-  const topicId =
-    state.identity?.entityId ?? state.identity?.proposal?.parentId;
+  const workstreamId =
+    state.identity?.workstreamId ?? state.identity?.proposal?.parentId;
   const sectionId = state.identity?.sectionId;
   useEffect(() => {
-    // A project you chose after the topic stays for this thread.
-    if (!model || (!topicId && !sectionId) || state.projectOverride) return;
+    // A project you chose after the workstream stays for this thread.
+    if (!model || (!workstreamId && !sectionId) || state.projectOverride)
+      return;
     let live = true;
     void (async () => {
-      const catalog = await rpc.call("catalog", null);
+      const tree = await rpc.call("tree", null);
       // A workstream always has a project; with none, it is No project.
-      const destination = sectionId ? catalog.groups[sectionId] : topicId;
+      const destination = sectionId ? tree.groups[sectionId] : workstreamId;
       if (!destination || !live) return;
-      const projectId = workstreamProject(destination, catalog.entities);
+      const projectId = workstreamProject(destination, tree.workstreams);
       const projects = await sdk.projects.list({});
       if (
         !live ||
@@ -128,7 +133,7 @@ export function NewThreadRouting() {
         (scope.kind === "new-thread" ? scope.projectId : null);
       if (current === projectId) return;
       // The preview's workstream never moves a thread out of its project on a
-      // workstream with none; it leaves the thread unfiled instead.
+      // workstream with none; it leaves the thread in no workstream instead.
       if (
         projectId === NO_PROJECT &&
         model.snapshot().identity?.provenance === "automatic"
@@ -154,7 +159,7 @@ export function NewThreadRouting() {
     model,
     rpc,
     sdk,
-    topicId,
+    workstreamId,
     sectionId,
     state.identity,
     state.projectOverride,
@@ -173,29 +178,29 @@ export function NewThreadRouting() {
       "form[data-promptbox]",
     );
     if (!form || primary?.closest('[role="dialog"]')) return;
-    // The thread starts in the project the composer shows. A topic you
-    // picked may start in any project; an automatic topic must match its
+    // The thread starts in the project the composer shows. A workstream you
+    // picked may start in any project; an automatic workstream must match its
     // workstream's project, so nothing is sent until one of them changes.
     const projectConflict = async (): Promise<string | null> => {
       const { identity } = model.snapshot();
-      const topicId = identity?.sectionId ? null : identity?.entityId;
+      const workstreamId = identity?.sectionId ? null : identity?.workstreamId;
       const proposed = identity?.proposal?.parentId;
       if (
         identity?.provenance !== "automatic" ||
-        !(topicId || proposed || identity.sectionId)
+        !(workstreamId || proposed || identity.sectionId)
       )
         return null;
-      const catalog = await rpc.call("catalog", null);
+      const tree = await rpc.call("tree", null);
       const destination = identity.sectionId
-        ? catalog.groups[identity.sectionId]
-        : (topicId ?? proposed);
+        ? tree.groups[identity.sectionId]
+        : (workstreamId ?? proposed);
       const { scope, selection } = composerRef.current;
       const chosen =
         selection?.projectId ??
         (scope.kind === "new-thread" ? scope.projectId : null);
       const conflict = workstreamProjectConflict(
         destination,
-        catalog.entities,
+        tree.workstreams,
         chosen,
       );
       if (!conflict) return null;
@@ -205,7 +210,7 @@ export function NewThreadRouting() {
           ? "No project"
           : (projects.find((project) => project.id === id)?.name ??
             "an unavailable project");
-      return `${identity.label} belongs to ${nameOf(conflict.workstreamProjectId)}, but this thread would start in ${nameOf(chosen)}. Choose that project, or another topic.`;
+      return `${identity.label} belongs to ${nameOf(conflict.workstreamProjectId)}, but this thread would start in ${nameOf(chosen)}. Choose that project, or another workstream.`;
     };
     const submit = (event: Event) => {
       event.preventDefault();
@@ -253,7 +258,7 @@ export function NewThreadRouting() {
           compact ? "sr-only" : "ws-picker-status text-xs text-muted-foreground"
         }
       >
-        {state.classifying ? "Analyzing…" : ""}
+        {state.classifying ? "Organizing…" : ""}
       </span>
     </>
   ) : null;

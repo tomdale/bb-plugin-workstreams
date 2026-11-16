@@ -4,7 +4,7 @@
  * accepting one change, with the flows of threads that change moves.
  *
  * The after state is not sent by the server. The client applies the change's
- * delta (`applyDelta`) to the topics and filing it holds and runs the real
+ * delta (`applyDelta`) to the workstreams and filing it holds and runs the real
  * layout and arrangement on both states (`layoutGroups`, `projectWorkstreams`,
  * `arrangeGroups`, with the user's own sort), so the drawing agrees with the
  * sidebar about nesting, name prefixes and order. Pure, so tests can check it
@@ -15,7 +15,7 @@
  * is focused; categories are left out; threads that are not in the sidebar
  * (snoozed ones) are drawn as dashed ticks, but only in the workstreams the
  * change touches (the delta names them, in `held`); archived threads are never
- * drawn, since a topic can hold thousands, only counted; a workstream the
+ * drawn, since a workstream can hold thousands, only counted; a workstream the
  * change touches is always drawn, with no ticks when it has no thread to show; a workstream draws at most `TICK_CAP`
  * ticks, shared out by each group's share of its threads; and under manual
  * order the after state puts a new workstream beside the one it grew from, so
@@ -24,32 +24,33 @@
 import {
   applyDelta,
   type ChangeDelta,
-  type DeltaTopic,
+  type DeltaWorkstream,
 } from "../../domain/suggestion-change.ts";
 import { arrangeGroups, type GroupSort } from "../../domain/groups.ts";
 import { layoutGroups } from "../../domain/layout.ts";
 import {
   projectWorkstreams,
-  UNFILED_NAME,
-  UNSORTED_ID,
+  OTHER_NAME,
+  OTHER_ID,
   type WorkstreamThread,
 } from "../../domain/project.ts";
 import {
   allocateChildColor,
   colorForWorkstream,
-  type TopicColor,
+  type WorkstreamColor,
 } from "../../domain/workstreamColor.ts";
 import { workstreamHue } from "../../domain/workstreamHue.ts";
 import type { WorkstreamNode } from "../../domain/groups.ts";
+import { PATH_SEPARATOR } from "../../domain/topic-path.ts";
 
 /** Most ticks one workstream draws; larger ones share them by group. */
 export const TICK_CAP = 12;
 
-/** A visible root thread, as the miniatures need it. */
+/** A visible thread, as the miniatures need it. */
 type MiniThread = {
   readonly id: string;
   readonly title: string;
-  /** Its workstream's native section; null for Unfiled. */
+  /** Its workstream's native section; null for Other. */
   readonly sectionId: string | null;
   readonly activeAt: number;
   /** Not in the sidebar (snoozed): drawn dashed. */
@@ -58,10 +59,10 @@ type MiniThread = {
   readonly ghost?: boolean;
 };
 
-/** The topic colors the sidebar draws workstreams in. */
+/** The workstream colors the sidebar draws workstreams in. */
 type MiniColors = {
   readonly groups: Readonly<Record<string, string>>;
-  readonly colors?: Readonly<Record<string, TopicColor>>;
+  readonly colors?: Readonly<Record<string, WorkstreamColor>>;
 };
 
 /** A group of the sidebar's projection, as the miniatures read it. */
@@ -81,14 +82,14 @@ type MiniGroup = {
 export type SidebarView = {
   readonly projection: {
     readonly all: readonly MiniGroup[];
-    readonly unsorted: MiniGroup;
+    readonly other: MiniGroup;
   };
-  /** The topic tree, each root's topic, and the topic colors; absent until read. */
-  readonly catalog:
+  /** The workstreams and groups, each root's workstream, and the workstream colors; absent until read. */
+  readonly tree:
     | (MiniColors & {
-        readonly entities: readonly DeltaTopic[];
+        readonly workstreams: readonly DeltaWorkstream[];
         readonly assignments: Readonly<
-          Record<string, { readonly entityId: string | null }>
+          Record<string, { readonly workstreamId: string | null }>
         >;
       })
     | undefined;
@@ -101,30 +102,28 @@ export type SidebarView = {
 };
 
 /**
- * The sidebar's visible root threads, its topics and their filing, which
- * every suggestion's miniatures start from. Null before the topics are read.
+ * The sidebar's visible threads, its workstreams and their filing, which
+ * every suggestion's miniatures start from. Null before the workstreams are read.
  */
 export function miniatureBase(
   sidebar: SidebarView,
 ): Omit<MiniatureInput, "delta"> | null {
-  const { catalog, projection } = sidebar;
-  if (!catalog) return null;
-  const threads: MiniThread[] = [
-    ...projection.all,
-    projection.unsorted,
-  ].flatMap((group) =>
-    group.rows
-      .filter((row) => row.depth === 0)
-      .map((row) => ({
-        id: row.thread.id,
-        title: row.thread.title ?? "Untitled thread",
-        sectionId: group.id === UNSORTED_ID ? null : group.id,
-        activeAt: row.thread.latestAttentionAt,
-      })),
+  const { tree, projection } = sidebar;
+  if (!tree) return null;
+  const threads: MiniThread[] = [...projection.all, projection.other].flatMap(
+    (group) =>
+      group.rows
+        .filter((row) => row.depth === 0)
+        .map((row) => ({
+          id: row.thread.id,
+          title: row.thread.title ?? "Untitled thread",
+          sectionId: group.id === OTHER_ID ? null : group.id,
+          activeAt: row.thread.latestAttentionAt,
+        })),
   );
   return {
     threads,
-    topics: catalog.entities.map(({ id, name, parentId }) => ({
+    workstreams: tree.workstreams.map(({ id, name, parentId }) => ({
       id,
       name,
       parentId,
@@ -132,10 +131,10 @@ export function miniatureBase(
     filing: Object.fromEntries(
       threads.map((thread) => [
         thread.id,
-        catalog.assignments[thread.id]?.entityId ?? null,
+        tree.assignments[thread.id]?.workstreamId ?? null,
       ]),
     ),
-    colors: catalog,
+    colors: tree,
     sort: sidebar.sort,
     sections: sidebar.sections.map((section) => section.id),
     manualOrder: sidebar.manualOrder,
@@ -144,12 +143,12 @@ export function miniatureBase(
 }
 
 export type MiniatureInput = {
-  /** Visible root threads in the sidebar. */
+  /** Visible threads in the sidebar. */
   readonly threads: readonly MiniThread[];
-  readonly topics: readonly DeltaTopic[];
-  /** Each root thread's topic id; absent or null for Unfiled. */
+  readonly workstreams: readonly DeltaWorkstream[];
+  /** Each thread's workstream id; absent or null for Other. */
   readonly filing: Readonly<Record<string, string | null>>;
-  /** Native section id to topic id, and the topic colors. */
+  /** Native section id to workstream id, and the workstream colors. */
   readonly colors: MiniColors | undefined;
   readonly sort: GroupSort;
   /** BB's section ids in its own order, which manual order leaves unlisted ones in. */
@@ -178,15 +177,15 @@ export type MiniWorkstream = {
   readonly name: string;
   /** The change touches it. */
   readonly hot: boolean;
-  /** Its identity color; none for Unfiled. */
-  readonly color: TopicColor | null;
+  /** Its identity color; none for Other. */
+  readonly color: WorkstreamColor | null;
   readonly ticks: readonly MiniTick[];
   readonly subs: readonly MiniWorkstream[];
 };
 
 export type MiniFlow = {
   readonly index: number;
-  readonly color: TopicColor;
+  readonly color: WorkstreamColor;
   /** The workstream the threads end up in (or the renamed one). */
   readonly to: { readonly prefix: string | null; readonly name: string };
   readonly threads: readonly { readonly id: string; readonly title: string }[];
@@ -203,15 +202,15 @@ export type Miniature = {
 type Section = { readonly id: string; readonly name: string };
 type Synthetic = WorkstreamThread & { readonly title: string };
 
-/** The section a topic's workstream is drawn from. */
-const sectionKey = (topicId: string) => `miniature:${topicId}`;
+/** The section a workstream's workstream is drawn from. */
+const sectionKey = (workstreamId: string) => `miniature:${workstreamId}`;
 
 type State = {
   readonly nodes: readonly WorkstreamNode<Synthetic>[];
-  /** Each thread's workstream topic id and label. */
+  /** Each thread's workstream id and label. */
   readonly placeOf: ReadonlyMap<
     string,
-    { topic: string | null; label: string }
+    { workstream: string | null; label: string }
   >;
   /** Section ids, top to bottom as drawn. */
   readonly order: readonly string[];
@@ -219,28 +218,30 @@ type State = {
 
 function arrange(
   input: MiniatureInput,
-  topics: readonly DeltaTopic[],
+  workstreams: readonly DeltaWorkstream[],
   filing: Readonly<Record<string, string | null>>,
   realSection: ReadonlyMap<string, string>,
   manualOrder: readonly string[],
   touched: ReadonlySet<string>,
 ): State {
-  const known = new Set(topics.map((t) => t.id));
-  const parents = new Set(topics.map((t) => t.parentId));
-  const topicOf = (thread: MiniThread) => {
+  const known = new Set(workstreams.map((t) => t.id));
+  const parents = new Set(workstreams.map((t) => t.parentId));
+  const workstreamOf = (thread: MiniThread) => {
     const id = filing[thread.id] ?? null;
     return id && known.has(id) ? id : null;
   };
-  // Work outside the sidebar is drawn only in a topic the change touches, and
-  // never in one that holds subtopics, whose threads no layout can place.
+  // Work outside the sidebar is drawn only in a workstream the change touches, and
+  // never in one that holds workstreams in a group, whose threads no layout can place.
   const shown = input.threads.filter((thread) => {
     if (!thread.hidden) return true;
-    const topic = topicOf(thread);
-    return topic !== null && touched.has(topic) && !parents.has(topic);
+    const workstream = workstreamOf(thread);
+    return (
+      workstream !== null && touched.has(workstream) && !parents.has(workstream)
+    );
   });
   const counts: Record<string, number> = {};
   for (const thread of shown) {
-    const id = topicOf(thread);
+    const id = workstreamOf(thread);
     if (id) counts[id] = (counts[id] ?? 0) + 1;
   }
   // A workstream the change touches is drawn even with no thread to show, as a
@@ -249,10 +250,10 @@ function arrange(
     (id) => known.has(id) && !parents.has(id) && !counts[id],
   );
   for (const id of ghosts) counts[id] = 1;
-  const layout = layoutGroups({ topics, counts });
-  const byId = new Map(topics.map((t) => [t.id, t]));
-  const sectionOf = (topicId: string) =>
-    realSection.get(topicId) ?? sectionKey(topicId);
+  const layout = layoutGroups({ workstreams, counts });
+  const byId = new Map(workstreams.map((t) => [t.id, t]));
+  const sectionOf = (workstreamId: string) =>
+    realSection.get(workstreamId) ?? sectionKey(workstreamId);
   const bindings: Record<string, string> = {};
   const sections: Section[] = [];
   const rank = (section: string) => {
@@ -279,12 +280,12 @@ function arrange(
     createdAt: 0,
   }));
   const threads: Synthetic[] = shown.map((thread) => {
-    const topic = topicOf(thread);
+    const workstream = workstreamOf(thread);
     return {
       id: thread.id,
       title: thread.title,
       parentThreadId: null,
-      sectionId: topic ? sectionOf(topic) : null,
+      sectionId: workstream ? sectionOf(workstream) : null,
       isHidden: false,
       isArchived: false,
       isPinned: false,
@@ -300,27 +301,30 @@ function arrange(
       now: input.now,
       // Dormant workstreams are drawn too.
       dormantAfterMs: Number.MAX_SAFE_INTEGER,
-      order: { workstreams: manualOrder, threads: {}, prioritized: [] },
+      order: { workstreams: manualOrder, threads: {}, focused: [] },
     },
   );
   const arranged = arrangeGroups(projection, input.sort, {
-    entities: topics,
+    workstreams: workstreams,
     bindings,
     layout: layout.nodes,
   });
   const nodes = [
     ...arranged.populated,
-    ...(arranged.unfiled.total > 0 ? [arranged.unfiled] : []),
+    ...(arranged.other.total > 0 ? [arranged.other] : []),
   ];
-  const placeOf = new Map<string, { topic: string | null; label: string }>();
+  const placeOf = new Map<
+    string,
+    { workstream: string | null; label: string }
+  >();
   const walk = (node: WorkstreamNode<Synthetic>) => {
     for (const row of node.rows)
       if (!row.thread.id.startsWith("ghost:"))
         placeOf.set(row.thread.id, {
-          topic: node.topicId,
+          workstream: node.workstreamId,
           label: node.label,
         });
-    node.subgroups.forEach(walk);
+    node.workstreams.forEach(walk);
   };
   nodes.forEach(walk);
   return {
@@ -331,10 +335,13 @@ function arrange(
 }
 
 const split = (label: string, hasParent: boolean) => {
-  const at = hasParent ? label.indexOf(": ") : -1;
+  const at = hasParent ? label.indexOf(PATH_SEPARATOR) : -1;
   return at < 0
     ? { prefix: null, name: label }
-    : { prefix: label.slice(0, at), name: label.slice(at + 2) };
+    : {
+        prefix: label.slice(0, at),
+        name: label.slice(at + PATH_SEPARATOR.length),
+      };
 };
 
 const tickWidth = (title: string) =>
@@ -398,7 +405,7 @@ function ticksOf(
 
 /**
  * The miniatures for one change, or null when the sidebar cannot be laid out
- * with it applied (a topic would hold threads beside subtopics).
+ * with it applied (a workstream would hold threads beside workstreams in a group).
  */
 export function miniature(input: MiniatureInput): Miniature | null {
   try {
@@ -427,50 +434,52 @@ function draw(shown: MiniatureInput): Miniature {
     ],
     filing: {
       ...shown.filing,
-      ...Object.fromEntries(unlisted.map((h) => [h.threadId, h.topicId])),
+      ...Object.fromEntries(unlisted.map((h) => [h.threadId, h.workstreamId])),
     },
   };
   const realSection = new Map<string, string>();
-  for (const [section, topic] of Object.entries(input.colors?.groups ?? {}))
-    if (!realSection.has(topic)) realSection.set(topic, section);
-  // The topics a change touches, whose threads outside the sidebar are drawn.
-  const touchedTopics = new Set([
+  for (const [section, workstream] of Object.entries(
+    input.colors?.groups ?? {},
+  ))
+    if (!realSection.has(workstream)) realSection.set(workstream, section);
+  // The workstreams a change touches, whose threads outside the sidebar are drawn.
+  const touchedWorkstreams = new Set([
     ...input.delta.touched,
     ...input.delta.removed,
-    ...input.delta.topics.map((t) => t.id),
+    ...input.delta.workstreams.map((t) => t.id),
   ]);
-  for (const { threadId, topicId } of input.delta.assignments) {
+  for (const { threadId, workstreamId } of input.delta.assignments) {
     const was = input.filing[threadId];
-    if (was) touchedTopics.add(was);
-    if (topicId) touchedTopics.add(topicId);
+    if (was) touchedWorkstreams.add(was);
+    if (workstreamId) touchedWorkstreams.add(workstreamId);
   }
   const now = arrange(
     input,
-    input.topics,
+    input.workstreams,
     input.filing,
     realSection,
     input.manualOrder,
-    touchedTopics,
+    touchedWorkstreams,
   );
-  const next = applyDelta(input.topics, input.filing, input.delta);
-  const nextTopics = new Map(next.topics.map((t) => [t.id, t]));
-  const nowTopics = new Map(input.topics.map((t) => [t.id, t]));
+  const next = applyDelta(input.workstreams, input.filing, input.delta);
+  const nextWorkstreams = new Map(next.workstreams.map((t) => [t.id, t]));
+  const nowWorkstreams = new Map(input.workstreams.map((t) => [t.id, t]));
 
   // Under manual order a workstream the change creates sits beside the one
   // its threads come from, rather than at the bottom of the list.
   let manual = input.manualOrder;
   if (input.sort === "manual") {
     manual = [...now.order];
-    const sectionAfter = (topicId: string) =>
-      realSection.get(topicId) ?? sectionKey(topicId);
+    const sectionAfter = (workstreamId: string) =>
+      realSection.get(workstreamId) ?? sectionKey(workstreamId);
     /** The last workstream placed after each anchor, so new ones keep order. */
     const placed = new Map<string, string>();
     for (const thread of input.threads) {
       const to = next.filing[thread.id] ?? null;
-      if (!to || !nextTopics.has(to)) continue;
+      if (!to || !nextWorkstreams.has(to)) continue;
       const section = sectionAfter(to);
       if (manual.includes(section)) continue;
-      const parent = nextTopics.get(to)?.parentId;
+      const parent = nextWorkstreams.get(to)?.parentId;
       const anchor = [
         parent ? realSection.get(parent) : undefined,
         thread.sectionId ?? undefined,
@@ -484,20 +493,20 @@ function draw(shown: MiniatureInput): Miniature {
   }
   const after = arrange(
     input,
-    next.topics,
+    next.workstreams,
     next.filing,
     realSection,
     manual,
-    touchedTopics,
+    touchedWorkstreams,
   );
 
   // A thread flows when its workstream or its workstream's name changes.
   // Flows run in the order of their destinations in the after state, so
   // ribbons leaving one workstream do not cross.
   const position = new Map<string, number>();
-  after.nodes.forEach((node, at) => position.set(node.topicId ?? "", at));
+  after.nodes.forEach((node, at) => position.set(node.workstreamId ?? "", at));
   type Pending = {
-    topic: string | null;
+    workstream: string | null;
     label: string;
     threads: { id: string; title: string }[];
   };
@@ -506,50 +515,55 @@ function draw(shown: MiniatureInput): Miniature {
     const was = now.placeOf.get(thread.id);
     const will = after.placeOf.get(thread.id);
     if (!was || !will) continue;
-    if (was.topic === will.topic && was.label === will.label) continue;
-    const key = `${was.topic}\u0000${will.topic}\u0000${will.label}`;
+    if (was.workstream === will.workstream && was.label === will.label)
+      continue;
+    const key = `${was.workstream}\u0000${will.workstream}\u0000${will.label}`;
     const flow = pending.get(key) ?? { ...will, threads: [] };
     flow.threads.push({ id: thread.id, title: thread.title });
     pending.set(key, flow);
   }
   const ordered = [...pending.values()].sort(
     (a, b) =>
-      (position.get(a.topic ?? "") ?? 0) - (position.get(b.topic ?? "") ?? 0),
+      (position.get(a.workstream ?? "") ?? 0) -
+      (position.get(b.workstream ?? "") ?? 0),
   );
   const flowOf = new Map<string, number>();
   ordered.forEach((flow, index) => {
     for (const thread of flow.threads) flowOf.set(thread.id, index);
   });
-  // Colors as the sidebar would give them: the topic's own, else, for a
-  // topic the change creates, one the server would allocate beside its
+  // Colors as the sidebar would give them: the workstream's own, else, for a
+  // workstream the change creates, one the server would allocate beside its
   // siblings from its parent's.
   const colors = input.colors?.colors ?? {};
-  const taken = new Map<string, TopicColor>();
-  const colorOf = (topicId: string | null): TopicColor => {
-    if (!topicId) return { hue: workstreamHue(UNSORTED_ID), level: 0 };
-    const own = colors[topicId] ?? taken.get(topicId);
+  const taken = new Map<string, WorkstreamColor>();
+  const colorOf = (workstreamId: string | null): WorkstreamColor => {
+    if (!workstreamId) return { hue: workstreamHue(OTHER_ID), level: 0 };
+    const own = colors[workstreamId] ?? taken.get(workstreamId);
     if (own) return own;
-    const topic = nextTopics.get(topicId) ?? nowTopics.get(topicId);
-    const parent = topic?.parentId ? colors[topic.parentId] : undefined;
+    const workstream =
+      nextWorkstreams.get(workstreamId) ?? nowWorkstreams.get(workstreamId);
+    const parent = workstream?.parentId
+      ? colors[workstream.parentId]
+      : undefined;
     const color = parent
       ? allocateChildColor(
           parent,
-          [...nextTopics.values()]
-            .filter((t) => t.parentId === topic!.parentId)
+          [...nextWorkstreams.values()]
+            .filter((t) => t.parentId === workstream!.parentId)
             .flatMap((t) => {
               const c = colors[t.id] ?? taken.get(t.id);
               return c ? [c] : [];
             }),
           [...Object.values(colors), ...taken.values()],
         )
-      : colorForWorkstream(sectionKey(topicId), undefined, null);
-    taken.set(topicId, color);
+      : colorForWorkstream(sectionKey(workstreamId), undefined, null);
+    taken.set(workstreamId, color);
     return color;
   };
   const flows: MiniFlow[] = ordered.map((flow, index) => ({
     index,
-    color: colorOf(flow.topic),
-    to: split(flow.label, flow.label.includes(": ")),
+    color: colorOf(flow.workstream),
+    to: split(flow.label, flow.label.includes(PATH_SEPARATOR)),
     threads: flow.threads,
   }));
 
@@ -559,12 +573,12 @@ function draw(shown: MiniatureInput): Miniature {
     if (!flowOf.has(thread.id)) continue;
     // Both ends are marked in both states: where threads leave, and where
     // they land.
-    for (const topic of [
-      now.placeOf.get(thread.id)!.topic ?? "",
-      after.placeOf.get(thread.id)!.topic ?? "",
+    for (const workstream of [
+      now.placeOf.get(thread.id)!.workstream ?? "",
+      after.placeOf.get(thread.id)!.workstream ?? "",
     ]) {
-      hotNow.add(topic);
-      hotAfter.add(topic);
+      hotNow.add(workstream);
+      hotAfter.add(workstream);
     }
   }
   const title = new Map(input.threads.map((t) => [t.id, t.title]));
@@ -575,15 +589,16 @@ function draw(shown: MiniatureInput): Miniature {
     node: WorkstreamNode<Synthetic>,
     hot: ReadonlySet<string>,
   ): MiniWorkstream => {
-    const parts = split(node.label, node.parentTopicId !== null);
+    const parts = split(node.label, node.parentWorkstreamId !== null);
     return {
-      key: node.topicId ?? UNSORTED_ID,
+      key: node.workstreamId ?? OTHER_ID,
       prefix: parts.prefix,
-      name: node.topicId === null ? UNFILED_NAME : parts.name,
-      color: node.topicId === null ? null : colorOf(node.topicId),
+      name: node.workstreamId === null ? OTHER_NAME : parts.name,
+      color: node.workstreamId === null ? null : colorOf(node.workstreamId),
       hot:
-        hot.has(node.topicId ?? "") ||
-        (node.topicId !== null && touchedTopics.has(node.topicId)),
+        hot.has(node.workstreamId ?? "") ||
+        (node.workstreamId !== null &&
+          touchedWorkstreams.has(node.workstreamId)),
       ticks: ticksOf(
         node.rows
           .filter((row) => !row.thread.id.startsWith("ghost:"))
@@ -593,7 +608,7 @@ function draw(shown: MiniatureInput): Miniature {
             hidden: hiddenIds.has(row.thread.id),
           })),
       ),
-      subs: node.subgroups.map((sub) => convert(sub, hot)),
+      subs: node.workstreams.map((sub) => convert(sub, hot)),
     };
   };
   return {

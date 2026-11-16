@@ -303,9 +303,9 @@ describe("snoozing a workstream row", () => {
     );
     expect(slot.queryByRole("region", { name: "Zeta" })).toBeNull();
     fireEvent.click(
-      within(slot.getByRole("region", { name: "Unfiled" })).getByRole(
+      within(slot.getByRole("region", { name: "Other" })).getByRole(
         "button",
-        { name: /^Snooze 1 thread in Unfiled until/ },
+        { name: /^Snooze 1 thread in Other until/ },
       ),
     );
     await waitFor(() =>
@@ -314,7 +314,7 @@ describe("snoozing a workstream row", () => {
       ]),
     );
     await waitFor(() =>
-      expect(slot.queryByRole("region", { name: "Unfiled" })).toBeNull(),
+      expect(slot.queryByRole("region", { name: "Other" })).toBeNull(),
     );
     slot.lifecycle.unmount();
   });
@@ -403,7 +403,7 @@ describe("snoozing a workstream row", () => {
         sections: [section("sec_a", "Alpha")],
       },
     );
-    expect(items(await headerMenu(slot, "Unfiled"))).toEqual([
+    expect(items(await headerMenu(slot, "Other"))).toEqual([
       "Overview",
       "Snooze 1 thread",
     ]);
@@ -449,7 +449,7 @@ it("marks the row menu's submenus with a chevron", async () => {
       name: "Root task",
     }),
   );
-  for (const name of ["Topic", "Snooze"]) {
+  for (const name of ["Move to", "Snooze"]) {
     const item = await screen.findByRole("menuitem", { name });
     expect(item.getAttribute("aria-haspopup")).toBe("menu");
     expect(item.querySelector('[data-icon="ChevronRight"]')).not.toBeNull();

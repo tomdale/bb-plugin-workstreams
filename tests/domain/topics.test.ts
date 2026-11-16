@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { resolveProposal, type Topic } from "../../src/domain/topics.ts";
+import { resolveProposal, type Workstream } from "../../src/domain/topics.ts";
 
-const entity = (id: string, parentId: string | null = null): Topic => ({
+const workstream = (id: string, parentId: string | null = null): Workstream => ({
   id,
   name: id,
   description: "",
@@ -10,11 +10,11 @@ const entity = (id: string, parentId: string | null = null): Topic => ({
 });
 
 describe("resolveProposal", () => {
-  const catalog: Topic[] = [
-    { ...entity("subagents"), name: "Subagents" },
-    { ...entity("bb-plugin", "subagents"), name: "BB Plugin" },
-    { ...entity("workstreams"), name: "Workstreams", aliases: ["WS"] },
-    { ...entity("recaps", "workstreams"), name: "Recap Cards" },
+  const tree: Workstream[] = [
+    { ...workstream("subagents"), name: "Subagents" },
+    { ...workstream("bb-plugin", "subagents"), name: "BB Plugin" },
+    { ...workstream("workstreams"), name: "Workstreams", aliases: ["WS"] },
+    { ...workstream("recaps", "workstreams"), name: "Recap Cards" },
   ];
   const draft = (
     name: string,
@@ -31,9 +31,9 @@ describe("resolveProposal", () => {
     // A classifier's answer for Workforest work: Subagents is both its parent
     // and its first "missing" ancestor.
     expect(
-      resolveProposal(draft("Workforest", "subagents", ["Subagents"]), catalog),
+      resolveProposal(draft("Workforest", "subagents", ["Subagents"]), tree),
     ).toEqual({
-      subjectId: null,
+      workstreamId: null,
       proposed: draft("Workforest", "subagents"),
     });
   });
@@ -42,29 +42,29 @@ describe("resolveProposal", () => {
     expect(
       resolveProposal(
         draft("Countdown", "recaps", ["Workstreams", "Recap Cards", "Waiting"]),
-        catalog,
+        tree,
       ),
     ).toEqual({
-      subjectId: null,
+      workstreamId: null,
       proposed: draft("Countdown", "recaps", ["Waiting"]),
     });
     expect(
-      resolveProposal(draft("Waiting", null, [" ws ", "recap cards"]), catalog),
-    ).toEqual({ subjectId: null, proposed: draft("Waiting", "recaps") });
+      resolveProposal(draft("Waiting", null, [" ws ", "recap cards"]), tree),
+    ).toEqual({ workstreamId: null, proposed: draft("Waiting", "recaps") });
   });
 
   it("resolves a proposal whose whole path already exists", () => {
-    expect(resolveProposal(draft("Subagents", "subagents"), catalog)).toEqual({
-      subjectId: "subagents",
+    expect(resolveProposal(draft("Subagents", "subagents"), tree)).toEqual({
+      workstreamId: "subagents",
       proposed: null,
     });
     expect(
-      resolveProposal(draft("BB Plugin", null, ["Subagents"]), catalog),
-    ).toEqual({ subjectId: "bb-plugin", proposed: null });
+      resolveProposal(draft("BB Plugin", null, ["Subagents"]), tree),
+    ).toEqual({ workstreamId: "bb-plugin", proposed: null });
   });
 
   it("returns a proposal with no existing ancestry unchanged", () => {
     const proposal = draft("Workforest", null, ["Toolbelt"]);
-    expect(resolveProposal(proposal, catalog).proposed).toBe(proposal);
+    expect(resolveProposal(proposal, tree).proposed).toBe(proposal);
   });
 });

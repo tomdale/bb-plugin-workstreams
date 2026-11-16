@@ -15,7 +15,7 @@
  */
 import { type ReactNode } from "react";
 
-import { UNFILED_NAME } from "../../domain/project.ts";
+import { OTHER_NAME } from "../../domain/project.ts";
 import { BandGroup } from "./Bands.tsx";
 import {
   foldDefault,
@@ -63,14 +63,14 @@ export function GroupedBand({
   return (
     <>
       {planned.map(({ id, name, trees }) => {
-        const key = `${placement}:${id ?? "__unsorted"}`;
+        const key = `${placement}:${id ?? "__other"}`;
         const byDefault = placement === "archived";
         const collapsed = isCollapsed(key, byDefault);
         return (
           <li key={key} className="list-none">
             <BandGroup
               label={label}
-              name={name ?? UNFILED_NAME}
+              name={name ?? OTHER_NAME}
               count={trees.length}
               collapsed={collapsed}
               onToggle={() => toggle(key, byDefault)}

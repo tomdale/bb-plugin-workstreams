@@ -17,7 +17,7 @@ import {
 } from "../domain/categories.ts";
 import { getMeta, setMeta, type Database } from "./db.ts";
 
-const KEY = "topic_categories";
+const KEY = "workstream_categories";
 const recordSchema = z.object({
   generation: categoryGenerationSchema.nullable(),
   attempted: z.string(),
@@ -59,7 +59,7 @@ export class Categories {
   constructor(
     private readonly deps: {
       db: Database;
-      /** Only leaf topics, with their visible unsnoozed roots. */
+      /** Only leaf workstreams, with their visible unsnoozed roots. */
       collections: () => CategoryCollection[];
       classify: (
         input: CategoryInput,
@@ -70,7 +70,7 @@ export class Categories {
         input: CategoryFitInput,
         signal: AbortSignal,
       ) => Promise<CategoryFit>;
-      changed: (topicId: string, reason: string) => void;
+      changed: (workstreamId: string, reason: string) => void;
       log: (message: string) => void;
     },
   ) {}
@@ -97,19 +97,19 @@ export class Categories {
 
   private commit(
     records: Map<string, Record>,
-    topicId: string,
+    workstreamId: string,
     reason: string,
   ) {
     this.deps.db.transaction(() => {
       this.save(records);
-      this.deps.changed(topicId, reason);
+      this.deps.changed(workstreamId, reason);
     })();
   }
 
-  generations(): { [topicId: string]: CategoryGeneration } {
+  generations(): { [workstreamId: string]: CategoryGeneration } {
     return Object.fromEntries(
-      [...this.read()].flatMap(([topicId, record]) =>
-        record.generation ? [[topicId, record.generation]] : [],
+      [...this.read()].flatMap(([workstreamId, record]) =>
+        record.generation ? [[workstreamId, record.generation]] : [],
       ),
     );
   }
@@ -135,7 +135,7 @@ export class Categories {
     );
     if (!collection) return;
     const records = this.read();
-    const previous = records.get(collection.topicId);
+    const previous = records.get(collection.workstreamId);
     if (
       categoryAction(previous?.generation ?? null, collection.roots.length) !==
       "classify"
@@ -151,7 +151,7 @@ export class Categories {
     )
       return;
     this.requests.set(threadId, { basis, key, text: request });
-    records.set(collection.topicId, {
+    records.set(collection.workstreamId, {
       generation: previous?.generation ?? null,
       attempted: "",
       attemptId: randomUUID(),
@@ -215,7 +215,7 @@ export class Categories {
   private synchronizeDepartures(current: readonly CategoryCollection[]) {
     const records = this.read();
     const collections = new Map(
-      current.map((collection) => [collection.topicId, collection]),
+      current.map((collection) => [collection.workstreamId, collection]),
     );
     for (const [id, record] of records) {
       const collection = collections.get(id);
@@ -275,25 +275,31 @@ export class Categories {
       const collections = next ?? this.deps.collections();
       next = null;
       const present = new Set(
-        collections.map((collection) => collection.topicId),
+        collections.map((collection) => collection.workstreamId),
       );
       const records = this.read();
       for (const id of records.keys()) {
         if (!present.has(id)) {
           records.delete(id);
-          this.commit(records, id, "The topic no longer holds a collection.");
+          this.commit(
+            records,
+            id,
+            "The workstream no longer holds a collection.",
+          );
         }
       }
-      let latest = new Map(collections.map((item) => [item.topicId, item]));
+      let latest = new Map(
+        collections.map((item) => [item.workstreamId, item]),
+      );
       let assessed = false;
-      for (const { topicId } of collections) {
+      for (const { workstreamId } of collections) {
         if (this.controller.signal.aborted) return;
-        const collection = latest.get(topicId);
+        const collection = latest.get(workstreamId);
         if (!collection) continue;
         const after = await this.update(collection);
         if (after) {
           assessed = true;
-          latest = new Map(after.map((item) => [item.topicId, item]));
+          latest = new Map(after.map((item) => [item.workstreamId, item]));
         }
       }
       // A collection handled before a classification call may have changed
@@ -318,16 +324,16 @@ export class Categories {
     collection: CategoryCollection,
   ): Promise<CategoryCollection[] | null> {
     const records = this.read();
-    const previous = records.get(collection.topicId);
+    const previous = records.get(collection.workstreamId);
     const generation = previous?.generation ?? null;
     const action = categoryAction(generation, collection.roots.length);
     if (action === "discard") {
       if (previous) {
-        records.delete(collection.topicId);
+        records.delete(collection.workstreamId);
         if (generation)
           this.commit(
             records,
-            collection.topicId,
+            collection.workstreamId,
             "The collection has three roots or fewer.",
           );
         else this.save(records);
@@ -336,7 +342,7 @@ export class Categories {
     }
     if (action === "none") {
       if (previous) {
-        records.delete(collection.topicId);
+        records.delete(collection.workstreamId);
         this.save(records);
       }
       return null;
@@ -357,11 +363,11 @@ export class Categories {
       arranged: previous?.arranged,
       error: null,
     };
-    records.set(collection.topicId, record);
+    records.set(collection.workstreamId, record);
     if (generation && JSON.stringify(current) !== JSON.stringify(generation))
       this.commit(
         records,
-        collection.topicId,
+        collection.workstreamId,
         "Removed roots that left the collection.",
       );
     else this.save(records);
@@ -382,7 +388,7 @@ export class Categories {
     try {
       if (current && changed) {
         if (changed.length === 0) {
-          this.settle(collection.topicId, record, current, keys, null);
+          this.settle(collection.workstreamId, record, current, keys, null);
           return null;
         }
         // A failed check costs only the check: the rearrangement decides.
@@ -397,7 +403,7 @@ export class Categories {
           });
         if (this.controller.signal.aborted) return null;
         collections = this.deps.collections();
-        if (this.stale(collections, collection.topicId, key, record)) {
+        if (this.stale(collections, collection.workstreamId, key, record)) {
           this.pending = true;
           return collections;
         }
@@ -405,7 +411,7 @@ export class Categories {
           fit && applyCategoryFit({ ...collection, current, changed }, fit);
         if (next) {
           this.settle(
-            collection.topicId,
+            collection.workstreamId,
             record,
             next,
             keys,
@@ -420,12 +426,12 @@ export class Categories {
       );
       if (this.controller.signal.aborted) return null;
       collections = this.deps.collections();
-      if (this.stale(collections, collection.topicId, key, record)) {
+      if (this.stale(collections, collection.workstreamId, key, record)) {
         this.pending = true;
         return collections;
       }
       if (answer.keep) {
-        this.settle(collection.topicId, record, current, keys, null);
+        this.settle(collection.workstreamId, record, current, keys, null);
         return collections;
       }
       const next: CategoryGeneration = {
@@ -436,14 +442,14 @@ export class Categories {
           threadIds: [...category.threadIds].sort(),
         })),
       };
-      this.settle(collection.topicId, record, next, keys, answer.reason);
+      this.settle(collection.workstreamId, record, next, keys, answer.reason);
     } catch (error) {
       if (this.controller.signal.aborted) return null;
       const fresh = this.read();
       const message = error instanceof Error ? error.message : String(error);
-      const latest = fresh.get(collection.topicId);
+      const latest = fresh.get(collection.workstreamId);
       if (latest?.attemptId === record.attemptId) {
-        fresh.set(collection.topicId, {
+        fresh.set(collection.workstreamId, {
           ...latest,
           status: "settled",
           error: message,
@@ -458,15 +464,17 @@ export class Categories {
   /** Whether the collection or its record changed while a call ran. */
   private stale(
     collections: CategoryCollection[],
-    topicId: string,
+    workstreamId: string,
     key: string,
     record: Record,
   ): boolean {
-    const latest = collections.find((item) => item.topicId === topicId);
+    const latest = collections.find(
+      (item) => item.workstreamId === workstreamId,
+    );
     return (
       !latest ||
-      this.key(latest, this.read().get(topicId)) !== key ||
-      this.read().get(topicId)?.attemptId !== record.attemptId
+      this.key(latest, this.read().get(workstreamId)) !== key ||
+      this.read().get(workstreamId)?.attemptId !== record.attemptId
     );
   }
 
@@ -475,14 +483,14 @@ export class Categories {
    * a change of membership or names in Activity with `reason`.
    */
   private settle(
-    topicId: string,
+    workstreamId: string,
     record: Record,
     next: CategoryGeneration | null,
     keys: { [rootId: string]: string },
     reason: string | null,
   ) {
     const fresh = this.read();
-    fresh.set(topicId, {
+    fresh.set(workstreamId, {
       ...record,
       generation: next,
       status: "settled",
@@ -490,7 +498,7 @@ export class Categories {
       error: null,
     });
     if (reason && JSON.stringify(next) !== JSON.stringify(record.generation))
-      this.commit(fresh, topicId, reason);
+      this.commit(fresh, workstreamId, reason);
     else this.save(fresh);
   }
 

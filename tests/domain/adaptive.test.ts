@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { Entity } from "../../src/domain/classify.ts";
+import type { Workstream } from "../../src/domain/classify.ts";
 import { activeHome } from "../../src/domain/regroup.ts";
 
-const entities: Entity[] = [
+const workstreams: Workstream[] = [
   { id: "p", name: "Lantern", description: "", parentId: null, aliases: [] },
   { id: "f", name: "Shelves", description: "", parentId: "p", aliases: [] },
   { id: "leaf", name: "Sync", description: "", parentId: "f", aliases: [] },
@@ -11,8 +11,8 @@ const entities: Entity[] = [
 
 describe("activeHome", () => {
   it("homes a topic at its nearest active ancestor", () => {
-    expect(activeHome("leaf", ["p"], entities)).toBe("p");
-    expect(activeHome("leaf", ["p", "f"], entities)).toBe("f");
-    expect(activeHome("leaf", ["g"], entities)).toBeNull();
+    expect(activeHome("leaf", ["p"], workstreams)).toBe("p");
+    expect(activeHome("leaf", ["p", "f"], workstreams)).toBe("f");
+    expect(activeHome("leaf", ["g"], workstreams)).toBeNull();
   });
 });

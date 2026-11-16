@@ -14,8 +14,8 @@ export type Usage = z.infer<typeof usageSchema>;
 
 export const TRACE_KINDS = [
   "start",
-  "full-analysis",
-  "placement",
+  "turn-end",
+  "workstream-choice",
   "categories",
   "category-fit",
   "split",
@@ -91,8 +91,8 @@ export type NewTrace = Omit<
 /** How the inspector and the CLI name each kind of call. */
 export const TRACE_KIND_TITLE: Record<TraceKind, string> = {
   start: "New thread",
-  "full-analysis": "Turn end",
-  placement: "Workstream choice",
+  "turn-end": "Turn end",
+  "workstream-choice": "Workstream choice",
   categories: "Categories",
   "category-fit": "Category check",
   split: "Split suggestion",

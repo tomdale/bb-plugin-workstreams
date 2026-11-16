@@ -218,7 +218,7 @@ describe("row hover buttons", () => {
           order: {
             workstreams: [],
             threads: {},
-            prioritized: focused ? ["sec_a"] : [],
+            focused: focused ? ["sec_a"] : [],
           },
         },
       );
@@ -256,7 +256,7 @@ describe("row hover buttons", () => {
           sidebarSection("sec_b", "Beta"),
           sidebarSection("sec_z", "Zeta"),
         ],
-        order: { workstreams: [], threads: {}, prioritized: ["sec_b"] },
+        order: { workstreams: [], threads: {}, focused: ["sec_b"] },
       },
     );
     const revealed = () =>

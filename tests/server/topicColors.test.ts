@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { createTestPluginHost } from "./test-host.ts";
 import { openDatabase } from "../../src/server/db.ts";
-import { TopicStore } from "../../src/server/topics.ts";
-import { TopicColors } from "../../src/server/topicColors.ts";
+import { WorkstreamStore } from "../../src/server/topics.ts";
+import { WorkstreamColors } from "../../src/server/topicColors.ts";
 
 const hosts: ReturnType<typeof createTestPluginHost>[] = [];
 function store() {
@@ -11,13 +11,13 @@ function store() {
   });
   hosts.push(host);
   const db = openDatabase(host.bb);
-  const topics = new TopicStore(db);
-  const colors = new TopicColors(db);
+  const workstreamStore = new WorkstreamStore(db);
+  const colors = new WorkstreamColors(db);
   const read = () => {
-    const state = topics.state();
-    return colors.snapshot(state.entities, state.groups);
+    const state = workstreamStore.state();
+    return colors.snapshot(state.workstreams, state.groups);
   };
-  return { db, topics, colors, read };
+  return { db, workstreamStore, colors, read };
 }
 afterEach(async () => {
   await Promise.all(
@@ -29,12 +29,12 @@ const hueDistance = (a: number, b: number) =>
 
 describe("topic colors", () => {
   it("survives renaming, section recreation, restarts and new unrelated workstreams", () => {
-    const { db, topics, read } = store();
-    const parent = topics.create("Alpha");
-    const one = topics.create("One", "", parent.id);
-    const two = topics.create("Two", "", parent.id);
-    topics.bindGroup("sec-one", one.id);
-    topics.bindGroup("sec-two", two.id);
+    const { db, workstreamStore, read } = store();
+    const parent = workstreamStore.create("Alpha");
+    const one = workstreamStore.create("One", "", parent.id);
+    const two = workstreamStore.create("Two", "", parent.id);
+    workstreamStore.bindGroup("sec-one", one.id);
+    workstreamStore.bindGroup("sec-two", two.id);
     const first = read();
     expect(first[parent.id]).toBeDefined();
     expect(
@@ -44,33 +44,33 @@ describe("topic colors", () => {
       hueDistance(first[two.id]!.hue, first[parent.id]!.hue),
     ).toBeLessThanOrEqual(24);
     expect(first[one.id]).not.toEqual(first[two.id]);
-    topics.rename(one.id, "Renamed");
-    topics.unbindGroup("sec-one");
-    topics.bindGroup("sec-new", one.id);
-    const other = topics.create("Other");
-    topics.bindGroup("sec-other", other.id);
+    workstreamStore.rename(one.id, "Renamed");
+    workstreamStore.unbindGroup("sec-one");
+    workstreamStore.bindGroup("sec-new", one.id);
+    const other = workstreamStore.create("Other");
+    workstreamStore.bindGroup("sec-other", other.id);
     const after = read();
     expect(after[one.id]).toEqual(first[one.id]);
     expect(after[two.id]).toEqual(first[two.id]);
     expect(after[parent.id]).toEqual(first[parent.id]);
-    const state = topics.state();
-    expect(new TopicColors(db).snapshot(state.entities, state.groups)).toEqual(
+    const state = workstreamStore.state();
+    expect(new WorkstreamColors(db).snapshot(state.workstreams, state.groups)).toEqual(
       after,
     );
   });
 
   it("reassigns only moved topics to their new family and releases deleted topics", () => {
-    const { topics, read } = store();
-    const a = topics.create("Alpha"),
-      b = topics.create("Beta");
-    const one = topics.create("One", "", a.id),
-      two = topics.create("Two", "", a.id);
-    const target = topics.create("Target", "", b.id);
-    topics.bindGroup("sec-one", one.id);
-    topics.bindGroup("sec-two", two.id);
-    topics.bindGroup("sec-target", target.id);
+    const { workstreamStore, read } = store();
+    const a = workstreamStore.create("Alpha"),
+      b = workstreamStore.create("Beta");
+    const one = workstreamStore.create("One", "", a.id),
+      two = workstreamStore.create("Two", "", a.id);
+    const target = workstreamStore.create("Target", "", b.id);
+    workstreamStore.bindGroup("sec-one", one.id);
+    workstreamStore.bindGroup("sec-two", two.id);
+    workstreamStore.bindGroup("sec-target", target.id);
     const first = read();
-    topics.reparent(one.id, b.id);
+    workstreamStore.move(one.id, b.id);
     const moved = read();
     expect(moved[two.id]).toEqual(first[two.id]);
     expect(moved[target.id]).toEqual(first[target.id]);
@@ -78,7 +78,7 @@ describe("topic colors", () => {
     expect(
       hueDistance(moved[one.id]!.hue, moved[b.id]!.hue),
     ).toBeLessThanOrEqual(24);
-    topics.merge(one.id, target.id);
+    workstreamStore.merge(one.id, target.id);
     const merged = read();
     expect(merged[one.id]).toBeUndefined();
     expect(merged[target.id]).toEqual(moved[target.id]);
@@ -86,19 +86,19 @@ describe("topic colors", () => {
   });
 
   it("allocates fifteen distinct sibling slots and degrades without failing after exhaustion", () => {
-    const { topics, read } = store();
-    const parent = topics.create("Many");
+    const { workstreamStore, read } = store();
+    const parent = workstreamStore.create("Many");
     const ids = Array.from({ length: 15 }, (_, i) => {
-      const topic = topics.create(`Topic ${i}`, "", parent.id);
-      topics.bindGroup(`sec-${i}`, topic.id);
-      return topic.id;
+      const workstream = workstreamStore.create(`Topic ${i}`, "", parent.id);
+      workstreamStore.bindGroup(`sec-${i}`, workstream.id);
+      return workstream.id;
     });
     const first = read();
     expect(new Set(ids.map((id) => JSON.stringify(first[id]))).size).toBe(15);
     for (let i = 15; i < 24; i++) {
-      const topic = topics.create(`Topic ${i}`, "", parent.id);
-      topics.bindGroup(`sec-${i}`, topic.id);
-      ids.push(topic.id);
+      const workstream = workstreamStore.create(`Topic ${i}`, "", parent.id);
+      workstreamStore.bindGroup(`sec-${i}`, workstream.id);
+      ids.push(workstream.id);
     }
     const colors = read();
     expect(
@@ -113,14 +113,14 @@ describe("topic colors", () => {
   });
 
   it("does not replace a valid stored color for an invalid topic tree", () => {
-    const { topics, colors, read } = store();
-    const topic = topics.create("Kept");
-    topics.bindGroup("sec", topic.id);
+    const { workstreamStore, colors, read } = store();
+    const workstream = workstreamStore.create("Kept");
+    workstreamStore.bindGroup("sec", workstream.id);
     const first = read();
-    const corrupt = [{ ...topic, parentId: "missing" }];
-    expect(colors.snapshot(corrupt, { sec: topic.id })[topic.id]).toEqual(
-      first[topic.id],
+    const corrupt = [{ ...workstream, parentId: "missing" }];
+    expect(colors.snapshot(corrupt, { sec: workstream.id })[workstream.id]).toEqual(
+      first[workstream.id],
     );
-    expect(read()[topic.id]).toEqual(first[topic.id]);
+    expect(read()[workstream.id]).toEqual(first[workstream.id]);
   });
 });

@@ -22,8 +22,8 @@ const projection = projectWorkstreams(
   sections,
   { now },
 );
-const topics = {
-  entities: [
+const workstreams = {
+  workstreams: [
     { id: "a", name: "Alpha", parentId: null },
     { id: "b", name: "Beta", parentId: null },
     { id: "c", name: "Gamma", parentId: null },
@@ -74,7 +74,7 @@ describe("planDrop", () => {
 
   it("reorders within a category without treating another category as a filing destination", () => {
     const categorized = {
-      ...topics,
+      ...workstreams,
       categories: {
         a: {
           id: "generation",
@@ -121,7 +121,7 @@ describe("planDrop", () => {
         EMPTY_ORDER,
         categorized,
       ).assign,
-    ).toEqual({ threadId: "b1", entityId: "a" });
+    ).toEqual({ threadId: "b1", workstreamId: "a" });
   });
 
   it.each([
@@ -138,10 +138,10 @@ describe("planDrop", () => {
           projection,
           sections,
           EMPTY_ORDER,
-          topics,
+          workstreams,
         ),
       ).toEqual({
-        assign: { threadId: "b1", entityId: "a" },
+        assign: { threadId: "b1", workstreamId: "a" },
         reorder: { kind: "threads", groupId: "sec_a", ids },
       });
     },
@@ -150,29 +150,29 @@ describe("planDrop", () => {
   it("clears the topic when dropped in Unfiled", () => {
     expect(
       planDrop(
-        threadDrop({ toGroupId: "unsorted", overThreadId: null }),
+        threadDrop({ toGroupId: "other", overThreadId: null }),
         projection,
         sections,
         EMPTY_ORDER,
-        topics,
+        workstreams,
       ),
     ).toEqual({
-      assign: { threadId: "b1", entityId: null },
-      reorder: { kind: "threads", groupId: "unsorted", ids: ["b1", "u1"] },
+      assign: { threadId: "b1", workstreamId: null },
+      reorder: { kind: "threads", groupId: "other", ids: ["b1", "u1"] },
     });
   });
 
   it("files an Unfiled root by the destination topic", () => {
     expect(
       planDrop(
-        threadDrop({ threadId: "u1", fromGroupId: "unsorted" }),
+        threadDrop({ threadId: "u1", fromGroupId: "other" }),
         projection,
         sections,
         EMPTY_ORDER,
-        topics,
+        workstreams,
       ),
     ).toMatchObject({
-      assign: { threadId: "u1", entityId: "a" },
+      assign: { threadId: "u1", workstreamId: "a" },
     });
   });
 
@@ -183,13 +183,13 @@ describe("planDrop", () => {
       empty,
       { now },
     );
-    const catalog = {
-      ...topics,
-      entities: [
-        ...topics.entities,
+    const tree = {
+      ...workstreams,
+      workstreams: [
+        ...workstreams.workstreams,
         { id: "empty", name: "Empty", parentId: null },
       ],
-      bindings: { ...topics.bindings, sec_empty: "empty" },
+      bindings: { ...workstreams.bindings, sec_empty: "empty" },
     };
     expect(
       planDrop(
@@ -197,46 +197,46 @@ describe("planDrop", () => {
         projected,
         empty,
         EMPTY_ORDER,
-        catalog,
+        tree,
       ),
     ).toEqual({
-      assign: { threadId: "b1", entityId: "empty" },
+      assign: { threadId: "b1", workstreamId: "empty" },
       reorder: { kind: "threads", groupId: "sec_empty", ids: ["b1"] },
     });
   });
 
   it("requires a known topic and chooses within parent destinations", () => {
     const withChild = {
-      ...topics,
-      entities: [
-        ...topics.entities,
+      ...workstreams,
+      workstreams: [
+        ...workstreams.workstreams,
         { id: "child", name: "Child", parentId: "a" },
       ],
     };
-    for (const catalog of [undefined, { ...topics, entities: [] }]) {
-      expect(acceptsThreadDrop("sec_b", "sec_a", catalog)).toBe(false);
+    for (const tree of [undefined, { ...workstreams, workstreams: [] }]) {
+      expect(acceptsThreadDrop("sec_b", "sec_a", tree)).toBe(false);
       expect(
-        planDrop(threadDrop(), projection, sections, EMPTY_ORDER, catalog),
+        planDrop(threadDrop(), projection, sections, EMPTY_ORDER, tree),
       ).toEqual({ reorder: null });
     }
     expect(acceptsThreadDrop("sec_a", "sec_a")).toBe(true);
-    expect(acceptsThreadDrop("sec_a", "unsorted")).toBe(true);
-    expect(acceptsThreadDrop("sec_a", "topic:a", withChild)).toBe(true);
+    expect(acceptsThreadDrop("sec_a", "other")).toBe(true);
+    expect(acceptsThreadDrop("sec_a", "workstream:a", withChild)).toBe(true);
     expect(
       planDrop(threadDrop(), projection, sections, EMPTY_ORDER, withChild),
     ).toMatchObject({
-      assign: { threadId: "b1", entityId: "a", within: true },
+      assign: { threadId: "b1", workstreamId: "a", within: true },
     });
     expect(
       planDrop(
-        threadDrop({ toGroupId: "topic:a", overThreadId: null }),
+        threadDrop({ toGroupId: "workstream:a", overThreadId: null }),
         projection,
         sections,
         EMPTY_ORDER,
         withChild,
       ),
     ).toEqual({
-      assign: { threadId: "b1", entityId: "a", within: true },
+      assign: { threadId: "b1", workstreamId: "a", within: true },
       reorder: null,
     });
   });
@@ -249,7 +249,7 @@ describe("planDrop", () => {
     { toGroupId: "missing", overThreadId: null },
   ])("ignores stale or non-root drops: %s", (change) => {
     expect(
-      planDrop(threadDrop(change), projection, sections, EMPTY_ORDER, topics),
+      planDrop(threadDrop(change), projection, sections, EMPTY_ORDER, workstreams),
     ).toEqual({ reorder: null });
   });
 });

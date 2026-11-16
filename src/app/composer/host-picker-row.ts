@@ -1,7 +1,7 @@
 /**
  * Places the New thread composer's own elements in and beside BB's picker
  * row, so they read as part of BB's composer. `useHostPickerRow` puts the
- * Topic field in the row, before the project picker. `useHostPickerRowNote`
+ * Workstream field in the row, before the project picker. `useHostPickerRowNote`
  * puts a line directly under the row, for notes about the pickers' values.
  *
  * BB offers plugins no slot there. Each hook keeps one anchor element of ours

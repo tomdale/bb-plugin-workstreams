@@ -576,7 +576,7 @@ export function reportedStatus(recap: Recap): {
   };
 }
 
-/** The agent's report as Full analysis is shown it. */
+/** The agent's report as the turn-end call is shown it. */
 export function agentReport(recap: Recap): AgentReport {
   return {
     state: recap.state,

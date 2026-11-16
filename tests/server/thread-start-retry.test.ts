@@ -3,9 +3,9 @@ import { makeMessageDispatchHookContext } from "@get-bb/plugin-sdk/testing";
 import { fakeWorld } from "./fake-bb.ts";
 import { openDatabase } from "../../src/server/db.ts";
 import type { Inference } from "../../src/server/model.ts";
-import { Placement } from "../../src/server/placement.ts";
+import { WorkstreamChoice } from "../../src/server/placement.ts";
 import { ThreadStart } from "../../src/server/start.ts";
-import { TopicStore } from "../../src/server/topics.ts";
+import { WorkstreamStore } from "../../src/server/topics.ts";
 
 let world: Awaited<ReturnType<typeof fakeWorld>> | undefined;
 afterEach(async () => {
@@ -17,19 +17,19 @@ afterEach(async () => {
 async function setup() {
   world = await fakeWorld();
   const db = openDatabase(world.bb);
-  const topics = new TopicStore(db);
-  const topic = topics.create("Docs", "Documentation");
+  const workstreamStore = new WorkstreamStore(db);
+  const workstream = workstreamStore.create("Docs", "Documentation");
   const run = vi.fn();
   const apply = vi.fn((id, answer, basis) =>
-    topics.applyAnalysis(id, answer, "full", basis),
+    workstreamStore.applyAnalysis(id, answer, "automatic", basis),
   );
   const log = vi.fn();
-  const placement = new Placement({
+  const workstreamChoice = new WorkstreamChoice({
     sdk: () => world!.bb.sdk,
     db,
     inference: { run } as unknown as Inference,
     model: async () => ({ kind: "gateway", model: "test" }),
-    topics,
+    workstreamStore,
     project: async () => "Project",
     basisOf: () => "first-request",
     log,
@@ -42,11 +42,11 @@ async function setup() {
     titles: () => false,
     analyzed: () => false,
     title: async () => {},
-    listing: () => ({ group: null, parent: null }),
-    question: (thread, request) => placement.question(thread, [request]),
+    listing: () => ({ workstream: null, parent: null }),
+    question: (thread, request) => workstreamChoice.question(thread, [request]),
     unsettled: (threadId) =>
-      topics.assignment(threadId).provenance !== "manual" &&
-      !topics.basis(threadId),
+      workstreamStore.assignment(threadId).provenance !== "manual" &&
+      !workstreamStore.basis(threadId),
     file: apply,
     log,
   });
@@ -59,32 +59,32 @@ async function setup() {
       input: { text: "Write the docs" },
     });
   vi.useFakeTimers();
-  return { topic, topics, run, apply, log, starts, first, thread };
+  return { workstream, workstreamStore, run, apply, log, starts, first, thread };
 }
 
-const answer = (subjectId: string) => ({
+const answer = (workstreamId: string) => ({
   value: {
     title: null,
-    topic: { subjectId, proposed: null, scopeShift: false },
+    workstream: { workstreamId, proposed: null, scopeShift: false },
   },
   traceId: "success-trace",
 });
 
 describe("first-request start retries", () => {
   it("retries a failed host call from the first-message dispatch", async () => {
-    let topicId = "";
+    let workstreamId = "";
     let attempts = 0;
     world = await fakeWorld({
       complete: ({ prompt }) => {
-        if (prompt.includes("You file one agent thread under a topic")) {
+        if (prompt.includes("You choose the workstream for one agent thread")) {
           if (++attempts === 1) throw new TypeError("fetch failed");
-          return JSON.stringify({ subjectId: topicId, proposed: null });
+          return JSON.stringify({ workstreamId: workstreamId, proposed: null });
         }
-        return JSON.stringify({ title: "Write docs", subjectId: null });
+        return JSON.stringify({ title: "Write docs", workstreamId: null });
       },
     });
-    const topics = new TopicStore(openDatabase(world.bb));
-    topicId = topics.create("Docs", "Documentation").id;
+    const workstreamStore = new WorkstreamStore(openDatabase(world.bb));
+    workstreamId = workstreamStore.create("Docs", "Documentation").id;
     const thread = world.addThread("new", {
       status: "starting",
       createdAt: Date.now(),
@@ -104,9 +104,9 @@ describe("first-request start retries", () => {
     expect(attempts).toBe(1);
     await vi.advanceTimersByTimeAsync(1_000);
     expect(attempts).toBe(2);
-    expect(topics.assignment(thread.id)).toMatchObject({
-      entityId: topicId,
-      provenance: "full",
+    expect(workstreamStore.assignment(thread.id)).toMatchObject({
+      workstreamId: workstreamId,
+      provenance: "automatic",
     });
   });
 
@@ -114,13 +114,13 @@ describe("first-request start retries", () => {
     let placements = 0;
     world = await fakeWorld({
       complete: ({ prompt }) => {
-        if (prompt.includes("You file one agent thread under a topic"))
+        if (prompt.includes("You choose the workstream for one agent thread"))
           placements++;
-        return JSON.stringify({ title: null, subjectId: null });
+        return JSON.stringify({ title: null, workstreamId: null });
       },
     });
-    const topics = new TopicStore(openDatabase(world.bb));
-    topics.create("Docs", "Documentation");
+    const workstreamStore = new WorkstreamStore(openDatabase(world.bb));
+    workstreamStore.create("Docs", "Documentation");
     const thread = world.addThread("worker", {
       status: "starting",
       createdAt: Date.now(),
@@ -139,22 +139,22 @@ describe("first-request start retries", () => {
     );
     await vi.advanceTimersByTimeAsync(3_000);
     expect(placements).toBe(0);
-    expect(topics.assignment(thread.id).provenance).toBeNull();
+    expect(workstreamStore.assignment(thread.id).provenance).toBeNull();
   });
 
   it("cancels first-request retries when a newer request arrives", async () => {
     let attempts = 0;
     world = await fakeWorld({
       complete: ({ prompt }) => {
-        if (prompt.includes("You file one agent thread under a topic")) {
+        if (prompt.includes("You choose the workstream for one agent thread")) {
           attempts++;
           throw new TypeError("fetch failed");
         }
-        return JSON.stringify({ title: "Write docs", subjectId: null });
+        return JSON.stringify({ title: "Write docs", workstreamId: null });
       },
     });
-    const topics = new TopicStore(openDatabase(world.bb));
-    topics.create("Docs", "Documentation");
+    const workstreamStore = new WorkstreamStore(openDatabase(world.bb));
+    workstreamStore.create("Docs", "Documentation");
     const thread = world.addThread("new", {
       status: "starting",
       createdAt: Date.now(),
@@ -182,35 +182,35 @@ describe("first-request start retries", () => {
     );
     await vi.advanceTimersByTimeAsync(3_000);
     expect(attempts).toBe(1);
-    expect(topics.assignment(thread.id).provenance).toBeNull();
+    expect(workstreamStore.assignment(thread.id).provenance).toBeNull();
   });
 
   it("retries a fetch failure and files the successful answer", async () => {
-    const { topic, topics, run, apply, log, first, thread } = await setup();
+    const { workstream, workstreamStore, run, apply, log, first, thread } = await setup();
     run.mockRejectedValueOnce(new TypeError("fetch failed"));
-    run.mockResolvedValueOnce(answer(topic.id));
+    run.mockResolvedValueOnce(answer(workstream.id));
     const pending = first();
     await vi.advanceTimersByTimeAsync(0);
     expect(run).toHaveBeenCalledTimes(1);
-    expect(topics.assignment(thread.id).provenance).toBeNull();
+    expect(workstreamStore.assignment(thread.id).provenance).toBeNull();
     await vi.advanceTimersByTimeAsync(1_000);
     await pending;
     expect(run).toHaveBeenCalledTimes(2);
     expect(log).toHaveBeenCalledOnce();
     expect(apply).toHaveBeenCalledWith(
       thread.id,
-      answer(topic.id).value.topic,
+      answer(workstream.id).value.workstream,
       "first-request",
       "success-trace",
     );
-    expect(topics.assignment(thread.id)).toMatchObject({
-      entityId: topic.id,
-      provenance: "full",
+    expect(workstreamStore.assignment(thread.id)).toMatchObject({
+      workstreamId: workstream.id,
+      provenance: "automatic",
     });
   });
 
   it("stops after three failed attempts without changing the topic", async () => {
-    const { topics, run, apply, log, first, thread } = await setup();
+    const { workstreamStore, run, apply, log, first, thread } = await setup();
     run.mockRejectedValue(new TypeError("fetch failed"));
     const pending = first();
     await vi.advanceTimersByTimeAsync(3_000);
@@ -218,66 +218,66 @@ describe("first-request start retries", () => {
     expect(run).toHaveBeenCalledTimes(3);
     expect(log).toHaveBeenCalledTimes(3);
     expect(apply).not.toHaveBeenCalled();
-    expect(topics.assignment(thread.id).provenance).toBeNull();
+    expect(workstreamStore.assignment(thread.id).provenance).toBeNull();
   });
 
   it("does not retry or overwrite a manual correction made during the delay", async () => {
-    const { topic, topics, run, apply, first, thread } = await setup();
+    const { workstream, workstreamStore, run, apply, first, thread } = await setup();
     run.mockRejectedValueOnce(new TypeError("fetch failed"));
     const pending = first();
     await vi.advanceTimersByTimeAsync(0);
-    topics.assign(thread.id, topic.id, { provenance: "manual" });
+    workstreamStore.assign(thread.id, workstream.id, { provenance: "manual" });
     await vi.advanceTimersByTimeAsync(1_000);
     await pending;
     expect(run).toHaveBeenCalledTimes(1);
     expect(apply).not.toHaveBeenCalled();
-    expect(topics.assignment(thread.id).provenance).toBe("manual");
+    expect(workstreamStore.assignment(thread.id).provenance).toBe("manual");
   });
 
   it("stops retrying when another analysis settles the thread", async () => {
-    const { topic, topics, run, apply, first, thread } = await setup();
+    const { workstream, workstreamStore, run, apply, first, thread } = await setup();
     run.mockRejectedValueOnce(new TypeError("fetch failed"));
     const pending = first();
     await vi.advanceTimersByTimeAsync(0);
-    topics.applyAnalysis(
+    workstreamStore.applyAnalysis(
       thread.id,
-      answer(topic.id).value.topic,
-      "full",
+      answer(workstream.id).value.workstream,
+      "automatic",
       "later",
     );
     await vi.advanceTimersByTimeAsync(1_000);
     await pending;
     expect(run).toHaveBeenCalledTimes(1);
     expect(apply).not.toHaveBeenCalled();
-    expect(topics.basis(thread.id)).toBe("later");
+    expect(workstreamStore.basis(thread.id)).toBe("later");
   });
 
   it("does not apply an in-flight answer after a manual correction", async () => {
-    const { topic, topics, run, apply, first, thread } = await setup();
+    const { workstream, workstreamStore, run, apply, first, thread } = await setup();
     let resolve!: (value: ReturnType<typeof answer>) => void;
     run.mockImplementationOnce(() => new Promise((done) => (resolve = done)));
     const pending = first();
     await vi.advanceTimersByTimeAsync(0);
-    topics.assign(thread.id, topic.id, { provenance: "manual" });
-    resolve(answer(topic.id));
+    workstreamStore.assign(thread.id, workstream.id, { provenance: "manual" });
+    resolve(answer(workstream.id));
     await pending;
     expect(apply).not.toHaveBeenCalled();
-    expect(topics.assignment(thread.id).provenance).toBe("manual");
+    expect(workstreamStore.assignment(thread.id).provenance).toBe("manual");
   });
 
   it("rebuilds the placement question against the current topic tree", async () => {
-    const { topics, run, first, thread } = await setup();
+    const { workstreamStore, run, first, thread } = await setup();
     run.mockRejectedValueOnce(new TypeError("fetch failed"));
     const pending = first();
     await vi.advanceTimersByTimeAsync(0);
-    const newTopic = topics.create("More Docs", "More documentation");
-    run.mockResolvedValueOnce(answer(newTopic.id));
+    const newWorkstream = workstreamStore.create("More Docs", "More documentation");
+    run.mockResolvedValueOnce(answer(newWorkstream.id));
     await vi.advanceTimersByTimeAsync(1_000);
     await pending;
-    expect(run.mock.calls[1]![1].placement.entities).toContainEqual(
-      expect.objectContaining({ id: newTopic.id }),
+    expect(run.mock.calls[1]![1].choice.workstreams).toContainEqual(
+      expect.objectContaining({ id: newWorkstream.id }),
     );
-    expect(topics.assignment(thread.id).entityId).toBe(newTopic.id);
+    expect(workstreamStore.assignment(thread.id).workstreamId).toBe(newWorkstream.id);
   });
 
   it("aborts an in-flight model call on disposal", async () => {

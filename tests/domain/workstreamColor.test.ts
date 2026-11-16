@@ -4,7 +4,7 @@ import {
   allocateFamilyColor,
   colorForWorkstream,
   workstreamColorStyle,
-  type TopicColor,
+  type WorkstreamColor,
 } from "../../src/domain/workstreamColor.ts";
 import { workstreamHue } from "../../src/domain/workstreamHue.ts";
 
@@ -15,7 +15,7 @@ describe("workstream colors", () => {
     expect(first).toEqual({ hue: 47, level: 0 });
     expect(second).toEqual(allocateFamilyColor([first]));
     expect(second.hue).not.toBe(first.hue);
-    const siblings: TopicColor[] = [
+    const siblings: WorkstreamColor[] = [
       allocateChildColor(first, [], [first, second]),
     ];
     for (let i = 1; i < 15; i++)
@@ -32,20 +32,20 @@ describe("workstream colors", () => {
     ).toBe(true);
   });
   it("resolves topic identity across section recreation and gives unbound sections a fallback", () => {
-    const catalog = {
-      groups: { old: "topic", recreated: "topic" },
-      colors: { topic: { hue: 25, level: 1 as const } },
+    const tree = {
+      groups: { old: "workstream", recreated: "workstream" },
+      colors: { workstream: { hue: 25, level: 1 as const } },
     };
-    expect(colorForWorkstream("old", catalog)).toEqual(catalog.colors.topic);
-    expect(colorForWorkstream("recreated", catalog)).toEqual(
-      catalog.colors.topic,
+    expect(colorForWorkstream("old", tree)).toEqual(tree.colors.workstream);
+    expect(colorForWorkstream("recreated", tree)).toEqual(
+      tree.colors.workstream,
     );
-    expect(colorForWorkstream("unbound", catalog)).toEqual({
+    expect(colorForWorkstream("unbound", tree)).toEqual({
       hue: workstreamHue("unbound"),
       level: 0,
     });
-    expect(colorForWorkstream("topic:topic", catalog, "topic")).toEqual(
-      catalog.colors.topic,
+    expect(colorForWorkstream("topic:topic", tree, "workstream")).toEqual(
+      tree.colors.workstream,
     );
   });
   it("provides both theme colors and a matching dot without changing the hue", () => {

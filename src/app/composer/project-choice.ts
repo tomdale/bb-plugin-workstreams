@@ -1,16 +1,16 @@
 /*
  * BB changes the new-thread composer's scope when its project changes, which
- * remounts the routing model. Two transfers carry the topic into the
+ * remounts the routing model. Two transfers carry the workstream into the
  * replacement:
  *
- * - When Workstreams moves the composer to the topic's project, the selected
- *   topic travels only while that change is in flight, with its original
+ * - When Workstreams moves the composer to the workstream's project, the selected
+ *   workstream travels only while that change is in flight, with its original
  *   provenance and preview so automatic choices still title and file the
  *   submitted thread. The project marker travels too, so the replacement does
  *   not report a supplied project as an independent choice.
- * - When you choose another project yourself, a topic you picked travels to
+ * - When you choose another project yourself, a workstream you picked travels to
  *   the next model for the same draft in another project, marked as a
- *   project for this thread only. An automatic topic does not: the new
+ *   project for this thread only. An automatic workstream does not: the new
  *   project gets a fresh preview. The old model's release and the new one's
  *   creation happen in one render, so the transfer expires shortly after.
  */
@@ -27,7 +27,7 @@ let carried: {
   choice: Choice;
 } | null = null;
 
-/** How long a picked topic waits for its replacement model. */
+/** How long a picked workstream waits for its replacement model. */
 const CARRY_MS = 1000;
 
 export function preserveProjectChoice(
@@ -41,8 +41,8 @@ export function preserveProjectChoice(
   };
 }
 
-/** Keeps a picked topic for the draft's next model, in case its project changed. */
-export function carryPickedTopic(
+/** Keeps a picked workstream for the draft's next model, in case its project changed. */
+export function carryPickedWorkstream(
   draftKey: string,
   projectId: string | null,
   state: NewWorkState,
@@ -64,7 +64,7 @@ export function carryPickedTopic(
   }, CARRY_MS);
 }
 
-/** The topic a new model for this draft and project starts with, if any. */
+/** The workstream a new model for this draft and project starts with, if any. */
 export function takeProjectChoice(
   projectId: string | null,
   draftKey?: string,

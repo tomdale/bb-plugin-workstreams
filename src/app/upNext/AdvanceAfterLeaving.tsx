@@ -53,23 +53,23 @@ export function AdvanceAfterLeaving(): null {
   const ws = useWorkstreams();
   const actions = experimental_useSidebarThreadActions();
   const { threadId } = useBbContext();
-  const prioritized = ws.server.order.prioritized;
+  const focused = ws.server.order.focused;
   // Renders when the sidebar draws a new order, so the order a departure
   // reads is the one the user last saw.
   const sidebarOrder = useSyncExternalStore(
     subscribeSidebarUpNext,
     readSidebarUpNext,
   );
-  const { projection, upNextOptions, topics, rpc, setSnoozes } = ws;
+  const { projection, upNextOptions, workstreams, rpc, setSnoozes } = ws;
   const order = useMemo(() => {
     if (sidebarOrder) return () => sidebarOrder;
     let ranked: readonly string[] | undefined;
     return () =>
       (ranked ??= upNextOrder(projection, upNextOptions, {
-        prioritized,
-        topics,
+        focused,
+        workstreams,
       }));
-  }, [sidebarOrder, projection, upNextOptions, prioritized, topics]);
+  }, [sidebarOrder, projection, upNextOptions, focused, workstreams]);
   const listed = useMemo(
     () => new Set(ws.threads.map((thread) => thread.id)),
     [ws.threads],

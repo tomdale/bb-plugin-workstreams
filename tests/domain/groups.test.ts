@@ -14,7 +14,7 @@ const sections = [
 const names = (groups: readonly { name: string }[]) =>
   groups.map((group) => group.name);
 
-function project(prioritized: string[] = []) {
+function project(focused: string[] = []) {
   return projectWorkstreams(
     [
       thread("c1", { sectionId: "sec_c", latestAttentionAt: now - 1 }),
@@ -29,7 +29,7 @@ function project(prioritized: string[] = []) {
     sections,
     {
       now,
-      order: { workstreams: [], threads: {}, prioritized },
+      order: { workstreams: [], threads: {}, focused },
     },
   );
 }
@@ -58,7 +58,7 @@ describe("arrangeGroups", () => {
     const arranged = arrangeGroups(project(), "alphabetical");
     expect(names(arranged.populated)).toEqual(["Alpha", "Beta", "Charlie"]);
     expect(names(arranged.dormant)).toEqual(["Old"]);
-    expect(arranged.unfiled.total).toBe(1);
+    expect(arranged.other.total).toBe(1);
     expect(arranged.tiered).toBe(false);
     expect(arranged.hasLower).toBe(true);
   });
@@ -113,26 +113,26 @@ describe("arrangeGroups", () => {
       sections,
       {
         now,
-        order: { workstreams: [], threads: {}, prioritized: ["sec_c"] },
+        order: { workstreams: [], threads: {}, focused: ["sec_c"] },
         snoozedUntil: (t) => (t.id === "snoozed" ? now + DAY_MS : undefined),
       },
     );
     const arranged = arrangeGroups(projection, "alphabetical", {
-      entities: [
+      workstreams: [
         { id: "a", name: "Alpha", parentId: null },
         { id: "b", name: "Beta", parentId: "a" },
       ],
       bindings: { sec_a: "a", sec_b: "b" },
       layout: [
         {
-          topicId: "a",
+          workstreamId: "a",
           name: "Alpha",
           prefix: [],
           lists: true,
           total: 3,
           children: [
             {
-              topicId: "b",
+              workstreamId: "b",
               name: "Beta",
               prefix: [],
               lists: true,
@@ -143,7 +143,7 @@ describe("arrangeGroups", () => {
         },
       ],
     });
-    expect(arranged.populated[0]?.subgroups).toHaveLength(1);
+    expect(arranged.populated[0]?.workstreams).toHaveLength(1);
     expect(arranged.dormant.map((group) => group.name)).toEqual(["Old"]);
     expect(arranged.lowerCounts).toEqual({ needsYou: 3, total: 5 });
   });
@@ -152,7 +152,7 @@ describe("arrangeGroups", () => {
     const projection = projectWorkstreams(
       [thread("a1", { sectionId: "sec_a" })],
       [{ id: "sec_a", name: "Alpha" }],
-      { now, order: { workstreams: [], threads: {}, prioritized: ["sec_a"] } },
+      { now, order: { workstreams: [], threads: {}, focused: ["sec_a"] } },
     );
     const arranged = arrangeGroups(projection, "alphabetical");
     expect(arranged.tiered).toBe(true);

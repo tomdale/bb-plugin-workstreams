@@ -68,7 +68,7 @@ describe.skipIf(browserUnavailable)(
           expect(colors.category).not.toBe(colors.name);
           expect(colors.category).not.toBe("rgb(130, 130, 130)");
           expect(colors.prefix).not.toBe(colors.name);
-          // The parent in an "Owner: Area" name wears its container's own
+          // The parent in an "Owner › Area" name wears its container's own
           // hue, dimmed, rather than the area's, so every area of one parent
           // shows the same parent color.
           const prefix = oklab(colors.prefix)!;

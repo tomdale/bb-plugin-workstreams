@@ -1,19 +1,20 @@
 /*
- * Workstreams project durable topic identity into flat BB sections. Each leaf
- * topic keeps its own section at every population size. A container's name is
+ * Workstreams project durable workstream identity into flat BB sections. Each leaf
+ * workstream keeps its own section at every population size. A container's name is
  * shown as the prefix of its children's headers; categories organize rows
  * inside those sections without changing this layout.
  */
-import { assertTopicLevels } from "./topics.ts";
+import { assertWorkstreamLevels } from "./topics.ts";
+import { PATH_SEPARATOR } from "./topic-path.ts";
 
-export type LayoutTopic = {
+export type LayoutWorkstream = {
   readonly id: string;
   readonly name: string;
   readonly parentId: string | null;
 };
 
 export type LayoutNode = {
-  readonly topicId: string;
+  readonly workstreamId: string;
   readonly prefix: readonly string[];
   readonly name: string;
   readonly lists: boolean;
@@ -28,7 +29,7 @@ export type Layout = {
 
 export function layoutLabel(node: Pick<LayoutNode, "prefix" | "name">): string {
   return node.prefix.length
-    ? `${node.prefix.join(" ")}: ${node.name}`
+    ? `${node.prefix.join(" ")}${PATH_SEPARATOR}${node.name}`
     : node.name;
 }
 
@@ -39,26 +40,32 @@ export const startsWith = (name: string, word: string) => {
 };
 
 export function layoutGroups(input: {
-  readonly topics: readonly LayoutTopic[];
+  readonly workstreams: readonly LayoutWorkstream[];
   readonly counts: Readonly<Record<string, number>>;
 }): Layout {
-  assertTopicLevels(input.topics);
-  const parents = new Set(input.topics.map((topic) => topic.parentId));
-  const byId = new Map(input.topics.map((topic) => [topic.id, topic]));
+  assertWorkstreamLevels(input.workstreams);
+  const parents = new Set(
+    input.workstreams.map((workstream) => workstream.parentId),
+  );
+  const byId = new Map(
+    input.workstreams.map((workstream) => [workstream.id, workstream]),
+  );
   const nodes: LayoutNode[] = [];
-  for (const topic of input.topics) {
-    const count = input.counts[topic.id] ?? 0;
+  for (const workstream of input.workstreams) {
+    const count = input.counts[workstream.id] ?? 0;
     if (!Number.isFinite(count) || count <= 0) continue;
-    if (parents.has(topic.id))
+    if (parents.has(workstream.id))
       throw new Error(
-        "A topic with children needs a reviewed filing plan for its own threads.",
+        "A group can't hold threads; preview where its own threads go first.",
       );
-    const parent = topic.parentId ? byId.get(topic.parentId) : null;
+    const parent = workstream.parentId ? byId.get(workstream.parentId) : null;
     nodes.push({
-      topicId: topic.id,
+      workstreamId: workstream.id,
       prefix:
-        parent && !startsWith(topic.name, parent.name) ? [parent.name] : [],
-      name: topic.name,
+        parent && !startsWith(workstream.name, parent.name)
+          ? [parent.name]
+          : [],
+      name: workstream.name,
       lists: true,
       total: Math.floor(count),
       children: [],
@@ -67,7 +74,7 @@ export function layoutGroups(input: {
   nodes.sort(
     (a, b) =>
       layoutLabel(a).localeCompare(layoutLabel(b)) ||
-      a.topicId.localeCompare(b.topicId),
+      a.workstreamId.localeCompare(b.workstreamId),
   );
-  return { nodes, listed: nodes.map((node) => node.topicId) };
+  return { nodes, listed: nodes.map((node) => node.workstreamId) };
 }

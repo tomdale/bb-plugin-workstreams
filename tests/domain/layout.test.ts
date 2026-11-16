@@ -5,7 +5,7 @@ import {
   startsWith,
 } from "../../src/domain/layout.ts";
 
-const topics = [
+const workstreams = [
   { id: "vertex", name: "Vertex", parentId: null },
   { id: "agent", name: "Vercel Agent", parentId: null },
   { id: "review", name: "Code Review", parentId: "agent" },
@@ -15,13 +15,13 @@ const topics = [
 describe("durable topic layout", () => {
   it("lists a one-level product and each populated second-level topic", () => {
     const layout = layoutGroups({
-      topics,
+      workstreams,
       counts: { vertex: 1, review: 4, automations: 4 },
     });
     expect(layout.listed).toEqual(["automations", "review", "vertex"]);
     expect(layout.nodes.map(layoutLabel)).toEqual([
-      "Vercel Agent: Automations",
-      "Vercel Agent: Code Review",
+      "Vercel Agent › Automations",
+      "Vercel Agent › Code Review",
       "Vertex",
     ]);
     expect(
@@ -29,22 +29,22 @@ describe("durable topic layout", () => {
     ).toBe(true);
   });
   it("does not change section identity or topic shape with volume", () => {
-    const small = layoutGroups({ topics, counts: { vertex: 1, review: 1 } });
-    const busy = layoutGroups({ topics, counts: { vertex: 100, review: 100 } });
+    const small = layoutGroups({ workstreams, counts: { vertex: 1, review: 1 } });
+    const busy = layoutGroups({ workstreams, counts: { vertex: 100, review: 100 } });
     expect(small.listed).toEqual(busy.listed);
     expect(small.nodes.map(({ total, ...identity }) => identity)).toEqual(
       busy.nodes.map(({ total, ...identity }) => identity),
     );
   });
   it("does not list empty topics", () => {
-    expect(layoutGroups({ topics, counts: {} })).toEqual({
+    expect(layoutGroups({ workstreams, counts: {} })).toEqual({
       nodes: [],
       listed: [],
     });
   });
   it("does not repeat a product prefix already present in its child's name", () => {
     const layout = layoutGroups({
-      topics: [
+      workstreams: [
         { id: "a", name: "Vercel", parentId: null },
         { id: "b", name: "Vercel Agent", parentId: "a" },
       ],
@@ -57,8 +57,8 @@ describe("durable topic layout", () => {
   it("refuses deeper identities before changing any sections", () => {
     expect(() =>
       layoutGroups({
-        topics: [
-          ...topics,
+        workstreams: [
+          ...workstreams,
           { id: "third", name: "Approvals", parentId: "review" },
         ],
         counts: { third: 1 },
@@ -67,26 +67,26 @@ describe("durable topic layout", () => {
   });
   it("refuses threads beside child topics until a filing plan is reviewed", () => {
     expect(() =>
-      layoutGroups({ topics, counts: { agent: 1, review: 4 } }),
-    ).toThrow("reviewed filing plan");
+      layoutGroups({ workstreams, counts: { agent: 1, review: 4 } }),
+    ).toThrow("preview where its own threads go");
   });
   it("rejects missing parents and cycles without losing their threads", () => {
     expect(() =>
       layoutGroups({
-        topics: [{ id: "a", name: "A", parentId: "missing" }],
+        workstreams: [{ id: "a", name: "A", parentId: "missing" }],
         counts: { a: 1 },
       }),
-    ).toThrow("Unknown topic");
+    ).toThrow("Unknown workstream");
     expect(() =>
       layoutGroups({
-        topics: [{ id: "a", name: "A", parentId: "a" }],
+        workstreams: [{ id: "a", name: "A", parentId: "a" }],
         counts: { a: 1 },
       }),
-    ).toThrow("cycle");
+    ).toThrow("inside itself");
   });
   it("ignores invalid counts", () => {
     expect(
-      layoutGroups({ topics, counts: { vertex: Number.NaN, review: -1 } })
+      layoutGroups({ workstreams, counts: { vertex: Number.NaN, review: -1 } })
         .listed,
     ).toEqual([]);
   });

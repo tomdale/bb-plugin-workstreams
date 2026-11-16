@@ -30,29 +30,29 @@ const queue = Array.from({ length: repetitions }, () =>
 ).flat();
 
 const tree = (input: TidyInput): TreeState => ({
-  topics: input.topics,
+  workstreams: input.workstreams,
   held: input.held,
-  threadTopic: Object.fromEntries(input.threads.map((t) => [t.id, t.topicId])),
+  threadWorkstream: Object.fromEntries(input.threads.map((t) => [t.id, t.workstreamId])),
 });
 
 /** The topic names and thread titles an edit is about. */
 function subjects(edit: TidyEdit, input: TidyInput): string[] {
   const name = (ref: string | null) =>
-    input.topics.find((t) => t.id === ref)?.name ?? ref?.replace(/^new:/, "");
+    input.workstreams.find((t) => t.id === ref)?.name ?? ref?.replace(/^new:/, "");
   switch (edit.op) {
     case "merge":
       return [name(edit.from), name(edit.into)].filter(Boolean) as string[];
-    case "reparent":
+    case "move-workstream":
     case "rename":
-      return [name(edit.topic)].filter(Boolean) as string[];
-    case "create":
+      return [name(edit.workstream)].filter(Boolean) as string[];
+    case "group":
       return [edit.name, ...edit.children.map(name)].filter(
         Boolean,
       ) as string[];
-    case "move":
+    case "move-thread":
       return [
         input.threads.find((t) => t.id === edit.thread)?.title ?? "",
-        name(edit.topic) ?? "",
+        name(edit.workstream) ?? "",
       ];
   }
 }
@@ -61,7 +61,7 @@ function subjects(edit: TidyEdit, input: TidyInput): string[] {
  * Whether a reason is about its own edit: it names one of the edit's topics
  * or threads by a distinctive word.
  */
-function onTopic(reason: string, edit: TidyEdit, input: TidyInput): boolean {
+function onWorkstream(reason: string, edit: TidyEdit, input: TidyInput): boolean {
   const words = subjects(edit, input)
     .flatMap((s) => s.toLowerCase().split(/[^a-z0-9]+/))
     .filter((w) => w.length >= 4);
@@ -104,22 +104,22 @@ await Promise.all(
         [pattern].flat().some((p) => edits.some((e) => matches(e.edit, p)));
       const missed = test.expect.filter((p) => !found(p));
       const forbidden = test.forbid.filter((p) => found(p));
-      const offTopic = edits.filter(
-        (e) => !onTopic(e.reason, e.edit, test.input),
+      const offWorkstream = edits.filter(
+        (e) => !onWorkstream(e.reason, e.edit, test.input),
       );
       const misnamed = Object.entries(test.names ?? {}).filter(
-        ([topic, name]) =>
+        ([workstream, name]) =>
           !edits.some(
             (e) =>
-              (e.edit.op === "reparent" || e.edit.op === "rename") &&
-              e.edit.topic === topic &&
+              (e.edit.op === "move-workstream" || e.edit.op === "rename") &&
+              e.edit.workstream === workstream &&
               e.edit.name?.toLowerCase() === name.toLowerCase(),
           ),
       );
-      const names = new Map(test.input.topics.map((t) => [t.id, t.name]));
+      const names = new Map(test.input.workstreams.map((t) => [t.id, t.name]));
       const describe = (edit: TidyEdit) =>
         `${describeEdit(edit, {
-          topic: (ref) => (ref ? (names.get(ref) ?? ref) : "the top level"),
+          workstream: (ref) => (ref ? (names.get(ref) ?? ref) : "the top level"),
           thread: (id) =>
             test.input.threads.find((t) => t.id === id)?.title ?? id,
         })}`;
@@ -133,8 +133,8 @@ await Promise.all(
         error,
         missed,
         forbidden,
-        offTopic: offTopic.map((e) => `${describe(e.edit)} — ${e.reason}`),
-        misnamed: misnamed.map(([topic, name]) => `${topic} as ${name}`),
+        offWorkstream: offWorkstream.map((e) => `${describe(e.edit)} — ${e.reason}`),
+        misnamed: misnamed.map(([workstream, name]) => `${workstream} as ${name}`),
         edits: edits.map((e) => `${describe(e.edit)} — ${e.reason}`),
         latencyMs: Date.now() - begun,
         cost,
@@ -151,7 +151,7 @@ const lines = cases
     const runs = by(c.id);
     const pass = runs.filter((r) => r.passed).length;
     const edits = runs.reduce((n, r) => n + (r.edits as string[]).length, 0);
-    const off = runs.reduce((n, r) => n + (r.offTopic as string[]).length, 0);
+    const off = runs.reduce((n, r) => n + (r.offWorkstream as string[]).length, 0);
     const named = c.names
       ? ` named ${runs.filter((r) => !(r.misnamed as string[]).length).length}/${runs.length}`
       : "";

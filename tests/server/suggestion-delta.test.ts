@@ -2,13 +2,13 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   applyDelta,
   changeDelta,
-  type DeltaTopic,
+  type DeltaWorkstream,
 } from "../../src/domain/suggestion-change.ts";
 import type { Split, TidyEdit } from "../../src/domain/tidy.ts";
 import { openDatabase } from "../../src/server/db.ts";
 import { Journal } from "../../src/server/journal.ts";
 import { Suggestions } from "../../src/server/suggestions.ts";
-import { TopicStore } from "../../src/server/topics.ts";
+import { WorkstreamStore } from "../../src/server/topics.ts";
 import { createTestPluginHost } from "./test-host.ts";
 
 /**
@@ -34,7 +34,7 @@ function world(pluginId: string) {
   const host = createTestPluginHost({ pluginId });
   hosts.push(host);
   const db = openDatabase(host.bb);
-  const topics = new TopicStore(db);
+  const workstreamStore = new WorkstreamStore(db);
   const id: Ids = {};
   const make = (
     key: string,
@@ -42,7 +42,7 @@ function world(pluginId: string) {
     parent?: string,
     aliases?: string[],
   ) =>
-    (id[key] = topics.create(
+    (id[key] = workstreamStore.create(
       name,
       "",
       parent ? id[parent]! : null,
@@ -59,8 +59,8 @@ function world(pluginId: string) {
   make("triage", "Triage", "support");
   make("wrap", "Wrap");
   make("inner", "Inner", "wrap");
-  const file = (thread: string, topic: string) =>
-    topics.assign(thread, id[topic]!);
+  const file = (thread: string, workstream: string) =>
+    workstreamStore.assign(thread, id[workstream]!);
   file("i1", "invoices");
   file("p1", "payments");
   file("p2", "payments");
@@ -71,11 +71,11 @@ function world(pluginId: string) {
   file("d3", "docs");
   file("f1", "infra");
   file("tr1", "triage");
-  topics.assign("u1", null);
+  workstreamStore.assign("u1", null);
   // A thread filed beside a subtopic, which only a repair files.
-  topics.assign("s1", id.infra!);
+  workstreamStore.assign("s1", id.infra!);
   db.prepare(
-    "UPDATE ws_corpus_subject SET entity_id = ? WHERE thread_id = 's1'",
+    "UPDATE ws_thread_workstream SET workstream_id = ? WHERE thread_id = 's1'",
   ).run(id.support!);
   const roots = [
     "i1",
@@ -93,7 +93,7 @@ function world(pluginId: string) {
   const suggestions = new Suggestions({
     db,
     inference: null as never,
-    topics,
+    workstreamStore,
     journal: new Journal(db),
     model: async () => null as never,
     enabled: () => false,
@@ -103,16 +103,16 @@ function world(pluginId: string) {
     onChange: () => {},
     log: () => {},
   });
-  return { db, topics, id, suggestions };
+  return { db, workstreamStore, id, suggestions };
 }
 
 type World = ReturnType<typeof world>;
 
-const filingOf = (topics: TopicStore) =>
+const filingOf = (workstreamStore: WorkstreamStore) =>
   Object.fromEntries(
-    Object.values(topics.assignments())
-      .filter((a) => !a.inheritedFrom && a.entityId)
-      .map((a) => [a.threadId, a.entityId]),
+    Object.values(workstreamStore.assignments())
+      .filter((a) => !a.inheritedFrom && a.workstreamId)
+      .map((a) => [a.threadId, a.workstreamId]),
   ) as Record<string, string | null>;
 
 /**
@@ -121,25 +121,25 @@ const filingOf = (topics: TopicStore) =>
  * one the delta named.
  */
 function canonical(
-  topics: readonly DeltaTopic[],
+  workstreams: readonly DeltaWorkstream[],
   filing: Record<string, string | null>,
   existing: ReadonlySet<string>,
 ) {
-  const byId = new Map(topics.map((t) => [t.id, t]));
-  const path = (topicId: string): string => {
-    const t = byId.get(topicId)!;
+  const byId = new Map(workstreams.map((t) => [t.id, t]));
+  const path = (workstreamId: string): string => {
+    const t = byId.get(workstreamId)!;
     return t.parentId ? `${path(t.parentId)}/${t.name}` : t.name;
   };
-  const key = (topicId: string) =>
-    existing.has(topicId) ? topicId : `new:${path(topicId)}`;
+  const key = (workstreamId: string) =>
+    existing.has(workstreamId) ? workstreamId : `new:${path(workstreamId)}`;
   return {
-    topics: topics
+    workstreams: workstreams
       .map((t) => [key(t.id), t.parentId ? key(t.parentId) : null, t.name])
       .sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
     filing: Object.fromEntries(
       Object.entries(filing)
-        .filter(([, topicId]) => topicId)
-        .map(([threadId, topicId]) => [threadId, key(topicId!)])
+        .filter(([, workstreamId]) => workstreamId)
+        .map(([threadId, workstreamId]) => [threadId, key(workstreamId!)])
         .sort(([a], [b]) => a!.localeCompare(b!)),
     ),
   };
@@ -161,40 +161,40 @@ async function accept(
   // The wire omits archived threads' filing, so the comparison uses the whole
   // delta, which the server derives from the same tree.
   const whole = changeDelta(body, {
-    topics: w.topics.list(),
-    threadTopic: Object.fromEntries(
-      Object.values(w.topics.assignments())
+    workstreams: w.workstreamStore.list(),
+    threadWorkstream: Object.fromEntries(
+      Object.values(w.workstreamStore.assignments())
         .filter((a) => !a.inheritedFrom)
-        .map((a) => [a.threadId, a.entityId]),
+        .map((a) => [a.threadId, a.workstreamId]),
     ),
     title: (id) => id,
   })!;
   const before = {
-    topics: w.topics.list().map((t) => ({
+    workstreams: w.workstreamStore.list().map((t) => ({
       id: t.id,
       name: t.name,
       parentId: t.parentId,
     })),
-    filing: filingOf(w.topics),
+    filing: filingOf(w.workstreamStore),
   };
-  const existing = new Set(before.topics.map((t) => t.id));
-  const predicted = applyDelta(before.topics, before.filing, whole);
+  const existing = new Set(before.workstreams.map((t) => t.id));
+  const predicted = applyDelta(before.workstreams, before.filing, whole);
   const result = await w.suggestions.decide([suggestion!.id], "accept");
   expect(result.failed).toEqual([]);
   const actual = {
-    topics: w.topics.list().map((t) => ({
+    workstreams: w.workstreamStore.list().map((t) => ({
       id: t.id,
       name: t.name,
       parentId: t.parentId,
     })),
-    filing: filingOf(w.topics),
+    filing: filingOf(w.workstreamStore),
   };
-  expect(canonical(predicted.topics, predicted.filing, existing)).toEqual(
-    canonical(actual.topics, actual.filing, existing),
+  expect(canonical(predicted.workstreams, predicted.filing, existing)).toEqual(
+    canonical(actual.workstreams, actual.filing, existing),
   );
   // The accepted change did something worth drawing.
-  expect(canonical(actual.topics, actual.filing, existing)).not.toEqual(
-    canonical(before.topics, before.filing, existing),
+  expect(canonical(actual.workstreams, actual.filing, existing)).not.toEqual(
+    canonical(before.workstreams, before.filing, existing),
   );
 }
 
@@ -208,25 +208,25 @@ describe("a suggestion's delta equals accepting it", () => {
     make,
   ];
   const cases: [string, "edit" | "split", (id: Ids) => TidyEdit | Split][] = [
-    edit("refile", (id) => ({
-      op: "move",
+    edit("move-thread", (id) => ({
+      op: "move-thread",
       thread: "d1",
-      topic: id.infra!,
+      workstream: id.infra!,
     })),
     edit("refile of an unfiled thread", (id) => ({
-      op: "move",
+      op: "move-thread",
       thread: "u1",
-      topic: id.docs!,
+      workstream: id.docs!,
     })),
-    edit("rename", (id) => ({ op: "rename", topic: id.docs!, name: "Guides" })),
-    edit("reparent", (id) => ({
-      op: "reparent",
-      topic: id.docs!,
+    edit("rename", (id) => ({ op: "rename", workstream: id.docs!, name: "Guides" })),
+    edit("move-workstream", (id) => ({
+      op: "move-workstream",
+      workstream: id.docs!,
       parent: id.billing!,
     })),
     edit("reparent to the top level with a new name", (id) => ({
-      op: "reparent",
-      topic: id.invoices!,
+      op: "move-workstream",
+      workstream: id.invoices!,
       parent: null,
       name: "Billing Invoices",
     })),
@@ -251,14 +251,14 @@ describe("a suggestion's delta equals accepting it", () => {
       into: id.inner!,
     })),
     edit("create adopting topics", (id) => ({
-      op: "create",
+      op: "group",
       name: "Writing",
       description: "",
       parent: null,
       children: [id.docs!, id.infra!],
     })),
     edit("create with no topics to adopt", () => ({
-      op: "create",
+      op: "group",
       name: "Platform",
       description: "",
       parent: null,
@@ -268,8 +268,8 @@ describe("a suggestion's delta equals accepting it", () => {
       "split into new subtopics",
       "split",
       (id) => ({
-        topicId: id.docs!,
-        subgroups: [
+        workstreamId: id.docs!,
+        workstreams: [
           { name: "Guides", description: "", threadIds: ["d1", "d2"] },
           { name: "Reference", description: "", threadIds: ["d3"] },
         ],
@@ -279,9 +279,9 @@ describe("a suggestion's delta equals accepting it", () => {
       "repair filing a topic's own threads beside its subtopics",
       "split",
       (id) => ({
-        topicId: id.support!,
+        workstreamId: id.support!,
         repair: true,
-        subgroups: [{ name: "triage", description: "", threadIds: ["s1"] }],
+        workstreams: [{ name: "triage", description: "", threadIds: ["s1"] }],
       }),
     ],
   ];
@@ -299,7 +299,7 @@ describe("threads the sidebar does not list", () => {
         w.suggestions as unknown as { propose: (...args: unknown[]) => void }
       ).propose("pass", "edit", body, "Because", null);
     // "archived" is filed under Payments but is not among the visible roots.
-    propose({ op: "rename", topic: w.id.payments!, name: "Pay" });
+    propose({ op: "rename", workstream: w.id.payments!, name: "Pay" });
     const [rename] = w.suggestions.state().suggestions;
     expect(rename!.delta!.held.map((h) => h.threadId).sort()).toEqual([
       "p1",

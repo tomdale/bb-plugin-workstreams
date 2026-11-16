@@ -11,7 +11,7 @@ it("removes source-linked trace prompts and recursive replays without deleting u
     const traces = new TraceStore(db);
     const base: NewTrace = {
       at: Date.now(),
-      kind: "full-analysis",
+      kind: "turn-end",
       status: "ok",
       label: "source",
       model: "test",

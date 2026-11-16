@@ -92,14 +92,14 @@ describe("failedAfter", () => {
 
 describe("isStalled", () => {
   const root = thread({ id: "root", work: "waiting" });
-  const failedDelegate = thread({
+  const failedChild = thread({
     id: "d",
     status: "error",
     failedAt: AT + 1,
   });
 
   it("holds when a delegate failed after the snooze and nothing moves", () => {
-    expect(isStalled(root, [failedDelegate], AT)).toBe(true);
+    expect(isStalled(root, [failedChild], AT)).toBe(true);
   });
 
   it("doesn't hold while anything runs, queues, or asks the user", () => {
@@ -109,20 +109,20 @@ describe("isStalled", () => {
       { queued: true },
       { hasPendingInteraction: true },
     ] as const) {
-      expect(isStalled({ ...root, ...change }, [failedDelegate], AT)).toBe(
+      expect(isStalled({ ...root, ...change }, [failedChild], AT)).toBe(
         false,
       );
       expect(
-        isStalled(root, [failedDelegate, thread({ id: "e", ...change })], AT),
+        isStalled(root, [failedChild, thread({ id: "e", ...change })], AT),
       ).toBe(false);
     }
   });
 
   it("doesn't hold when the root's turn already wakes it, or the failure is old", () => {
-    expect(isStalled({ ...root, work: "complete" }, [failedDelegate], AT)).toBe(
+    expect(isStalled({ ...root, work: "complete" }, [failedChild], AT)).toBe(
       false,
     );
-    expect(isStalled(root, [{ ...failedDelegate, failedAt: AT - 1 }], AT)).toBe(
+    expect(isStalled(root, [{ ...failedChild, failedAt: AT - 1 }], AT)).toBe(
       false,
     );
     expect(isStalled(root, [thread({ id: "d" })], AT)).toBe(false);
@@ -163,23 +163,23 @@ describe("wakeEvent", () => {
   });
 
   it("wakes for a delegate that needs the user, but not one that's done", () => {
-    const delegate = (work: WakeThread["work"]) =>
+    const child = (work: WakeThread["work"]) =>
       thread({ id: "d", latestAttentionAt: AT + 1, work });
     expect(
       wakeEvent(
-        { ...facts, children: [delegate("needs-input")] },
+        { ...facts, children: [child("needs-input")] },
         DEFAULT_WAKE_EVENTS,
       ),
     ).toBe("child-needs-input");
     expect(
       wakeEvent(
-        { ...facts, children: [delegate("review")] },
+        { ...facts, children: [child("review")] },
         DEFAULT_WAKE_EVENTS,
       ),
     ).toBe("child-needs-input");
     expect(
       wakeEvent(
-        { ...facts, children: [delegate("complete")] },
+        { ...facts, children: [child("complete")] },
         DEFAULT_WAKE_EVENTS,
       ),
     ).toBe(null);

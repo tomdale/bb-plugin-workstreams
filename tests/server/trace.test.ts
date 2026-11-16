@@ -40,7 +40,11 @@ const ANALYSIS = {
   ask: null,
   title: null,
 };
-const QUICK = { title: "Alpha parser tabs", subjectId: null, proposed: null };
+const QUICK = {
+  title: "Alpha parser tabs",
+  workstreamId: null,
+  proposed: null,
+};
 const isQuick = (prompt: string) =>
   prompt.includes("You name one new agent thread");
 
@@ -120,15 +124,17 @@ describe("debug mode on", () => {
     const recorded = await traces(w, {
       link: { kind: "thread", ref: "t1" },
     });
-    const summary = recorded.find((t) => t.kind === "full-analysis");
+    const summary = recorded.find((t) => t.kind === "turn-end");
     expect(summary).toMatchObject({
       status: "ok",
       label: "Alpha parser",
-      summary: "review · no topic",
+      summary: "review · no workstream",
       threads: ["t1"],
     });
     // The same call settles the topic: there is no separate placement call.
-    expect(recorded.find((t) => t.kind === "placement")).toBeUndefined();
+    expect(
+      recorded.find((t) => t.kind === "workstream-choice"),
+    ).toBeUndefined();
     const state = await rpc<{
       analysis: Record<string, { traceId: string | null }>;
     }>(w, "state", null);
@@ -153,7 +159,7 @@ describe("debug mode on", () => {
     const w = await setup(true, () => "not json at all");
     await analyze(w, "t1").catch(() => null);
     const [summary] = await traces(w);
-    expect(summary).toMatchObject({ kind: "full-analysis", status: "invalid" });
+    expect(summary).toMatchObject({ kind: "turn-end", status: "invalid" });
     // Labels are redacted like prompts.
     expect(summary!.label).toBe("Alpha parser");
     expect(summary!.error).toBeTruthy();
@@ -178,7 +184,7 @@ describe("debug mode on", () => {
     expect(full).toMatchObject({
       kind: "start",
       status: "ok",
-      summary: "title “Alpha parser tabs” · no topic",
+      summary: "title “Alpha parser tabs” · no workstream",
     });
   });
 
@@ -192,7 +198,7 @@ describe("debug mode on", () => {
     const { entries } = await rpc<{
       entries: { action: string; traceIds: string[] }[];
     }>(w, "journal", {});
-    const retitle = entries.find((e) => e.action === "retitle")!;
+    const retitle = entries.find((e) => e.action === "title-updated")!;
     expect(retitle.traceIds).toHaveLength(1);
     // The retitle adds to the analysis outcome rather than replacing it.
     expect((await trace(w, retitle.traceIds[0]!))!.outcome).toMatchObject({
@@ -237,12 +243,12 @@ describe("debug mode on", () => {
     );
     const journal = new Journal(w.bb.storage.database());
     for (const [rationale, threadId, source] of [
-      ["Related automatic event", "t1", "auto"],
-      ["Related outside event", "t1", "external"],
-      ["Unrelated event", "t2", "auto"],
+      ["Related automatic event", "t1", "workstreams"],
+      ["Related outside event", "t1", "outside"],
+      ["Unrelated event", "t2", "workstreams"],
     ] as const)
       journal.add({
-        action: "move",
+        action: "thread-moved",
         source,
         rationale,
         threads: [{ id: threadId, name: threadId }],
@@ -313,7 +319,7 @@ describe("debug mode on", () => {
     );
     await analyze(w, "t1");
     const original = (await traces(w)).find(
-      (item) => item.kind === "full-analysis",
+      (item) => item.kind === "turn-end",
     )!;
     const db = openDatabase(w.bb);
     const row = db
@@ -355,7 +361,7 @@ describe("debug mode on", () => {
     const w = await setup(true);
     await analyze(w, "t1");
     const list = await w.harness.behavior.runCli(["trace", "--thread", "t1"]);
-    expect(list.stdout).toContain("full-analysis");
+    expect(list.stdout).toContain("turn-end");
     const [summary] = await traces(w);
     const shown = await w.harness.behavior.runCli(["trace", summary!.id]);
     expect(shown.stdout).toContain("Turn end: Alpha parser");
@@ -393,7 +399,7 @@ describe("composer previews", () => {
                 resolve(
                   JSON.stringify({
                     title: { verb: "Alpha", subject: "parser tabs" },
-                    topic: null,
+                    workstream: null,
                     propose: null,
                     scopeShift: false,
                   }),

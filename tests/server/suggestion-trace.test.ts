@@ -12,8 +12,8 @@ afterEach(async () => {
 });
 
 const NOW = Date.now();
-const TOPIC = "7a64f959-822c-4cb1-b4fd-918afd0531ba";
-const OTHER_TOPIC = "8a6b5f0e-bba6-4729-8d51-4ccc29c21c50";
+const WORKSTREAM = "7a64f959-822c-4cb1-b4fd-918afd0531ba";
+const OTHER_WORKSTREAM = "8a6b5f0e-bba6-4729-8d51-4ccc29c21c50";
 const THREAD = "thr_3kkc24izzr";
 
 const trace = (overrides: Partial<NewTrace> = {}): NewTrace => ({
@@ -68,14 +68,14 @@ it("gives a split the call that named its topic", () => {
       id: "s1",
       kind: "split",
       at: NOW - 1_000,
-      body: { topicId: TOPIC, subgroups: [] },
+      body: { workstreamId: WORKSTREAM, workstreams: [] },
     },
   ]);
   const mine = traces.add(
-    trace({ kind: "split", at: NOW - 3_000, input: { topicId: TOPIC } }),
+    trace({ kind: "split", at: NOW - 3_000, input: { workstreamId: WORKSTREAM } }),
   );
   traces.add(
-    trace({ kind: "split", at: NOW - 2_000, input: { topicId: OTHER_TOPIC } }),
+    trace({ kind: "split", at: NOW - 2_000, input: { workstreamId: OTHER_WORKSTREAM } }),
   );
   expect(linkSuggestionTraces(db, traces)).toBe(1);
   expect(linked("s1")).toBe(mine);
@@ -87,7 +87,7 @@ it("gives a tidy edit the newest pass before it that names what it changes", () 
       id: "e1",
       kind: "edit",
       at: NOW - 1_000,
-      body: { op: "move", thread: THREAD, topic: OTHER_TOPIC },
+      body: { op: "move-thread", thread: THREAD, workstream: OTHER_WORKSTREAM },
     },
   ]);
   traces.add(
@@ -106,10 +106,10 @@ it("leaves a suggestion alone when no call still explains it", () => {
       id: "e1",
       kind: "edit",
       at: NOW - 1_000,
-      body: { op: "rename", topic: TOPIC },
+      body: { op: "rename", workstream: WORKSTREAM },
     },
     // Only a call about a different topic is stored, and it is hours old.
-    { id: "s1", kind: "split", at: NOW - 2_000, body: { topicId: TOPIC } },
+    { id: "s1", kind: "split", at: NOW - 2_000, body: { workstreamId: WORKSTREAM } },
   ]);
   traces.add(
     // An answer that names neither the topic the rename is about nor anything
@@ -120,7 +120,7 @@ it("leaves a suggestion alone when no call still explains it", () => {
     trace({
       kind: "split",
       at: NOW - 600_000,
-      input: { topicId: OTHER_TOPIC },
+      input: { workstreamId: OTHER_WORKSTREAM },
     }),
   );
   expect(linkSuggestionTraces(db, traces)).toBe(0);
@@ -134,12 +134,12 @@ it("runs once, so a later suggestion is never matched to an older call", () => {
       id: "e1",
       kind: "edit",
       at: NOW - 1_000,
-      body: { op: "rename", topic: TOPIC },
+      body: { op: "rename", workstream: WORKSTREAM },
     },
   ]);
   linkSuggestionTraces(db, traces);
   const added = traces.add(
-    trace({ at: NOW - 2_000, response: `{"topic":"${TOPIC}"}` }),
+    trace({ at: NOW - 2_000, response: `{"workstream":"${WORKSTREAM}"}` }),
   );
   expect(linkSuggestionTraces(db, traces)).toBe(0);
   expect(linked("e1")).toBeNull();

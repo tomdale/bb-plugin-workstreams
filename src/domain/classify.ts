@@ -1,7 +1,7 @@
-/** A topic as calls that choose one read it, and a checked topic answer. */
-import type { DraftSubjectProposal } from "./topics.ts";
+/** A workstream as calls that choose one read it, and a checked workstream answer. */
+import type { DraftWorkstreamProposal } from "./topics.ts";
 
-export type Entity = {
+export type Workstream = {
   id: string;
   name: string;
   description: string | null;
@@ -9,8 +9,8 @@ export type Entity = {
   aliases: readonly string[];
 };
 
-/** A checked topic answer: an existing topic, a new one, or neither. */
-export type TopicAnswer = {
-  subjectId: string | null;
-  proposed: DraftSubjectProposal | null;
+/** A checked workstream answer: an existing workstream, a new one, or neither. */
+export type WorkstreamAnswer = {
+  workstreamId: string | null;
+  proposed: DraftWorkstreamProposal | null;
 };

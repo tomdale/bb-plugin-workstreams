@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { makeMessageDispatchHookContext } from "@get-bb/plugin-sdk/testing";
 import { fakeWorld } from "./fake-bb.ts";
-import { TopicStore } from "../../src/server/topics.ts";
+import { WorkstreamStore } from "../../src/server/topics.ts";
 import { openDatabase } from "../../src/server/db.ts";
 
 let world: Awaited<ReturnType<typeof fakeWorld>> | undefined;
@@ -20,7 +20,7 @@ const answer = (id: string, goal = "Build Alpha") =>
     recap: "Working",
     state: "needs-input",
     goal,
-    subjectId: id,
+    workstreamId: id,
     proposed: null,
   });
 
@@ -32,8 +32,8 @@ describe("inference application freshness", () => {
       world = await fakeWorld({ complete: () => pending.promise });
       const w = world;
       const db = openDatabase(w.bb);
-      const topics = new TopicStore(db);
-      const a = topics.create("Alpha", "Product");
+      const workstreamStore = new WorkstreamStore(db);
+      const a = workstreamStore.create("Alpha", "Product");
       let name = "Original";
       w.harness.inspection.sdk.stub("projects.list", async () => [
         { id: "proj_1", name, sources: [] },
@@ -48,7 +48,7 @@ describe("inference application freshness", () => {
       else name = "Renamed";
       pending.release(answer(a.id));
       await running;
-      expect(topics.assignment("t").provenance).toBeNull();
+      expect(workstreamStore.assignment("t").provenance).toBeNull();
       expect(
         db.prepare("SELECT * FROM ws_analysis WHERE thread_id = 't'").get(),
       ).toBeUndefined();
@@ -59,12 +59,12 @@ describe("inference application freshness", () => {
     world = await fakeWorld({ complete: () => pending.promise });
     const w = world;
     const db = openDatabase(w.bb);
-    const topics = new TopicStore(db);
-    const a = topics.create("Alpha", "Product");
-    const b = topics.create("Beta", "Product");
+    const workstreamStore = new WorkstreamStore(db);
+    const a = workstreamStore.create("Alpha", "Product");
+    const b = workstreamStore.create("Beta", "Product");
     w.addThread("t", { status: "idle", latestAttentionAt: 10 });
     w.converse("t", ["Build Alpha"]);
-    topics.assign("t", a.id, { provenance: "full" });
+    workstreamStore.assign("t", a.id, { provenance: "automatic" });
     const running = w.harness.behavior.runCli(["analyze", "t"]);
     // The turn's one call is waiting on the model.
     await vi.waitFor(() => expect(w.completions).toHaveLength(1));
@@ -73,10 +73,10 @@ describe("inference application freshness", () => {
       status: "active",
       latestAttentionAt: 20,
     });
-    topics.assign("t", b.id, { provenance: "full" });
+    workstreamStore.assign("t", b.id, { provenance: "automatic" });
     pending.release(answer(a.id));
     await running;
-    expect(topics.assignment("t").entityId).toBe(b.id);
+    expect(workstreamStore.assignment("t").workstreamId).toBe(b.id);
     expect(
       db.prepare("SELECT * FROM ws_analysis WHERE thread_id = 't'").get(),
     ).toBeUndefined();
@@ -85,18 +85,18 @@ describe("inference application freshness", () => {
     const pending = gate();
     world = await fakeWorld({ complete: () => pending.promise });
     const w = world;
-    const topics = new TopicStore(openDatabase(w.bb));
-    const a = topics.create("Alpha", "Product");
-    const b = topics.create("Beta", "Product");
+    const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
+    const a = workstreamStore.create("Alpha", "Product");
+    const b = workstreamStore.create("Beta", "Product");
     w.addThread("t", { status: "idle", latestAttentionAt: 10 });
     w.converse("t", ["Build Alpha"]);
     const running = w.harness.behavior.runCli(["analyze", "t"]);
     // The turn's one call is waiting on the model.
     await vi.waitFor(() => expect(w.completions).toHaveLength(1));
-    topics.assign("t", b.id, { provenance: "full" });
+    workstreamStore.assign("t", b.id, { provenance: "automatic" });
     pending.release(answer(a.id));
     await running;
-    expect(topics.assignment("t").entityId).toBe(b.id);
+    expect(workstreamStore.assignment("t").workstreamId).toBe(b.id);
   });
   it.each([10, 20])(
     "does not apply the start call's title after idle at attention revision %s",
@@ -104,8 +104,8 @@ describe("inference application freshness", () => {
       const pending = gate();
       world = await fakeWorld({ complete: () => pending.promise });
       const w = world;
-      const topics = new TopicStore(openDatabase(w.bb));
-      const a = topics.create("Alpha", "Product");
+      const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
+      const a = workstreamStore.create("Alpha", "Product");
       const t = w.addThread("t", {
         title: null,
         status: "starting",
@@ -125,7 +125,7 @@ describe("inference application freshness", () => {
       await new Promise((resolve) => setTimeout(resolve, 20));
       expect(w.threads.get("t")?.title).toBeNull();
       // The topic still files the thread until its turn's end decides.
-      expect(topics.assignment("t").entityId).toBe(a.id);
+      expect(workstreamStore.assignment("t").workstreamId).toBe(a.id);
     },
   );
 });

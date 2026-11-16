@@ -65,7 +65,7 @@ describe("focused workstreams", () => {
       ],
       {
         activeThreadId: null,
-        order: { workstreams: [], threads: {}, prioritized: ["sec_z"] },
+        order: { workstreams: [], threads: {}, focused: ["sec_z"] },
       },
     );
     const action = await slot.findByRole("button", {
@@ -108,7 +108,7 @@ describe("focused workstreams", () => {
       ],
       {
         activeThreadId: null,
-        order: { workstreams: [], threads: {}, prioritized: ["sec_z"] },
+        order: { workstreams: [], threads: {}, focused: ["sec_z"] },
         recaps,
       },
     );
@@ -137,7 +137,7 @@ describe("focused workstreams", () => {
     fireEvent.click(toggle);
     expect(slot.getByRole("region", { name: "Alpha" })).toBeTruthy();
     expect(slot.getByRole("region", { name: "Beta" })).toBeTruthy();
-    expect(slot.getByRole("region", { name: "Unfiled" })).toBeTruthy();
+    expect(slot.getByRole("region", { name: "Other" })).toBeTruthy();
     expect(
       slot.getByRole("button", { name: "Hide other workstreams" }),
     ).toBeTruthy();
@@ -169,7 +169,7 @@ describe("focused workstreams", () => {
       ],
       {
         activeThreadId: null,
-        order: { workstreams: [], threads: {}, prioritized: ["sec_z"] },
+        order: { workstreams: [], threads: {}, focused: ["sec_z"] },
         recaps,
       },
     );
@@ -207,7 +207,7 @@ describe("focused workstreams", () => {
       {
         activeThreadId: null,
         settings,
-        order: { workstreams: [], threads: {}, prioritized: ["sec_z"] },
+        order: { workstreams: [], threads: {}, focused: ["sec_z"] },
       },
     );
     const toggle = await slot.findByRole("button", { name });
@@ -229,7 +229,7 @@ describe("focused workstreams", () => {
       {
         activeThreadId: null,
         settings: { showRecent: false, showForYou: false },
-        order: { workstreams: [], threads: {}, prioritized: ["sec_z"] },
+        order: { workstreams: [], threads: {}, focused: ["sec_z"] },
       },
     );
     await waitFor(() => expect(regions(slot)).toEqual(["Zeta"]));
@@ -239,7 +239,7 @@ describe("focused workstreams", () => {
     });
     expect(show.getAttribute("aria-expanded")).toBe("false");
     fireEvent.click(show);
-    expect(regions(slot)).toEqual(["Zeta", "Alpha", "Unfiled"]);
+    expect(regions(slot)).toEqual(["Zeta", "Alpha", "Other"]);
     const alpha = slot.getByRole("region", { name: "Alpha" });
     expect(within(alpha).queryAllByRole("link")).toHaveLength(0);
     fireEvent.click(
@@ -266,7 +266,7 @@ describe("focused workstreams", () => {
       slot.getByRole("button", { name: "Stop focusing on Zeta" }),
     );
     await waitFor(() =>
-      expect(regions(slot)).toEqual(["Alpha", "Zeta", "Unfiled"]),
+      expect(regions(slot)).toEqual(["Alpha", "Zeta", "Other"]),
     );
     expect(groupRows(slot, "Alpha")).toEqual(["Alpha task"]);
     expect(
@@ -286,7 +286,7 @@ describe("focused workstreams", () => {
     ];
     const slot = await mountWithBands(threads, {
       activeThreadId: "a1",
-      order: { workstreams: [], threads: {}, prioritized: ["sec_z"] },
+      order: { workstreams: [], threads: {}, focused: ["sec_z"] },
     });
     await waitFor(() =>
       expect(groupRows(slot, "Up Next")).toEqual([
@@ -335,7 +335,7 @@ describe("focused workstreams", () => {
       const threads = [asking("a1", "sec_a", 100)];
       const slot = await mountWithBands(threads, {
         activeThreadId: null,
-        order: { workstreams: [], threads: {}, prioritized: ["sec_z"] },
+        order: { workstreams: [], threads: {}, focused: ["sec_z"] },
       });
       await waitFor(() =>
         expect(groupRows(slot, "Up Next")).toEqual(["Ask a1, Needs input"]),

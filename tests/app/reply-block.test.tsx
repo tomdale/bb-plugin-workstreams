@@ -103,15 +103,15 @@ function props(
     Original,
   };
 }
-/** A snapshot that covers thread t1, which has no topic. */
+/** A snapshot that covers thread t1, which has no workstream. */
 const COVERING_T1 = {
-  entities: [],
+  workstreams: [],
   groups: {},
   assignments: {
     t1: {
       threadId: "t1",
-      entityId: null,
-      status: "unresolved",
+      workstreamId: null,
+      status: "none",
       provenance: null,
       label: null,
       ancestorIds: [],
@@ -168,7 +168,7 @@ async function draw(
           ? { t1: { id: "r1", turnId: options.docked.turnId } }
           : {},
         dismissedRecaps: options.docked?.dismissed ? ["r1"] : [],
-        catalog: COVERING_T1,
+        tree: COVERING_T1,
       }),
     },
   });
@@ -878,7 +878,7 @@ it("withholds recap fields while server ownership is unknown", async () => {
   expect(view.container.textContent).toContain("A full explanation.");
   expect(view.container.textContent).not.toContain("Work is saved");
   expect(view.container.textContent).not.toContain("A concrete result");
-  resolve({ recaps: {}, dismissedRecaps: [], catalog: COVERING_T1 });
+  resolve({ recaps: {}, dismissedRecaps: [], tree: COVERING_T1 });
   await screen.findByRole("heading", { name: "Work is saved" });
   expect(view.container.textContent).toContain("A concrete result");
 });

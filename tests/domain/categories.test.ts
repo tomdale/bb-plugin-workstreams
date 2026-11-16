@@ -10,7 +10,7 @@ import {
 } from "../../src/domain/categories.ts";
 
 const input = (): CategoryInput => ({
-  topicId: "workstreams",
+  workstreamId: "workstreams",
   label: "bb: Workstreams Plugin",
   roots: Array.from({ length: 6 }, (_, i) => ({
     id: `thread-${i}`,

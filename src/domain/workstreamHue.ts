@@ -1,4 +1,4 @@
-/** Fallback hue for a native section that has no topic color yet. */
+/** Fallback hue for a native section that has no workstream color yet. */
 export function workstreamHue(id: string): number {
   // FNV-1a, then a final avalanche so near-identical ids (ws-1, ws-2) land far
   // apart on the color wheel.

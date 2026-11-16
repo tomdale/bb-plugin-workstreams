@@ -8,7 +8,7 @@ import {
 } from "../../src/app/sidebar/suggestionMiniatures.ts";
 import {
   changeDelta,
-  newTopicId,
+  newWorkstreamId,
   type ChangeContext,
 } from "../../src/domain/suggestion-change.ts";
 import type { Split, TidyEdit } from "../../src/domain/tidy.ts";
@@ -16,7 +16,7 @@ import type { Split, TidyEdit } from "../../src/domain/tidy.ts";
 const DAY = 24 * 60 * 60 * 1000;
 const NOW = 400 * DAY;
 
-const topics = [
+const workstreams = [
   { id: "billing", name: "Billing", parentId: null },
   { id: "invoices", name: "Invoices", parentId: "billing" },
   { id: "payments", name: "Payments", parentId: "billing" },
@@ -42,17 +42,17 @@ const threads = [
 ] as const;
 
 const input = (extra: Partial<MiniatureInput> = {}): MiniatureInput => ({
-  threads: threads.map(([id, topic, title, ago]) => ({
+  threads: threads.map(([id, workstream, title, ago]) => ({
     id,
     title,
-    sectionId: topic ? sectionOf[topic]! : null,
+    sectionId: workstream ? sectionOf[workstream]! : null,
     activeAt: NOW - ago * DAY,
   })),
-  topics,
-  filing: Object.fromEntries(threads.map(([id, topic]) => [id, topic])),
+  workstreams,
+  filing: Object.fromEntries(threads.map(([id, workstream]) => [id, workstream])),
   colors: {
     groups: Object.fromEntries(
-      Object.entries(sectionOf).map(([topic, section]) => [section, topic]),
+      Object.entries(sectionOf).map(([workstream, section]) => [section, workstream]),
     ),
     colors: {
       billing: { hue: 200, level: 0 },
@@ -66,7 +66,7 @@ const input = (extra: Partial<MiniatureInput> = {}): MiniatureInput => ({
   sections: Object.values(sectionOf),
   manualOrder: [],
   delta: {
-    topics: [],
+    workstreams: [],
     removed: [],
     assignments: [],
     held: [],
@@ -78,14 +78,14 @@ const input = (extra: Partial<MiniatureInput> = {}): MiniatureInput => ({
 });
 
 const context = (): ChangeContext => ({
-  topics,
-  threadTopic: Object.fromEntries(threads.map(([id, topic]) => [id, topic])),
+  workstreams,
+  threadWorkstream: Object.fromEntries(threads.map(([id, workstream]) => [id, workstream])),
   title: (id) => id,
 });
 const delta = (body: TidyEdit | Split) => changeDelta(body, context())!;
 
 const label = (w: MiniWorkstream) =>
-  w.prefix ? `${w.prefix}: ${w.name}` : w.name;
+  w.prefix ? `${w.prefix} › ${w.name}` : w.name;
 const labels = (list: readonly MiniWorkstream[]) => list.map(label);
 const find = (list: readonly MiniWorkstream[], name: string) =>
   list.find((w) => label(w) === name)!;
@@ -96,11 +96,11 @@ describe("miniature", () => {
   it("draws every workstream with a visible thread, Unfiled last", () => {
     const m = miniature(input())!;
     expect(labels(m.now)).toEqual([
-      "Billing: Invoices",
-      "Billing: Payments",
+      "Billing › Invoices",
+      "Billing › Payments",
       "Docs",
       "Infra",
-      "Unfiled",
+      "Other",
     ]);
     expect(find(m.now, "Docs").ticks).toHaveLength(3);
     expect(m.flows).toEqual([]);
@@ -120,7 +120,7 @@ describe("miniature", () => {
   it("draws a refile as one thread moving between two marked workstreams", () => {
     const m = miniature(
       input({
-        delta: delta({ op: "move", thread: "d1", topic: "infra" }),
+        delta: delta({ op: "move-thread", thread: "d1", workstream: "infra" }),
       }),
     )!;
     expect(m.flows).toHaveLength(1);
@@ -148,8 +148,8 @@ describe("miniature", () => {
     const m = miniature(
       input({
         delta: delta({
-          topicId: "docs",
-          subgroups: [
+          workstreamId: "docs",
+          workstreams: [
             { name: "Guides", description: "", threadIds: ["d1", "d2"] },
             { name: "Reference", description: "", threadIds: ["d3"] },
           ],
@@ -157,15 +157,15 @@ describe("miniature", () => {
       }),
     )!;
     expect(labels(m.after)).toEqual([
-      "Billing: Invoices",
-      "Billing: Payments",
-      "Docs: Guides",
-      "Docs: Reference",
+      "Billing › Invoices",
+      "Billing › Payments",
+      "Docs › Guides",
+      "Docs › Reference",
       "Infra",
-      "Unfiled",
+      "Other",
     ]);
     expect(m.flows.map((f) => f.threads.length)).toEqual([2, 1]);
-    expect(find(m.after, "Docs: Guides").prefix).toBe("Docs");
+    expect(find(m.after, "Docs › Guides").prefix).toBe("Docs");
     expect(flowed(find(m.now, "Docs"))).toBe(3);
     // Each new workstream gets a color of its own, from its parent's.
     const [guides, reference] = m.flows;
@@ -178,18 +178,18 @@ describe("miniature", () => {
         delta: delta({ op: "merge", from: "payments", into: "invoices" }),
       }),
     )!;
-    expect(labels(m.after)).not.toContain("Billing: Payments");
-    expect(find(m.after, "Billing: Invoices").ticks).toHaveLength(3);
+    expect(labels(m.after)).not.toContain("Billing › Payments");
+    expect(find(m.after, "Billing › Invoices").ticks).toHaveLength(3);
     expect(m.flows[0]).toMatchObject({
       to: { prefix: "Billing", name: "Invoices" },
     });
-    expect(find(m.now, "Billing: Payments").hot).toBe(true);
+    expect(find(m.now, "Billing › Payments").hot).toBe(true);
   });
 
   it("draws a rename as the same threads under a new name", () => {
     const m = miniature(
       input({
-        delta: delta({ op: "rename", topic: "docs", name: "Guides" }),
+        delta: delta({ op: "rename", workstream: "docs", name: "Guides" }),
       }),
     )!;
     expect(m.flows).toHaveLength(1);
@@ -204,10 +204,10 @@ describe("miniature", () => {
   it("draws a move under a new parent as the prefix of its name", () => {
     const m = miniature(
       input({
-        delta: delta({ op: "reparent", topic: "docs", parent: "billing" }),
+        delta: delta({ op: "move-workstream", workstream: "docs", parent: "billing" }),
       }),
     )!;
-    expect(find(m.after, "Billing: Docs").prefix).toBe("Billing");
+    expect(find(m.after, "Billing › Docs").prefix).toBe("Billing");
     expect(m.flows[0]!.to).toEqual({ prefix: "Billing", name: "Docs" });
   });
 
@@ -215,7 +215,7 @@ describe("miniature", () => {
     const m = miniature(
       input({
         delta: delta({
-          op: "create",
+          op: "group",
           name: "Ops",
           description: "",
           parent: null,
@@ -231,24 +231,24 @@ describe("miniature", () => {
 
   it("applies the user's sort to both sides", () => {
     const base = input({
-      delta: delta({ op: "move", thread: "f1", topic: "docs" }),
+      delta: delta({ op: "move-thread", thread: "f1", workstream: "docs" }),
     });
     const alphabetical = miniature(base)!;
     expect(labels(alphabetical.now)).toEqual([
-      "Billing: Invoices",
-      "Billing: Payments",
+      "Billing › Invoices",
+      "Billing › Payments",
       "Docs",
       "Infra",
-      "Unfiled",
+      "Other",
     ]);
     const activity = miniature({ ...base, sort: "activity" })!;
     // Most recent first: invoices (1 day), payments, docs, infra.
     expect(labels(activity.now)).toEqual([
-      "Billing: Invoices",
-      "Billing: Payments",
+      "Billing › Invoices",
+      "Billing › Payments",
       "Docs",
       "Infra",
-      "Unfiled",
+      "Other",
     ]);
     const manual = miniature({
       ...base,
@@ -258,9 +258,9 @@ describe("miniature", () => {
     expect(labels(manual.now)).toEqual([
       "Infra",
       "Docs",
-      "Billing: Payments",
-      "Billing: Invoices",
-      "Unfiled",
+      "Billing › Payments",
+      "Billing › Invoices",
+      "Other",
     ]);
   });
 
@@ -269,8 +269,8 @@ describe("miniature", () => {
       sort: "manual",
       manualOrder: ["sec_docs", "sec_infra", "sec_invoices", "sec_payments"],
       delta: delta({
-        topicId: "docs",
-        subgroups: [
+        workstreamId: "docs",
+        workstreams: [
           { name: "Guides", description: "", threadIds: ["d1", "d2"] },
           { name: "Reference", description: "", threadIds: ["d3"] },
         ],
@@ -280,17 +280,17 @@ describe("miniature", () => {
     expect(labels(m.now)).toEqual([
       "Docs",
       "Infra",
-      "Billing: Invoices",
-      "Billing: Payments",
-      "Unfiled",
+      "Billing › Invoices",
+      "Billing › Payments",
+      "Other",
     ]);
     expect(labels(m.after)).toEqual([
-      "Docs: Guides",
-      "Docs: Reference",
+      "Docs › Guides",
+      "Docs › Reference",
       "Infra",
-      "Billing: Invoices",
-      "Billing: Payments",
-      "Unfiled",
+      "Billing › Invoices",
+      "Billing › Payments",
+      "Other",
     ]);
   });
 
@@ -314,14 +314,14 @@ describe("miniature", () => {
     });
     const ctx = {
       ...context(),
-      threadTopic: { ...context().threadTopic, ...withMany.filing },
+      threadWorkstream: { ...context().threadWorkstream, ...withMany.filing },
     };
     const m = miniature({
       ...withMany,
       delta: changeDelta(
         {
-          topicId: "docs",
-          subgroups: [
+          workstreamId: "docs",
+          workstreams: [
             {
               name: "Small",
               description: "",
@@ -360,8 +360,8 @@ describe("miniature", () => {
       miniature(
         input({
           delta: {
-            topics: [
-              { id: newTopicId("docs", "Sub"), name: "Sub", parentId: "docs" },
+            workstreams: [
+              { id: newWorkstreamId("docs", "Sub"), name: "Sub", parentId: "docs" },
             ],
             removed: [],
             assignments: [],
@@ -380,13 +380,13 @@ describe("work outside the sidebar", () => {
   const snoozed = ["s1", "s2", "s3"];
   const archived = ["x1", "x2"];
   const ctx = (): ChangeContext => ({
-    topics: [
-      ...topics,
+    workstreams: [
+      ...workstreams,
       { id: "snoozed", name: "Snoozed", parentId: null },
       { id: "gone", name: "Gone", parentId: null },
     ],
-    threadTopic: {
-      ...context().threadTopic,
+    threadWorkstream: {
+      ...context().threadWorkstream,
       ...Object.fromEntries(snoozed.map((id) => [id, "snoozed"])),
       ...Object.fromEntries(archived.map((id) => [id, "gone"])),
     },
@@ -396,13 +396,13 @@ describe("work outside the sidebar", () => {
   });
   const sidebarWith = (body: TidyEdit | Split) =>
     input({
-      topics: ctx().topics as MiniatureInput["topics"],
+      workstreams: ctx().workstreams as MiniatureInput["workstreams"],
       delta: changeDelta(body, ctx())!,
     });
 
   it("draws no workstream for them while nothing touches it", () => {
     const m = miniature(
-      sidebarWith({ op: "move", thread: "d1", topic: "infra" }),
+      sidebarWith({ op: "move-thread", thread: "d1", workstream: "infra" }),
     )!;
     expect(labels(m.now)).not.toContain("Snoozed");
     expect(labels(m.now)).not.toContain("Gone");
@@ -411,8 +411,8 @@ describe("work outside the sidebar", () => {
   it("draws a split of a workstream whose threads are snoozed, as dashed ticks with titles", () => {
     const m = miniature(
       sidebarWith({
-        topicId: "snoozed",
-        subgroups: [
+        workstreamId: "snoozed",
+        workstreams: [
           { name: "Old", description: "", threadIds: ["s1", "s2"] },
           { name: "Older", description: "", threadIds: ["s3"] },
         ],
@@ -423,7 +423,7 @@ describe("work outside the sidebar", () => {
     expect(before.ticks).toHaveLength(3);
     expect(before.ticks.every((t) => t.hidden && t.flow !== null)).toBe(true);
     expect(labels(m.after)).toEqual(
-      expect.arrayContaining(["Snoozed: Old", "Snoozed: Older"]),
+      expect.arrayContaining(["Snoozed › Old", "Snoozed › Older"]),
     );
     expect(m.flows.map((f) => f.threads.map((t) => t.title))).toEqual([
       ["Title s1", "Title s2"],
@@ -434,8 +434,8 @@ describe("work outside the sidebar", () => {
   it("draws a workstream of archived threads as a name alone, and counts them", () => {
     const m = miniature(
       sidebarWith({
-        topicId: "gone",
-        subgroups: [
+        workstreamId: "gone",
+        workstreams: [
           { name: "Old", description: "", threadIds: ["x1"] },
           { name: "Older", description: "", threadIds: ["x2"] },
         ],
@@ -444,16 +444,16 @@ describe("work outside the sidebar", () => {
     const before = find(m.now, "Gone");
     expect(before).toMatchObject({ hot: true, ticks: [] });
     expect(labels(m.after)).toEqual(
-      expect.arrayContaining(["Gone: Old", "Gone: Older"]),
+      expect.arrayContaining(["Gone › Old", "Gone › Older"]),
     );
-    expect(find(m.after, "Gone: Old").ticks).toEqual([]);
+    expect(find(m.after, "Gone › Old").ticks).toEqual([]);
     expect(m.flows).toEqual([]);
     expect(m.archived).toBe(2);
   });
 
   it("draws a rename of an archived-only workstream", () => {
     const m = miniature(
-      sidebarWith({ op: "rename", topic: "gone", name: "Retired" }),
+      sidebarWith({ op: "rename", workstream: "gone", name: "Retired" }),
     )!;
     expect(find(m.now, "Gone").hot).toBe(true);
     expect(find(m.after, "Retired").ticks).toEqual([]);
@@ -477,7 +477,7 @@ describe("work outside the sidebar", () => {
 
   it("leaves a thread the sidebar lists to the sidebar's own data", () => {
     const m = miniature(
-      sidebarWith({ op: "rename", topic: "docs", name: "Guides" }),
+      sidebarWith({ op: "rename", workstream: "docs", name: "Guides" }),
     )!;
     // Docs' three threads are listed, and `held` names them too.
     expect(find(m.after, "Guides").ticks.some((t) => t.hidden)).toBe(false);
@@ -490,16 +490,16 @@ describe("miniatureBase", () => {
     thread: { id, title, latestAttentionAt: 5 },
   });
   const sidebar = (
-    catalog: Parameters<typeof miniatureBase>[0]["catalog"],
+    tree: Parameters<typeof miniatureBase>[0]["tree"],
   ) => ({
     projection: {
       all: [
         { id: "sec_docs", rows: [row("d1", 0, "Quick start"), row("d2", 1)] },
         { id: "sec_empty", rows: [] },
       ],
-      unsorted: { id: "unsorted", rows: [row("u1", 0, null)] },
+      other: { id: "other", rows: [row("u1", 0, null)] },
     },
-    catalog,
+    tree,
     sort: "activity" as const,
     manualOrder: ["sec_docs"],
     sections: [{ id: "sec_docs" }],
@@ -509,9 +509,9 @@ describe("miniatureBase", () => {
   it("takes the root threads of every group, with each one's topic", () => {
     const base = miniatureBase(
       sidebar({
-        entities: topics,
+        workstreams: workstreams,
         groups: { sec_docs: "docs" },
-        assignments: { d1: { entityId: "docs" } },
+        assignments: { d1: { workstreamId: "docs" } },
       }),
     )!;
     expect(base.threads).toEqual([

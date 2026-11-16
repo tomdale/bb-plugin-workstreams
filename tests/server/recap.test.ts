@@ -1015,17 +1015,17 @@ describe("shared state", () => {
     const state = (await s.w.harness.behavior.callRpc("state", null)) as {
       recaps: Record<string, unknown>;
       dismissedRecaps: string[];
-      catalog: { assignments: Record<string, unknown> };
+      tree: { assignments: Record<string, unknown> };
     };
     expect(state.recaps).toEqual({});
     expect(state.dismissedRecaps).toEqual([]);
-    expect(state.catalog.assignments.t1).toBeUndefined();
+    expect(state.tree.assignments.t1).toBeUndefined();
     expect(
       await s.w.harness.behavior.callRpc("recap_get", { threadId: "t1" }),
     ).toMatchObject({
       recap: { id: recap!.id },
       dismissed: true,
-      assignment: { threadId: "t1", status: "unresolved" },
+      assignment: { threadId: "t1", status: "none" },
     });
   });
 });

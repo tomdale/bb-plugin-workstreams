@@ -26,7 +26,7 @@ import {
 } from "../domain/streamDeck.ts";
 import type { StoredAnalysis } from "../domain/analysis.ts";
 import type { ManualOrder } from "../domain/order.ts";
-import type { WorkstreamTopics } from "../domain/groups.ts";
+import type { WorkstreamTree } from "../domain/groups.ts";
 import type { Prefs } from "../domain/prefs.ts";
 import { slotMarkFor } from "../domain/presentation.ts";
 import {
@@ -47,7 +47,7 @@ import { upNextFocus } from "../domain/upNextNavigation.ts";
 import {
   colorForWorkstream,
   workstreamColorHex,
-  type TopicColor,
+  type WorkstreamColor,
 } from "../domain/workstreamColor.ts";
 import type { InventoryThread } from "./inventory.ts";
 
@@ -60,12 +60,12 @@ export type StreamDeckInputs = {
   readonly order: ManualOrder;
   readonly snoozes: Readonly<Record<string, ThreadSnooze>>;
   readonly upNext: Prefs["upNext"];
-  /** Section id → topic id, as the catalog binds them. */
+  /** Section id → workstream id, as the workstream tree binds them. */
   readonly groups: Readonly<Record<string, string>>;
-  /** The topic tree and layout, so focus covers subtopics as in the sidebar. */
-  readonly topics?: Pick<WorkstreamTopics, "entities" | "layout">;
-  /** Topic id → its workstream color. */
-  readonly colors: Readonly<Record<string, TopicColor>>;
+  /** The workstreams and groups and layout, so focus covers workstreams in a group as in the sidebar. */
+  readonly workstreams?: Pick<WorkstreamTree, "workstreams" | "layout">;
+  /** Workstream id → its workstream color. */
+  readonly colors: Readonly<Record<string, WorkstreamColor>>;
   /** The thread open in the BB app the user used last, left out of Up Next. */
   readonly viewing?: string | null;
   readonly now: number;
@@ -95,10 +95,10 @@ export function streamDeckSnapshot(
   const selection = selectUpNext(projection, {
     kindOf,
     now,
-    prioritized: upNextFocus(
+    focused: upNextFocus(
       projection,
-      order.prioritized,
-      inputs.topics && { ...inputs.topics, bindings: inputs.groups },
+      order.focused,
+      inputs.workstreams && { ...inputs.workstreams, bindings: inputs.groups },
     ),
     shown: inputs.upNext.shown,
     unreadFirst: inputs.upNext.unreadFirst,

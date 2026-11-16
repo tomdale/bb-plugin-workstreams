@@ -32,11 +32,11 @@ function emptyState(): ServerState {
     analysis: {},
     recaps: {},
     dismissedRecaps: [],
-    order: { workstreams: [], threads: {}, prioritized: [] },
+    order: { workstreams: [], threads: {}, focused: [] },
     snoozes: {},
     snoozePrefs: DEFAULT_SNOOZE_PREFS,
-    catalog: {
-      entities: [],
+    tree: {
+      workstreams: [],
       groups: {},
       assignments: {},
       revision: 1,
@@ -50,7 +50,7 @@ const SLICE_FIELDS: Record<StateSlice, readonly (keyof ServerState)[]> = {
   recaps: ["recaps", "dismissedRecaps"],
   order: ["order"],
   snoozes: ["snoozes", "snoozePrefs"],
-  catalog: ["catalog"],
+  tree: ["tree"],
   suggestions: ["pendingSuggestions"],
 };
 
@@ -79,7 +79,7 @@ class ServerStore {
   constructor(readonly rpc: Rpc) {
     this.records = new ThreadRecords(
       rpc,
-      () => this.value.catalog?.revision ?? null,
+      () => this.value.tree?.revision ?? null,
     );
   }
 
@@ -99,9 +99,9 @@ class ServerStore {
   private publish(value: ServerState): void {
     const shared = shareJson(this.value, value);
     if (Object.is(shared, this.value)) return;
-    const revision = this.value.catalog?.revision;
+    const revision = this.value.tree?.revision;
     this.value = shared;
-    if (shared.catalog?.revision !== revision) this.records.catalogChanged();
+    if (shared.tree?.revision !== revision) this.records.treeChanged();
     for (const listener of this.listeners) listener();
   }
 
@@ -375,8 +375,7 @@ function normalizeOrder(order: Partial<ManualOrder> | undefined): ManualOrder {
 function applyChange(order: ManualOrder, change: ReorderChange): ManualOrder {
   if (change.kind === "workstreams")
     return { ...order, workstreams: change.ids };
-  if (change.kind === "prioritized")
-    return { ...order, prioritized: change.ids };
+  if (change.kind === "focused") return { ...order, focused: change.ids };
   return {
     ...order,
     threads: { ...order.threads, [change.groupId]: change.ids },
@@ -516,12 +515,12 @@ function useOutsideRecord(
 }
 
 /**
- * Whether the snapshot carries this thread's recap and topic. It covers
+ * Whether the snapshot carries this thread's recap and workstream. It covers
  * visible, non-archived threads, each of which has an assignment there.
  */
 export function inSnapshot(server: ServerState, threadId: string): boolean {
   return (
-    Object.hasOwn(server.catalog?.assignments ?? {}, threadId) ||
+    Object.hasOwn(server.tree?.assignments ?? {}, threadId) ||
     Object.hasOwn(server.recaps, threadId)
   );
 }
@@ -549,10 +548,10 @@ export function useThreadRecordSelector<T>(
       dismissed: (server.dismissedRecaps ?? []).includes(
         server.recaps[threadId]?.id ?? "",
       ),
-      assignment: server.catalog?.assignments[threadId] ?? {
+      assignment: server.tree?.assignments[threadId] ?? {
         threadId,
-        entityId: null,
-        status: "unresolved",
+        workstreamId: null,
+        status: "none",
         provenance: null,
         label: null,
         ancestorIds: [],

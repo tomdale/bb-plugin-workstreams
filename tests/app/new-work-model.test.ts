@@ -11,7 +11,7 @@ const base = {
   confidence: "high" as const,
   reason: "Fits feature",
   subject: "Billing",
-  subjectId: "ent_billing",
+  workstreamId: "ent_billing",
   traceId: "trace_1",
 };
 
@@ -25,7 +25,7 @@ const withProposal: Preview = {
   ...base,
   id: "d_proposal",
   subject: "Export",
-  subjectId: null,
+  workstreamId: null,
   proposal: { name: "Export", description: "CSV export" },
 };
 
@@ -52,7 +52,7 @@ describe("NewWork model: the draft's topic preview", () => {
 
     const snapshot = newWork.snapshot();
     expect(snapshot.identity).toEqual({
-      entityId: "ent_billing",
+      workstreamId: "ent_billing",
       proposal: null,
       label: "Billing",
       provenance: "automatic",
@@ -86,7 +86,7 @@ describe("NewWork model: the draft's topic preview", () => {
     await vi.advanceTimersByTimeAsync(SHORT_PAUSE_MS + 5_000);
     expect(deps.route).toHaveBeenCalledTimes(2);
     expect(newWork.snapshot().identity).toEqual({
-      entityId: "ent_billing",
+      workstreamId: "ent_billing",
       proposal: null,
       label: "Billing",
       provenance: "automatic",
@@ -110,7 +110,7 @@ describe("NewWork model: the draft's topic preview", () => {
     const { newWork } = setup(async () => withFeature);
     newWork.observe("Invoice bug in billing layout");
     await vi.advanceTimersByTimeAsync(SHORT_PAUSE_MS);
-    expect(newWork.snapshot().identity?.entityId).toBe("ent_billing");
+    expect(newWork.snapshot().identity?.workstreamId).toBe("ent_billing");
 
     newWork.observe("");
     expect(newWork.snapshot().identity).toBeNull();
@@ -120,9 +120,9 @@ describe("NewWork model: the draft's topic preview", () => {
 describe("NewWork model: picked, inherited, and no topic", () => {
   it("preserves manual identity when typing further", async () => {
     const { newWork } = setup(async () => withFeature);
-    newWork.selectIdentity({ entityId: "ent_storage", label: "Storage" });
+    newWork.selectIdentity({ workstreamId: "ent_storage", label: "Storage" });
     expect(newWork.snapshot().identity).toEqual({
-      entityId: "ent_storage",
+      workstreamId: "ent_storage",
       proposal: null,
       label: "Storage",
       provenance: "manual",
@@ -138,7 +138,7 @@ describe("NewWork model: picked, inherited, and no topic", () => {
 
     // Manual identity persists and is not overwritten by classifier
     expect(newWork.snapshot().identity).toEqual({
-      entityId: "ent_storage",
+      workstreamId: "ent_storage",
       proposal: null,
       label: "Storage",
       provenance: "manual",
@@ -149,9 +149,9 @@ describe("NewWork model: picked, inherited, and no topic", () => {
     const { newWork } = setup(async () => withFeature);
     newWork.selectIdentity(null);
     expect(newWork.snapshot().identity).toEqual({
-      entityId: null,
+      workstreamId: null,
       proposal: null,
-      label: "No topic",
+      label: "No workstream",
       provenance: "manual",
     });
 
@@ -160,9 +160,9 @@ describe("NewWork model: picked, inherited, and no topic", () => {
 
     // Manual unresolved persists
     expect(newWork.snapshot().identity).toEqual({
-      entityId: null,
+      workstreamId: null,
       proposal: null,
-      label: "No topic",
+      label: "No workstream",
       provenance: "manual",
     });
   });
@@ -173,13 +173,13 @@ describe("NewWork model: picked, inherited, and no topic", () => {
     await vi.advanceTimersByTimeAsync(SHORT_PAUSE_MS);
 
     // Overwrite manually
-    newWork.selectIdentity({ entityId: "ent_storage", label: "Storage" });
+    newWork.selectIdentity({ workstreamId: "ent_storage", label: "Storage" });
     expect(newWork.snapshot().identity?.provenance).toBe("manual");
 
     // Reset to automatic
     newWork.selectAutomaticIdentity();
     expect(newWork.snapshot().identity).toEqual({
-      entityId: null,
+      workstreamId: null,
       proposal: { name: "Export", description: "CSV export" },
       label: "Export",
       provenance: "automatic",
@@ -192,7 +192,7 @@ describe("NewWork model: a workstream's ＋", () => {
     const { newWork } = setup(async () => withFeature);
     newWork.selectWorkstream({ sectionId: "sec_docs" }, "Docs");
     expect(newWork.snapshot().identity).toEqual({
-      entityId: null,
+      workstreamId: null,
       proposal: null,
       label: "Docs",
       provenance: "inherited",

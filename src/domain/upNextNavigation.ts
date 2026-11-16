@@ -7,7 +7,7 @@
  * The next thread is Up Next's row after the one in view, wrapping to the top;
  * a thread Up Next doesn't list starts at the top. The order is Up Next as the
  * sidebar draws it (see `upNextOrder`): the open thread keeps its row there
- * after reading it moves its rank, and a delegate sits on its root's row, so
+ * after reading it moves its rank, and a child thread sits on its root's row, so
  * "next" is the row the user sees below. A thread being put away when Up Next
  * has nothing else still moves the user on, to the next thread in its
  * workstream and then to the most recently active thread, so it lands on the
@@ -16,7 +16,7 @@
 import {
   arrangeGroups,
   focusedSections,
-  type WorkstreamTopics,
+  type WorkstreamTree,
 } from "./groups.ts";
 import type { Projection, Row, WorkstreamThread } from "./project.ts";
 import {
@@ -28,18 +28,18 @@ import {
 /**
  * The sections Up Next's focus covers: every section in a top-level workstream
  * holding a focused one, as the sidebar draws the workstreams, so focusing a
- * workstream covers its subtopics. `prioritized` is `ManualOrder.prioritized`.
+ * workstream covers its workstreams in a group. `focused` is `ManualOrder.focused`.
  */
 export function upNextFocus<T extends WorkstreamThread>(
   projection: Projection<T>,
-  prioritized: Iterable<string>,
-  topics?: WorkstreamTopics,
+  focused: Iterable<string>,
+  workstreams?: WorkstreamTree,
 ): Set<string> {
-  const ids = new Set(prioritized);
+  const ids = new Set(focused);
   if (ids.size === 0) return ids;
   // The sort orders the groups; which sections each one covers doesn't
   // depend on it.
-  return focusedSections(arrangeGroups(projection, "manual", topics), ids);
+  return focusedSections(arrangeGroups(projection, "manual", workstreams), ids);
 }
 
 /**
@@ -53,19 +53,19 @@ export function upNextOrder<T extends UpNextThread>(
   projection: Projection<T>,
   options: UpNextOptions<T>,
   focus: {
-    readonly prioritized: Iterable<string>;
-    readonly topics?: WorkstreamTopics;
+    readonly focused: Iterable<string>;
+    readonly workstreams?: WorkstreamTree;
   },
 ): string[] {
   return selectUpNext(projection, {
     ...options,
-    prioritized: upNextFocus(projection, focus.prioritized, focus.topics),
+    focused: upNextFocus(projection, focus.focused, focus.workstreams),
   }).rows.map((row) => row.thread.id);
 }
 
 /**
  * The thread whose Up Next row stands for `threadId`: its root, since Up Next
- * lists only roots and draws a delegate under its root's row.
+ * lists only roots and draws a child thread under its root's row.
  */
 function upNextPlace<T extends WorkstreamThread>(
   projection: Projection<T>,
@@ -112,7 +112,7 @@ export function nextUpNextThread<T extends WorkstreamThread>(
  * Where the user lands once `threadId`, the thread in view, is put away along
  * with everything in `leaving` (an archived subtree, a snoozed workstream):
  * the next Up Next thread (see `nextUpNextThread`). When Up Next has nothing
- * else, a delegate going away leaves the user on its root; a root goes on to
+ * else, a child thread going away leaves the user on its root; a root goes on to
  * the next thread in its workstream past its subtree, wrapping, and then to
  * the most recently active root. Null only when nothing else is open.
  * `projection` and `order` are read before the thread left.
@@ -132,7 +132,7 @@ export function nextThreadAfterLeaving<T extends WorkstreamThread>(
     !gone.has(row.thread.id) && !underAny(projection, row.thread.id, gone);
   const groups = [
     ...projection.groups,
-    projection.unsorted,
+    projection.other,
     ...projection.dormant,
   ];
   const group = groups.find((candidate) =>

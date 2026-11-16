@@ -5,10 +5,10 @@ import {
   continuationThreadId,
   withoutSubagentDeliveries,
 } from "../../src/server/requestProvenance.ts";
-import { TopicStore } from "../../src/server/topics.ts";
+import { WorkstreamStore } from "../../src/server/topics.ts";
 import { openDatabase } from "../../src/server/db.ts";
 import { senderOfStart } from "../../src/server/requests.ts";
-import { choosesTopic, fakeWorld } from "./fake-bb.ts";
+import { choosesWorkstream, fakeWorld } from "./fake-bb.ts";
 
 const run = {
   id: "12345678-1234-1234-1234-123456789abc",
@@ -135,14 +135,14 @@ afterEach(async () => {
 it("keeps subagent reports out of placement and uses the real handoff source", async () => {
   world = await fakeWorld();
   const w = world;
-  const topics = new TopicStore(openDatabase(w.bb));
-  const sourceTopic = topics.create("Cloud BB", "Running BB in the cloud");
-  const reviewerTopic = topics.create("Shell", "Shell configuration");
+  const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
+  const sourceWorkstream = workstreamStore.create("Cloud BB", "Running BB in the cloud");
+  const reviewerWorkstream = workstreamStore.create("Shell", "Shell configuration");
   w.addThread("thr_source", { status: "idle" });
   w.addThread("thr_worker", { status: "idle" });
   w.addThread("owner", { status: "idle", title: "Cloud BB proof" });
-  topics.assign("thr_source", sourceTopic.id, { provenance: "full" });
-  topics.assign("thr_worker", reviewerTopic.id, { provenance: "full" });
+  workstreamStore.assign("thr_source", sourceWorkstream.id, { provenance: "automatic" });
+  workstreamStore.assign("thr_worker", reviewerWorkstream.id, { provenance: "automatic" });
   w.harness.inspection.sdk.stub("plugins.callRpc", async () => ({
     runs: [run],
   }));
@@ -153,11 +153,11 @@ it("keeps subagent reports out of placement and uses the real handoff source", a
   ]);
   await w.harness.behavior.callRpc("refresh", null);
   await w.harness.behavior.runCli(["analyze", "owner"]);
-  const prompt = w.completions.find((c) => choosesTopic(c.prompt))!.prompt;
-  expect(prompt).toContain("It continues a thread filed under Cloud BB.");
+  const prompt = w.completions.find((c) => choosesWorkstream(c.prompt))!.prompt;
+  expect(prompt).toContain("It continues a thread in Cloud BB.");
   expect(prompt).toContain("Use my selected credential.");
   expect(prompt).not.toContain("Full transcript: @thread:thr_worker");
-  expect(prompt).not.toContain("It continues a thread filed under Shell.");
+  expect(prompt).not.toContain("It continues a thread in Shell.");
   expect(analysesFor(w)).not.toContain("Reviewed the work");
 });
 
@@ -182,7 +182,7 @@ it("finds earlier user requests past a burst of subagent reports", async () => {
   ]);
   await w.harness.behavior.callRpc("refresh", null);
   await w.harness.behavior.runCli(["analyze", "owner"]);
-  const prompt = w.completions.find((c) => choosesTopic(c.prompt))!.prompt;
+  const prompt = w.completions.find((c) => choosesWorkstream(c.prompt))!.prompt;
   expect(prompt).toContain("Prove cloud BB works");
   expect(prompt).toContain("Use the cloud worker");
   expect(prompt).not.toContain("Full transcript:");
@@ -191,11 +191,11 @@ it("finds earlier user requests past a burst of subagent reports", async () => {
 it("uses the actual spawning agent for placement and continuation", async () => {
   world = await fakeWorld();
   const w = world;
-  const topics = new TopicStore(openDatabase(w.bb));
-  const topic = topics.create("Source", "The source work");
+  const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
+  const workstream = workstreamStore.create("Source", "The source work");
   w.addThread("thr_source", { status: "idle" });
   w.addThread("owner", { status: "idle", title: "Build the result" });
-  topics.assign("thr_source", topic.id, { provenance: "full" });
+  workstreamStore.assign("thr_source", workstream.id, { provenance: "automatic" });
   w.converse("owner", ["Build the result", "Review @thread:thr_other"]);
   w.harness.inspection.sdk.stub(
     "threads.events.list",
@@ -219,8 +219,8 @@ it("uses the actual spawning agent for placement and continuation", async () => 
   );
   await w.harness.behavior.callRpc("refresh", null);
   await w.harness.behavior.runCli(["analyze", "owner"]);
-  const placement = w.completions.find((c) => choosesTopic(c.prompt))!.prompt;
-  expect(placement).toContain("It continues a thread filed under Source.");
+  const placement = w.completions.find((c) => choosesWorkstream(c.prompt))!.prompt;
+  expect(placement).toContain("It continues a thread in Source.");
   expect(analysesFor(w)).toContain("Source objective");
 });
 
@@ -232,19 +232,19 @@ function analysesFor(w: World): string {
 
 it("does not cancel a first-request retry for a verified delivery", async () => {
   let attempts = 0;
-  let topicId = "";
+  let workstreamId = "";
   world = await fakeWorld({
     complete: ({ prompt }) => {
-      if (prompt.includes("You file one agent thread under a topic")) {
+      if (prompt.includes("You choose the workstream for one agent thread")) {
         if (++attempts === 1) throw new TypeError("fetch failed");
-        return JSON.stringify({ subjectId: topicId, proposed: null });
+        return JSON.stringify({ workstreamId: workstreamId, proposed: null });
       }
-      return JSON.stringify({ title: "Cloud BB proof", subjectId: null });
+      return JSON.stringify({ title: "Cloud BB proof", workstreamId: null });
     },
   });
   const w = world;
-  const topics = new TopicStore(openDatabase(w.bb));
-  topicId = topics.create("Cloud BB", "Running BB in the cloud").id;
+  const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
+  workstreamId = workstreamStore.create("Cloud BB", "Running BB in the cloud").id;
   w.harness.inspection.sdk.stub("plugins.callRpc", async () => ({
     runs: [run],
   }));
@@ -275,7 +275,7 @@ it("does not cancel a first-request retry for a verified delivery", async () => 
   );
   await vi.advanceTimersByTimeAsync(1_000);
   expect(attempts).toBe(2);
-  expect(topics.assignment(thread.id).entityId).toBe(topicId);
+  expect(workstreamStore.assignment(thread.id).workstreamId).toBe(workstreamId);
 });
 
 it("does not place again when only a verified subagent report arrives", async () => {
@@ -289,7 +289,7 @@ it("does not place again when only a verified subagent report arrives", async ()
   await w.harness.behavior.callRpc("refresh", null);
   await w.harness.behavior.runCli(["analyze", "owner"]);
   const placements = () =>
-    w.completions.filter((c) => choosesTopic(c.prompt)).length;
+    w.completions.filter((c) => choosesWorkstream(c.prompt)).length;
   const before = placements();
   expect(before).toBe(1);
   w.converse("owner", ["Prove cloud BB works", delivery]);

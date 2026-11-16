@@ -1,7 +1,7 @@
 /**
  * The thread Info tab and thread context card's "Workstreams Debug"
  * section: the metadata Workstreams generated and accumulated for the
- * thread — the settled goal, the context digest, the topic assignment and
+ * thread — the settled goal, the context digest, the workstream assignment and
  * its provenance, and the latest analysis run's status, model, and age.
  * Related journal events and analysis calls appear below, with the model-call
  * inspector one click away. Shown with the debug UI only; the slots are
@@ -42,10 +42,10 @@ function Entry({
 }
 
 const PROVENANCE_TITLE: Record<string, string> = {
-  manual: "set by you",
+  manual: "moved there by you",
   inherited: "inherited",
-  full: "chosen automatically from its requests",
-  quick: "shown by the composer for an earlier draft",
+  automatic: "chosen automatically from its requests",
+  composer: "shown by the composer for an earlier draft",
 };
 
 function DebugEntries({
@@ -96,10 +96,10 @@ function DebugEntries({
         </Entry>
       ) : null}
       {assignment ? (
-        <Entry label="Topic" icon="Folder">
-          {assignment.status === "unresolved"
-            ? "Unresolved"
-            : (assignment.label ?? "No topic")}
+        <Entry label="Workstream" icon="Folder">
+          {assignment.status === "none"
+            ? "No workstream"
+            : (assignment.label ?? "No workstream")}
           {assignment.provenance
             ? ` (${PROVENANCE_TITLE[assignment.provenance] ?? assignment.provenance})`
             : ""}
@@ -122,9 +122,9 @@ function DebugEntries({
           {relativeAge(analysis.at, Date.now())} by {analysis.model}
         </Entry>
       ) : null}
-      {analysis?.topicError ? (
-        <Entry label="Topic error" icon="AlertTriangle">
-          {analysis.topicError}
+      {analysis?.workstreamError ? (
+        <Entry label="Workstream error" icon="AlertTriangle">
+          {analysis.workstreamError}
         </Entry>
       ) : null}
       {discuss}

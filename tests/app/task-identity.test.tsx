@@ -3,7 +3,7 @@ import { renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { TaskIdentity } from "../../src/app/task/TaskIdentity.tsx";
-import type { Topic, TopicState } from "../../src/domain/topics.ts";
+import type { Workstream, WorkstreamState } from "../../src/domain/topics.ts";
 import { emptyState, section, sidebarThread } from "./fixtures.ts";
 
 beforeEach(() => {
@@ -12,7 +12,7 @@ beforeEach(() => {
 
 afterEach(cleanup);
 
-const entities: Topic[] = [
+const workstreams: Workstream[] = [
   {
     id: "prod_platform",
     name: "Platform",
@@ -36,44 +36,44 @@ const entities: Topic[] = [
   },
 ];
 
-const catalogState: TopicState = {
-  entities,
+const treeState: WorkstreamState = {
+  workstreams,
   groups: { sec_a: "prod_platform" },
   assignments: {
     "t-root": {
       threadId: "t-root",
-      entityId: "feat_auth",
+      workstreamId: "feat_auth",
       status: "assigned",
       provenance: "manual",
-      label: "Platform: Auth",
+      label: "Platform › Auth",
       ancestorIds: ["feat_auth", "prod_platform"],
       evidence: null,
       inheritedFrom: null,
     },
     "t-child": {
       threadId: "t-child",
-      entityId: "feat_auth",
+      workstreamId: "feat_auth",
       status: "assigned",
-      provenance: "full",
-      label: "Platform: Auth",
+      provenance: "automatic",
+      label: "Platform › Auth",
       ancestorIds: ["feat_auth", "prod_platform"],
       evidence: "recap analysis",
       inheritedFrom: "t-root",
     },
     "t-auto": {
       threadId: "t-auto",
-      entityId: "feat_auth",
+      workstreamId: "feat_auth",
       status: "assigned",
-      provenance: "full",
-      label: "Platform: Auth",
+      provenance: "automatic",
+      label: "Platform › Auth",
       ancestorIds: ["feat_auth", "prod_platform"],
       evidence: "recap analysis",
       inheritedFrom: null,
     },
     "t-unresolved-in-workstream": {
       threadId: "t-unresolved-in-workstream",
-      entityId: null,
-      status: "unresolved",
+      workstreamId: null,
+      status: "none",
       provenance: null,
       label: null,
       ancestorIds: [],
@@ -82,10 +82,10 @@ const catalogState: TopicState = {
     },
     "t-assigned-unfiled": {
       threadId: "t-assigned-unfiled",
-      entityId: "feat_billing",
+      workstreamId: "feat_billing",
       status: "assigned",
       provenance: "manual",
-      label: "Platform: Billing",
+      label: "Platform › Billing",
       ancestorIds: ["feat_billing", "prod_platform"],
       evidence: null,
       inheritedFrom: null,
@@ -95,7 +95,7 @@ const catalogState: TopicState = {
 };
 
 /** Mounts the topic control as the Workstreams page renders it. */
-function TopicControl({ threadId }: { threadId: string }) {
+function WorkstreamControl({ threadId }: { threadId: string }) {
   return <TaskIdentity threadId={threadId} />;
 }
 
@@ -103,13 +103,13 @@ async function mountTaskIdentity(
   threadId: string,
   options: {
     threads?: ReturnType<typeof sidebarThread>[];
-    catalog?: TopicState;
+    tree?: WorkstreamState;
     rpcCalls?: { method: string; args: unknown }[];
   } = {},
 ) {
-  const topicControl = { component: TopicControl };
+  const workstreamControl = { component: WorkstreamControl };
 
-  const currentCatalog = options.catalog ?? catalogState;
+  const currentTree = options.tree ?? treeState;
   const threads = options.threads ?? [
     sidebarThread("t-root", { title: "Root task", sectionId: "sec_a" }),
     sidebarThread("t-child", {
@@ -129,7 +129,7 @@ async function mountTaskIdentity(
   ];
 
   return renderSlot(
-    topicControl,
+    workstreamControl,
     { threadId },
     {
       sidebarThreads: {
@@ -139,17 +139,17 @@ async function mountTaskIdentity(
       rpc: {
         state: () => ({
           ...emptyState(),
-          catalog: currentCatalog,
+          tree: currentTree,
         }),
-        taskAssign: (args: unknown) => {
-          options.rpcCalls?.push({ method: "taskAssign", args });
+        threadMove: (args: unknown) => {
+          options.rpcCalls?.push({ method: "threadMove", args });
           return {
             assignment: {
               threadId,
-              entityId: (args as { entityId: string }).entityId,
+              workstreamId: (args as { workstreamId: string }).workstreamId,
               status: "assigned",
               provenance: "manual",
-              label: "Platform: Billing",
+              label: "Platform › Billing",
               ancestorIds: ["feat_billing", "prod_platform"],
               evidence: null,
               inheritedFrom: null,
@@ -161,8 +161,8 @@ async function mountTaskIdentity(
           return {
             assignment: {
               threadId,
-              entityId: null,
-              status: "unresolved",
+              workstreamId: null,
+              status: "none",
               provenance: null,
               label: null,
               ancestorIds: [],
@@ -171,15 +171,15 @@ async function mountTaskIdentity(
             },
           };
         },
-        taskReclassify: (args: unknown) => {
-          options.rpcCalls?.push({ method: "taskReclassify", args });
+        threadAutomatic: (args: unknown) => {
+          options.rpcCalls?.push({ method: "threadAutomatic", args });
           return {
             assignment: {
               threadId,
-              entityId: "feat_auth",
+              workstreamId: "feat_auth",
               status: "assigned",
-              provenance: "full",
-              label: "Platform: Auth",
+              provenance: "automatic",
+              label: "Platform › Auth",
               ancestorIds: ["feat_auth", "prod_platform"],
               evidence: "model reclassify",
               inheritedFrom: null,
@@ -195,7 +195,7 @@ describe("Topic control", () => {
   it("shows a topic the user chose", async () => {
     const slot = await mountTaskIdentity("t-root");
     const button = await slot.findByRole("button", {
-      name: "Topic: Platform › Auth (chosen by you)",
+      name: "Workstream: Platform › Auth (moved there by you)",
     });
     expect(button.textContent).toBe("Platform › Auth");
     fireEvent.click(button);
@@ -210,7 +210,7 @@ describe("Topic control", () => {
   it("defaults to Automatic and shows the classifier result below it", async () => {
     const slot = await mountTaskIdentity("t-auto");
     const button = await slot.findByRole("button", {
-      name: "Topic: Platform › Auth (automatic)",
+      name: "Workstream: Platform › Auth (automatic)",
     });
     fireEvent.click(button);
     const automatic = await screen.findByRole("button", { name: /^Automatic/ });
@@ -227,19 +227,19 @@ describe("Topic control", () => {
   it("shows No topic when Workstreams found none", async () => {
     const slot = await mountTaskIdentity("t-unresolved-in-workstream");
     const button = await slot.findByRole("button", {
-      name: "Topic: No topic (automatic)",
+      name: "Workstream: No workstream (automatic)",
     });
     expect(button.className).toContain("ws-task-identity-unresolved");
     fireEvent.click(button);
     const automatic = await screen.findByRole("button", { name: /^Automatic/ });
-    expect(automatic.textContent).toBe("AutomaticNo topic");
+    expect(automatic.textContent).toBe("AutomaticNo workstream");
     slot.lifecycle.unmount();
   });
 
   it("shows a fork's parent topic without letting it change", async () => {
     const slot = await mountTaskIdentity("t-child");
     const button = (await slot.findByRole("button", {
-      name: "Topic: Platform › Auth (same as parent thread)",
+      name: "Workstream: Platform › Auth (follows its parent thread)",
     })) as HTMLButtonElement;
     expect(button.disabled).toBe(true);
     expect(button.textContent).not.toContain("inherited");
@@ -250,17 +250,17 @@ describe("Topic control", () => {
     const rpcCalls: { method: string; args: unknown }[] = [];
     const slot = await mountTaskIdentity("t-auto", { rpcCalls });
     fireEvent.click(
-      await slot.findByRole("button", { name: /^Topic: Platform › Auth/ }),
+      await slot.findByRole("button", { name: /^Workstream: Platform › Auth/ }),
     );
-    fireEvent.change(screen.getByLabelText("Search topics"), {
+    fireEvent.change(screen.getByLabelText("Search workstreams"), {
       target: { value: "Payments" },
     });
     fireEvent.click(await screen.findByText("Platform › Billing"));
     await waitFor(() => {
       expect(rpcCalls).toEqual([
         {
-          method: "taskAssign",
-          args: { threadId: "t-auto", entityId: "feat_billing" },
+          method: "threadMove",
+          args: { threadId: "t-auto", workstreamId: "feat_billing" },
         },
       ]);
     });
@@ -271,12 +271,12 @@ describe("Topic control", () => {
     const rpcCalls: { method: string; args: unknown }[] = [];
     const slot = await mountTaskIdentity("t-root", { rpcCalls });
     fireEvent.click(
-      await slot.findByRole("button", { name: /^Topic: Platform › Auth/ }),
+      await slot.findByRole("button", { name: /^Workstream: Platform › Auth/ }),
     );
     fireEvent.click(await screen.findByRole("button", { name: /^Automatic/ }));
     await waitFor(() => {
       expect(rpcCalls).toEqual([
-        { method: "taskReclassify", args: { threadId: "t-root" } },
+        { method: "threadAutomatic", args: { threadId: "t-root" } },
       ]);
     });
     slot.lifecycle.unmount();
@@ -285,7 +285,7 @@ describe("Topic control", () => {
   it("Automatic can't be chosen again while it's already on", async () => {
     const slot = await mountTaskIdentity("t-auto");
     fireEvent.click(
-      await slot.findByRole("button", { name: /^Topic: Platform › Auth/ }),
+      await slot.findByRole("button", { name: /^Workstream: Platform › Auth/ }),
     );
     const automatic = (await screen.findByRole("button", {
       name: /^Automatic/,

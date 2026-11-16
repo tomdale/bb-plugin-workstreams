@@ -28,7 +28,7 @@ it("upgrades populated storage while preserving workstreams and activity", async
     ).run();
     spy.mockRestore();
     openDatabase(host.bb);
-    expect(db.prepare("SELECT section_id FROM ws_workstream").all()).toEqual([
+    expect(db.prepare("SELECT section_id FROM ws_section").all()).toEqual([
       { section_id: "s" },
     ]);
     expect(
@@ -104,7 +104,9 @@ it("removes populated name observations while preserving analysis and topics", a
     });
     expect(
       db
-        .prepare("SELECT source FROM ws_corpus_subject WHERE thread_id = 't'")
+        .prepare(
+          "SELECT source FROM ws_thread_workstream WHERE thread_id = 't'",
+        )
         .get(),
     ).toEqual({ source: "manual" });
     openDatabase(host.bb);
@@ -237,7 +239,7 @@ it("drops the workstream columns and meta keys nothing reads", async () => {
     ).run();
     spy.mockRestore();
     openDatabase(host.bb);
-    expect(db.prepare("SELECT * FROM ws_workstream").all()).toEqual([
+    expect(db.prepare("SELECT * FROM ws_section").all()).toEqual([
       { section_id: "sec_1", created_by: "user" },
     ]);
     expect(db.prepare("SELECT key FROM ws_meta ORDER BY key").all()).toEqual([
@@ -292,8 +294,8 @@ it("drops undoes, undone_by, and trace_id and rewrites stored analysis keys", as
     expect(db.prepare("SELECT * FROM ws_journal").get()).toEqual({
       id: "j1",
       at: 1,
-      action: "undo",
-      source: "user",
+      action: "change-undone",
+      source: "you",
       status: "applied",
       rationale: "Undid: renamed",
       subject: '{"threads":[],"workstreams":[]}',
@@ -356,8 +358,8 @@ it("retires the metadata undo steps and the proposal log entries", async () => {
     );
     insert.run({
       id: "j-batch",
-      action: "batch",
-      source: "auto",
+      action: "thread-moved",
+      source: "workstreams",
       undo: JSON.stringify({
         kind: "batch",
         steps: [
@@ -368,7 +370,7 @@ it("retires the metadata undo steps and the proposal log entries", async () => {
             to: {
               description: "Notes",
               aliases: ["n"],
-              source: "user",
+              source: "you",
               revision: 1,
             },
           },
@@ -405,7 +407,7 @@ it("retires the metadata undo steps and the proposal log entries", async () => {
     expect(
       db.prepare("SELECT id FROM ws_journal WHERE id = 'j-proposal'").get(),
     ).toBeUndefined();
-    expect(db.prepare("SELECT * FROM ws_workstream").get()).toEqual({
+    expect(db.prepare("SELECT * FROM ws_section").get()).toEqual({
       section_id: "sec_1",
       created_by: "user",
     });

@@ -22,8 +22,8 @@ import { upNextOrder } from "../domain/upNextNavigation.ts";
 import type { ManualOrder } from "../domain/order.ts";
 import { RECENT_LIMIT } from "../domain/prefs.ts";
 import type { StoredAnalysis } from "../server/analyzer.ts";
-import type { TopicState } from "../domain/topics.ts";
-import type { WorkstreamTopics } from "../domain/groups.ts";
+import type { WorkstreamState } from "../domain/topics.ts";
+import type { WorkstreamTree } from "../domain/groups.ts";
 import {
   isSnoozed,
   type SnoozePrefs,
@@ -55,14 +55,14 @@ export type ServerState = {
   order: ManualOrder;
   snoozes: Record<string, ThreadSnooze>;
   snoozePrefs: SnoozePrefs;
-  catalog?: TopicState;
+  tree?: WorkstreamState;
   /** Organizing suggestions waiting for your decision. */
   pendingSuggestions?: number;
 };
 
 export type ReorderChange =
   | { kind: "workstreams"; ids: string[] }
-  | { kind: "prioritized"; ids: string[] }
+  | { kind: "focused"; ids: string[] }
   | { kind: "threads"; groupId: string; ids: string[] };
 
 /** Shared plugin state and optimistic actions for every UI consumer. */
@@ -103,7 +103,7 @@ export function useWorkstreams() {
   // Renders when a deadline passes; the read below then takes a new reading.
   useSyncExternalStore(shared.subscribe, shared.clock, shared.clock);
 
-  const { analysis, recaps, order, snoozes, catalog } = server;
+  const { analysis, recaps, order, snoozes, tree } = server;
   const { projection, now } = shared.read({
     threads,
     sections,
@@ -113,10 +113,10 @@ export function useWorkstreams() {
     snoozes,
   });
   /** What nests the workstreams (see `nestGroups`). */
-  const topics: WorkstreamTopics | undefined = useMemo(
-    () => topicsOf(catalog),
-    // A filing changes the catalog's assignments, which nesting never reads.
-    [catalog?.entities, catalog?.groups, catalog?.layout, catalog?.categories],
+  const workstreams: WorkstreamTree | undefined = useMemo(
+    () => workstreamsOf(tree),
+    // A filing changes the workstream tree's assignments, which nesting never reads.
+    [tree?.workstreams, tree?.groups, tree?.layout, tree?.categories],
   );
   const upNextOptions = shared.upNextOptions(
     { analysis, recaps },
@@ -126,7 +126,7 @@ export function useWorkstreams() {
   return {
     status,
     projection,
-    topics,
+    workstreams,
     threads,
     sections,
     projects,
@@ -183,7 +183,7 @@ export function useUpNextReader(): () => UpNextReading {
   const upNextPrefs = usePrefsSelector((prefs) => prefs?.upNext);
   return useCallback(() => {
     const { threads, sections } = readThreads();
-    const { analysis, recaps, order, snoozes, catalog } = readServer();
+    const { analysis, recaps, order, snoozes, tree } = readServer();
     const { projection, now } = shared.read({
       threads,
       sections,
@@ -199,22 +199,20 @@ export function useUpNextReader(): () => UpNextReading {
         upNextOrder(
           projection,
           shared.upNextOptions({ analysis, recaps }, now, upNextPrefs),
-          { prioritized: order.prioritized, topics: topicsOf(catalog) },
+          { focused: order.focused, workstreams: workstreamsOf(tree) },
         ),
     };
   }, [shared, readThreads, readServer, upNextPrefs]);
 }
 
-/** What nests the workstreams, from the catalog (see `nestGroups`). */
-function topicsOf(
-  catalog: ServerState["catalog"],
-): WorkstreamTopics | undefined {
-  return catalog
+/** What nests the workstreams, from the workstream tree (see `nestGroups`). */
+function workstreamsOf(tree: ServerState["tree"]): WorkstreamTree | undefined {
+  return tree
     ? {
-        entities: catalog.entities,
-        bindings: catalog.groups,
-        layout: catalog.layout,
-        categories: catalog.categories,
+        workstreams: tree.workstreams,
+        bindings: tree.groups,
+        layout: tree.layout,
+        categories: tree.categories,
       }
     : undefined;
 }

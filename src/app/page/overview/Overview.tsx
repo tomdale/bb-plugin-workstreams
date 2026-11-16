@@ -1,5 +1,5 @@
 /**
- * A workstream's Overview: its open root threads as a table of status,
+ * A workstream's Overview: its open threads as a table of status,
  * summary, and next steps (see `domain/overview.ts` for what each row
  * holds). The Next steps cell carries the control its status calls for: the
  * question to answer, a review's steps, the recap's follow-ups, a waiting
@@ -31,7 +31,7 @@ import {
 } from "../../../domain/presentation.ts";
 import { nestGroups, type WorkstreamNode } from "../../../domain/groups.ts";
 import {
-  UNSORTED_ID,
+  OTHER_ID,
   type Group,
   type Row as ProjectedRow,
 } from "../../../domain/project.ts";
@@ -78,40 +78,40 @@ const TEXT = "text-[13px] leading-[1.45]";
 const BUTTON =
   "cursor-pointer whitespace-nowrap rounded-md border border-border px-2 py-0.5 text-[12px] leading-[1.4] text-foreground transition-colors hover:bg-state-hover focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-ring";
 
-/** What an Overview lists: a sidebar group, or Unfiled, which nests nothing. */
+/** What an Overview lists: a sidebar group, or Other, which nests nothing. */
 type Listed = Group<PluginSidebarThread> &
   Partial<
     Pick<
       WorkstreamNode<PluginSidebarThread>,
-      "subgroups" | "topicId" | "hasSection" | "sectionIds"
+      "workstreams" | "workstreamId" | "hasSection" | "sectionIds"
     >
   >;
 
 /**
  * The group an Overview id names: a group as the sidebar nests them (a
- * workstream, or a header that gathers several), or Unfiled.
+ * workstream, or a header that gathers several), or Other.
  */
 export function overviewGroup(
-  ws: Pick<Workstreams, "projection" | "topics">,
+  ws: Pick<Workstreams, "projection" | "workstreams">,
   id: string,
 ): Listed | null {
-  if (id === UNSORTED_ID || id === "unfiled") return ws.projection.unsorted;
+  if (id === OTHER_ID || id === "other") return ws.projection.other;
   const find = (
     nodes: readonly WorkstreamNode<PluginSidebarThread>[],
   ): WorkstreamNode<PluginSidebarThread> | null => {
     for (const node of nodes) {
-      const found = node.id === id ? node : find(node.subgroups);
+      const found = node.id === id ? node : find(node.workstreams);
       if (found) return found;
     }
     return null;
   };
-  return find(nestGroups(ws.projection.all, ws.topics));
+  return find(nestGroups(ws.projection.all, ws.workstreams));
 }
 
-/** The root rows a group lists, its subgroups' included. */
+/** The root rows a group lists, its workstreams' included. */
 const rootRows = (group: Listed): ProjectedRow<PluginSidebarThread>[] => [
   ...group.rows.filter((row) => row.depth === 0),
-  ...(group.subgroups ?? []).flatMap(rootRows),
+  ...(group.workstreams ?? []).flatMap(rootRows),
 ];
 
 export function Overview({
@@ -120,7 +120,7 @@ export function Overview({
   onBack,
 }: {
   ws: Workstreams;
-  /** A sidebar group's id, or `unsorted` for Unfiled. */
+  /** A sidebar group's id, or `unsorted` for Other. */
   id: string;
   onBack: () => void;
 }) {
@@ -128,13 +128,13 @@ export function Overview({
   const actions = useQueueActions();
   const { receipt, sent } = actions;
   const [customSnooze, setCustomSnooze] = useState<SnoozeRequest | null>(null);
-  const { projection, topics } = ws;
+  const { projection, workstreams } = ws;
   const group = useMemo(
-    () => overviewGroup({ projection, topics }, id),
-    [projection, topics, id],
+    () => overviewGroup({ projection, workstreams }, id),
+    [projection, workstreams, id],
   );
   const roots = useMemo(() => (group ? rootRows(group) : []), [group]);
-  const unfiled = group?.id === UNSORTED_ID;
+  const other = group?.id === OTHER_ID;
   const { recaps } = ws.server;
   const work = ws.work;
 
@@ -200,11 +200,11 @@ export function Overview({
       () => ws.rpc.call("threadUnarchive", { threadId: thread.id }),
     );
   const newWork =
-    group && !unfiled
+    group && !other
       ? () => {
           setComposerPreset(
-            group.hasSection === false && group.topicId
-              ? { topicId: group.topicId }
+            group.hasSection === false && group.workstreamId
+              ? { workstreamId: group.workstreamId }
               : { sectionId: group.id },
             group.name,
           );
@@ -222,10 +222,10 @@ export function Overview({
       </Frame>
     );
 
-  const color = unfiled
+  const color = other
     ? undefined
     : (workstreamColorStyle(
-        colorForWorkstream(group.id, ws.server.catalog, group.topicId),
+        colorForWorkstream(group.id, ws.server.tree, group.workstreamId),
       ) as CSSProperties);
   return (
     <Frame onBack={onBack}>
@@ -234,8 +234,8 @@ export function Overview({
           <h1 className="m-0 flex text-[15px] tracking-tight">
             <WorkstreamName
               name={group.name}
-              accent={!unfiled}
-              muted={unfiled}
+              accent={!other}
+              muted={other}
               className="font-semibold"
             />
           </h1>
@@ -415,16 +415,16 @@ function HeaderMenu({
 }) {
   const portalScope = usePortalScopeProps();
   const request = groupSnoozeRequest(group);
-  const canFocus = group.id !== UNSORTED_ID;
+  const canFocus = group.id !== OTHER_ID;
   if (!request && !canFocus) return null;
   const item = cn(menuItemClass, MENU_ITEM_HIGHLIGHT_TEXT_CLASS);
   const toggleFocus = () => {
-    const focused = ws.server.order.prioritized;
+    const focused = ws.server.order.focused;
     const sections = group.sectionIds ?? [group.id];
-    const ids = group.prioritized
+    const ids = group.focused
       ? focused.filter((id) => !sections.includes(id))
       : [...focused, ...sections.filter((id) => !focused.includes(id))];
-    ws.reorder({ kind: "prioritized", ids }).catch((cause: unknown) =>
+    ws.reorder({ kind: "focused", ids }).catch((cause: unknown) =>
       toast.error(cause instanceof Error ? cause.message : String(cause)),
     );
   };
@@ -445,7 +445,7 @@ function HeaderMenu({
         >
           {canFocus ? (
             <DropdownMenu.Item className={item} onSelect={toggleFocus}>
-              {group.prioritized ? "Stop focusing" : "Focus"}
+              {group.focused ? "Stop focusing" : "Focus"}
             </DropdownMenu.Item>
           ) : null}
           {request ? (

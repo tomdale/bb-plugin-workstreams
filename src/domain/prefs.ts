@@ -57,14 +57,14 @@ export function gatewayModel(choice: ModelChoice): string | null {
 export const DEFAULT_MODELS = {
   /**
    * Names and files a new thread from a draft or its first request, while
-   * you wait, and answers every other closed topic choice.
+   * you wait, and answers every other closed workstream choice.
    */
   newThread: {
     kind: "gateway",
     model: "openai/gpt-6.1-sol",
     reasoningLevel: "none",
   },
-  /** Settles a thread's title, goal, status, and topic when a turn ends. */
+  /** Settles a thread's title, goal, status, and workstream when a turn ends. */
   turnEnd: {
     kind: "gateway",
     model: "openai/gpt-6.1-sol",
@@ -76,7 +76,7 @@ export const DEFAULT_MODELS = {
     model: "anthropic/claude-sonnet-5.5",
     reasoningLevel: "medium",
   },
-  /** Reviewed changes to the topic tree. */
+  /** Reviewed changes to the workstreams and groups. */
   tidy: {
     kind: "gateway",
     model: "anthropic/claude-sonnet-5.5",
@@ -174,21 +174,21 @@ const GROUPS = {
   newWork: {
     /** Where work with no code target starts; "" is a personal workspace. */
     homeProjectId: [z.string(), ""],
-    /** Preview a draft's topic and title in the composer while you type. */
+    /** Preview a draft's workstream and title in the composer while you type. */
     suggestions: [z.boolean(), true],
   },
   analysis: {
     /**
      * Names and files new threads: the composer's preview, a thread's first
-     * request, a move into a multi-topic group, topic repair, and the
+     * request, a move into a multi-workstream group, workstream repair, and the
      * categories fit check.
      */
     newThreadModel: [modelChoiceSchema, DEFAULT_MODELS.newThread],
-    /** Updates a thread's title, goal, status, and topic when a turn ends. */
+    /** Updates a thread's title, goal, status, and workstream when a turn ends. */
     turnEndModel: [modelChoiceSchema, DEFAULT_MODELS.turnEnd],
   },
   organize: {
-    /** Suggest splits and tidy edits to the topic tree for review. */
+    /** Suggest splits and tidy edits to the workstreams and groups for review. */
     suggestions: [z.boolean(), true],
     /** The model that writes those suggestions. */
     tidyModel: [modelChoiceSchema, DEFAULT_MODELS.tidy],

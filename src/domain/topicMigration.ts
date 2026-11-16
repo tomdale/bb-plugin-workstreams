@@ -1,15 +1,16 @@
 import { z } from "zod";
-import type { Topic } from "./topics.ts";
+import type { Workstream } from "./topics.ts";
+import { PATH_MARK } from "./topic-path.ts";
 
-export const topicMigrationInput = z.object({
+export const workstreamMigrationInput = z.object({
   resetThreadIds: z.array(z.string().min(1)).max(1000).default([]),
   choices: z
     .array(
-      z.object({ threadId: z.string().min(1), topicId: z.string().min(1) }),
+      z.object({ threadId: z.string().min(1), workstreamId: z.string().min(1) }),
     )
     .max(1000)
     .default([]),
-  newTopics: z
+  newWorkstreams: z
     .array(
       z.object({
         key: z.string().min(1).max(100),
@@ -18,7 +19,7 @@ export const topicMigrationInput = z.object({
           .trim()
           .min(1)
           .max(80)
-          .refine((name) => !name.includes(":")),
+          .refine((name) => !name.includes(PATH_MARK)),
         description: z.string().trim().max(300),
         parentId: z.string().nullable(),
         aliases: z.array(z.string().trim().min(1).max(200)).max(50).default([]),
@@ -27,25 +28,25 @@ export const topicMigrationInput = z.object({
     .max(100)
     .default([]),
 });
-export type TopicMigrationInput = z.input<typeof topicMigrationInput>;
-export type TopicMigrationPlan = {
+export type WorkstreamMigrationInput = z.input<typeof workstreamMigrationInput>;
+export type WorkstreamMigrationPlan = {
   id: string;
   fingerprint: string;
-  topics: Topic[];
+  workstreams: Workstream[];
   removed: Array<{
     id: string;
     path: string;
     targetId: string;
     projectId: string | null;
-    projectSource: Topic["projectSource"];
+    projectSource: Workstream["projectSource"];
   }>;
   changes: Array<{
     threadId: string;
     from: string;
     to: string;
-    topicId: string;
+    workstreamId: string;
     source: string;
   }>;
   resets: Array<{ threadId: string; from: string; source: string }>;
-  blockers: Array<{ threadId: string | null; topicId: string; reason: string }>;
+  blockers: Array<{ threadId: string | null; workstreamId: string; reason: string }>;
 };

@@ -6,12 +6,12 @@ import { isComplete, workView } from "../domain/status.ts";
 import type { Analyzer } from "./analyzer.ts";
 import type { CleanupMember } from "./cleanup.ts";
 import { getMeta, setMeta, type Database } from "./db.ts";
-import type { TopicStore } from "./topics.ts";
+import type { WorkstreamStore } from "./topics.ts";
 import { activeHome } from "../domain/regroup.ts";
 import { layoutGroups, type LayoutNode } from "../domain/layout.ts";
 import { assignmentEvidence } from "./evidence.ts";
-import { topicPath } from "../domain/topic-path.ts";
-import type { TopicAssignment, Topic } from "../domain/topics.ts";
+import { workstreamPath } from "../domain/topic-path.ts";
+import type { WorkstreamAssignment, Workstream } from "../domain/topics.ts";
 import { listSections, type InventoryThread } from "./inventory.ts";
 import type { WorkstreamService } from "./service.ts";
 import type { Journal, NewEntry } from "./journal.ts";
@@ -26,7 +26,7 @@ type OrganizerDeps = {
   sdk: () => BbPluginApi["sdk"];
   db: Database;
   service: WorkstreamService;
-  topics: TopicStore;
+  workstreamStore: WorkstreamStore;
   analyzer: Analyzer;
   /** The agent recap for a thread's latest turn; it outranks analysis. */
   recap?: (threadId: string) => Recap | undefined;
@@ -40,27 +40,26 @@ type OrganizerDeps = {
 };
 
 const KEY = "live_organization";
-/** The last applied topic layout, shared by sidebar and Home. */
+/** The last applied workstream layout, shared by sidebar and Home. */
 const LAYOUT_KEY = "layout";
 
 type StoredLayout = { nodes: LayoutNode[] };
 class SupersededPlan extends Error {}
 
 const DEFAULT_COUNTS: OrganizerStateCounts = {
-  activeRoots: 0,
-  completedRoots: 0,
-  totalRoots: 0,
-  unresolvedRoots: 0,
+  activeThreads: 0,
+  completedThreads: 0,
+  totalThreads: 0,
+  noWorkstreamThreads: 0,
   activeWorkstreams: 0,
 };
 
 const DEFAULT_STATE: OrganizerState = {
   status: "idle",
-  progress: null,
   error: null,
   lastUpdatedAt: null,
   groups: [],
-  unresolved: [],
+  noWorkstream: [],
   counts: DEFAULT_COUNTS,
 };
 
@@ -77,20 +76,7 @@ export class Organizer {
   private forceNextRun = false;
   private activeRun: Promise<OrganizerState> | null = null;
 
-  constructor(private readonly deps: OrganizerDeps) {
-    const current = this.state();
-    if (
-      current &&
-      (current.status === "classifying" ||
-        current.status === "deriving" ||
-        current.status === "syncing")
-    ) {
-      this.save({
-        ...current,
-        status: "idle",
-      });
-    }
-  }
+  constructor(private readonly deps: OrganizerDeps) {}
 
   private now(): number {
     return (this.deps.now ?? Date.now)();
@@ -234,14 +220,14 @@ export class Organizer {
     revision: number;
     roots: readonly InventoryThread[];
     completed: ReadonlyMap<string, boolean>;
-    assignments: ReadonlyMap<string, TopicAssignment>;
+    assignments: ReadonlyMap<string, WorkstreamAssignment>;
     projected?: ReadonlyMap<string, string | null>;
   }): string {
     const { roots, completed, assignments, projected } = plan;
     return createHash("sha256")
       .update(
         JSON.stringify({
-          catalogRevision: plan.revision,
+          treeRevision: plan.revision,
           layout: this.storedLayout().nodes,
           roots: roots.map((root) => [
             root.id,
@@ -265,12 +251,12 @@ export class Organizer {
     let passContext: {
       roots: InventoryThread[];
       isCompletedMap: Map<string, boolean>;
-      assignments: ReadonlyMap<string, TopicAssignment>;
-      selectedEntityIds: string[];
-      entityToSection: Map<string, string>;
+      assignments: ReadonlyMap<string, WorkstreamAssignment>;
+      selectedWorkstreamIds: string[];
+      workstreamToSection: Map<string, string>;
       appliedSectionIds: Map<string, string | null>;
       evidenceById: Map<string, string>;
-      entities: Topic[];
+      workstreams: Workstream[];
     } | null = null;
 
     try {
@@ -286,10 +272,10 @@ export class Organizer {
         .filter((t) => !t.isHidden && !t.isArchived);
 
       const factRevision = this.factRevision;
-      const revision = this.deps.topics.revision();
+      const revision = this.deps.workstreamStore.revision();
       const isCompletedMap = this.completed(roots);
       const rootIds = roots.map((root) => root.id);
-      const assignments = this.deps.topics.assignmentsOf(rootIds);
+      const assignments = this.deps.workstreamStore.assignmentsOf(rootIds);
 
       // Check if snapshot is identical to last completed run
       const snapshotHash = this.fingerprint({
@@ -308,13 +294,13 @@ export class Organizer {
         return currentState;
       }
 
-      // What each root's topic was settled from, shown for roots with none.
+      // What each root's workstream was settled from, shown for roots with none.
       const evidenceById = new Map<string, string>();
       for (const [id, assignment] of assignments)
         if (assignment.evidence) evidenceById.set(id, assignment.evidence);
 
       // 2. Derivation stage
-      const entities = this.deps.topics.list();
+      const workstreams = this.deps.workstreamStore.list();
 
       const counts: Record<string, number> = {};
       for (const root of roots) {
@@ -322,46 +308,47 @@ export class Organizer {
         if (
           assignment &&
           assignment.status === "assigned" &&
-          assignment.entityId
+          assignment.workstreamId
         )
-          counts[assignment.entityId] = (counts[assignment.entityId] ?? 0) + 1;
+          counts[assignment.workstreamId] =
+            (counts[assignment.workstreamId] ?? 0) + 1;
       }
 
       const layout = layoutGroups({
-        topics: entities,
+        workstreams: workstreams,
         counts,
       });
-      const selectedEntityIds = [...layout.listed];
+      const selectedWorkstreamIds = [...layout.listed];
 
       // 3. Sync Native Section Projection
-      const entityToSection = new Map<string, string>();
+      const workstreamToSection = new Map<string, string>();
       const appliedSectionIds = new Map<string, string | null>();
 
       passContext = {
         roots,
         isCompletedMap,
         assignments,
-        selectedEntityIds,
-        entityToSection,
+        selectedWorkstreamIds,
+        workstreamToSection,
         appliedSectionIds,
         evidenceById,
-        entities,
+        workstreams,
       };
 
       const evidence = (
-        topics: readonly Topic[],
+        workstreams: readonly Workstream[],
         completed: ReadonlyMap<string, boolean>,
-        current: ReadonlyMap<string, TopicAssignment>,
+        current: ReadonlyMap<string, WorkstreamAssignment>,
       ) =>
         JSON.stringify({
-          entities: topics,
+          workstreams: workstreams,
           completed: [...completed],
           assignments: rootIds.map((id) =>
             assignmentEvidence(current.get(id)!),
           ),
         });
-      const planEvidence = evidence(entities, isCompletedMap, assignments);
-      // Topics, assignments, and analysis change only while the pass awaits
+      const planEvidence = evidence(workstreams, isCompletedMap, assignments);
+      // Workstreams, assignments, and analysis change only while the pass awaits
       // BB, so the evidence is read again only after an await.
       let awaited = false;
       const awaitBb = async <T>(call: Promise<T>): Promise<T> => {
@@ -382,9 +369,9 @@ export class Organizer {
         awaited = false;
         if (
           evidence(
-            this.deps.topics.list(),
+            this.deps.workstreamStore.list(),
             this.completed(roots),
-            this.deps.topics.assignmentsOf(rootIds),
+            this.deps.workstreamStore.assignmentsOf(rootIds),
           ) !== planEvidence
         )
           throw new SupersededPlan();
@@ -400,15 +387,15 @@ export class Organizer {
           const liveSections = await awaitBb(listSections(sdk));
           for (const section of liveSections)
             changes.name(section.id, section.name);
-          const groupBindings = new Map(this.deps.topics.groups()); // sectionId -> entityId
+          const groupBindings = new Map(this.deps.workstreamStore.groups()); // sectionId -> entityId
           assertCurrent();
-          for (const entityId of selectedEntityIds) {
+          for (const workstreamId of selectedWorkstreamIds) {
             assertCurrent();
-            const expectedName = topicPath(entityId, entities);
+            const expectedName = workstreamPath(workstreamId, workstreams);
 
             // Check if an existing section is already bound to this entityId
             let section = liveSections.find(
-              (s) => groupBindings.get(s.id) === entityId,
+              (s) => groupBindings.get(s.id) === workstreamId,
             );
 
             if (!section) {
@@ -417,13 +404,13 @@ export class Organizer {
                 (s) =>
                   s.name.toLowerCase() === expectedName.toLowerCase() &&
                   (!groupBindings.has(s.id) ||
-                    groupBindings.get(s.id) === entityId ||
-                    !selectedEntityIds.includes(groupBindings.get(s.id)!)),
+                    groupBindings.get(s.id) === workstreamId ||
+                    !selectedWorkstreamIds.includes(groupBindings.get(s.id)!)),
               );
               if (candidate) {
                 section = candidate;
-                this.deps.topics.bindGroup(section.id, entityId);
-                groupBindings.set(section.id, entityId);
+                this.deps.workstreamStore.bindGroup(section.id, workstreamId);
+                groupBindings.set(section.id, workstreamId);
               }
             }
 
@@ -437,13 +424,13 @@ export class Organizer {
               changes.name(created.id, created.name);
               this.deps.db
                 .prepare(
-                  `INSERT INTO ws_workstream (section_id, created_by)
+                  `INSERT INTO ws_section (section_id, created_by)
                VALUES (?, 'workstreams')
                ON CONFLICT(section_id) DO UPDATE SET created_by = 'workstreams'`,
                 )
                 .run(created.id);
-              this.deps.topics.bindGroup(created.id, entityId);
-              groupBindings.set(created.id, entityId);
+              this.deps.workstreamStore.bindGroup(created.id, workstreamId);
+              groupBindings.set(created.id, workstreamId);
               this.deps.service.seeSection(created.id, created.name);
             } else if (section.name !== expectedName) {
               // Rename section if entity name changed
@@ -463,7 +450,7 @@ export class Organizer {
               this.deps.service.seeSection(section.id, expectedName);
             }
 
-            entityToSection.set(entityId, section.id);
+            workstreamToSection.set(workstreamId, section.id);
           }
 
           // Update roots' sectionId in BB
@@ -475,15 +462,16 @@ export class Organizer {
             if (
               assignment &&
               assignment.status === "assigned" &&
-              assignment.entityId
+              assignment.workstreamId
             ) {
-              const homeEntityId = activeHome(
-                assignment.entityId,
-                selectedEntityIds,
-                entities,
+              const homeWorkstreamId = activeHome(
+                assignment.workstreamId,
+                selectedWorkstreamIds,
+                workstreams,
               );
-              if (homeEntityId) {
-                targetSectionId = entityToSection.get(homeEntityId) ?? null;
+              if (homeWorkstreamId) {
+                targetSectionId =
+                  workstreamToSection.get(homeWorkstreamId) ?? null;
               }
             }
 
@@ -525,14 +513,17 @@ export class Organizer {
           }
 
           // Clean up unused empty sections that belonged to Workstreams
-          const activeSectionIds = new Set(entityToSection.values());
+          const activeSectionIds = new Set(workstreamToSection.values());
 
           for (const section of liveSections) {
             // Selected sections retain their bindings.
             if (activeSectionIds.has(section.id)) continue;
 
-            const boundEntityId = groupBindings.get(section.id);
-            if (boundEntityId && !selectedEntityIds.includes(boundEntityId)) {
+            const boundWorkstreamId = groupBindings.get(section.id);
+            if (
+              boundWorkstreamId &&
+              !selectedWorkstreamIds.includes(boundWorkstreamId)
+            ) {
               const members = await awaitBb(this.deps.members(section.id));
               const activeMembers = members.filter(
                 (m) => m.archivedAt === null,
@@ -542,7 +533,7 @@ export class Organizer {
                 // Only sections created by Workstreams may be deleted.
                 const wsRow = this.deps.db
                   .prepare(
-                    "SELECT created_by FROM ws_workstream WHERE section_id = ?",
+                    "SELECT created_by FROM ws_section WHERE section_id = ?",
                   )
                   .get(section.id) as { created_by: string } | undefined;
 
@@ -553,10 +544,10 @@ export class Organizer {
                     .prepare("DELETE FROM ws_seen_section WHERE section_id = ?")
                     .run(section.id);
                   this.deps.db
-                    .prepare("DELETE FROM ws_workstream WHERE section_id = ?")
+                    .prepare("DELETE FROM ws_section WHERE section_id = ?")
                     .run(section.id);
                 }
-                this.deps.topics.unbindGroup(section.id);
+                this.deps.workstreamStore.unbindGroup(section.id);
                 groupBindings.delete(section.id);
               }
             }
@@ -572,20 +563,22 @@ export class Organizer {
       // Seed visible population after derived moves, before an immediate archive.
       await this.deps.service.reconcile();
 
-      // Topics Workstreams discovered that nothing uses any more go away.
-      const pruned = this.deps.topics.prune();
+      // Workstreams Workstreams discovered that nothing uses any more go away.
+      const pruned = this.deps.workstreamStore.prune();
       if (pruned.length)
         this.deps.journal?.add({
-          action: "remove-topic",
-          source: "auto",
+          action: "workstream-removed",
+          source: "workstreams",
           rationale:
             pruned.length === 1
-              ? `Removed the unused topic ${pruned[0]!.name}`
-              : `Removed ${pruned.length} unused topics`,
+              ? `Removed the unused workstream ${pruned[0]!.name}`
+              : `Removed ${pruned.length} unused workstreams`,
           threads: [],
           workstreams: [],
           undo: null,
-          detail: pruned.map((topic) => `Removed ${topic.name}`).join("\n"),
+          detail: pruned
+            .map((workstream) => `Removed ${workstream.name}`)
+            .join("\n"),
         });
 
       // 4. Assemble OrganizerState
@@ -595,10 +588,10 @@ export class Organizer {
         roots,
         isCompletedMap,
         assignments,
-        selectedEntityIds,
-        entityToSection,
+        selectedWorkstreamIds,
+        workstreamToSection,
         evidenceById,
-        entities,
+        workstreams,
       });
 
       setMeta(
@@ -628,17 +621,17 @@ export class Organizer {
       const errMsg = err instanceof Error ? err.message : String(err);
 
       // Report the applied prefix rather than claiming the whole plan succeeded.
-      if (passContext && passContext.selectedEntityIds.length > 0) {
+      if (passContext && passContext.selectedWorkstreamIds.length > 0) {
         const failedState = this.assembleOrganizerState({
           status: "failed",
           error: errMsg,
           roots: passContext.roots,
           isCompletedMap: passContext.isCompletedMap,
           assignments: passContext.assignments,
-          selectedEntityIds: passContext.selectedEntityIds,
-          entityToSection: passContext.entityToSection,
+          selectedWorkstreamIds: passContext.selectedWorkstreamIds,
+          workstreamToSection: passContext.workstreamToSection,
           evidenceById: passContext.evidenceById,
-          entities: passContext.entities,
+          workstreams: passContext.workstreams,
         });
         return this.save(failedState);
       }
@@ -647,15 +640,14 @@ export class Organizer {
         ...currentState,
         status: "failed",
         error: errMsg,
-        progress: null,
       });
     }
   }
 
   /**
    * Records one pass's section changes as one Activity entry. It has no undo:
-   * workstreams follow topics, so the next pass would redo whatever an undo
-   * reverted. Changing a thread's topic is how to move it.
+   * workstreams follow workstreams, so the next pass would redo whatever an undo
+   * reverted. Changing a thread's workstream is how to move it.
    */
   private record(changes: SyncChanges, failed: boolean): void {
     const entry = changes.entry(failed);
@@ -667,11 +659,11 @@ export class Organizer {
     error: string | null;
     roots: InventoryThread[];
     isCompletedMap: Map<string, boolean>;
-    assignments: ReadonlyMap<string, TopicAssignment>;
-    selectedEntityIds: string[];
-    entityToSection: Map<string, string>;
+    assignments: ReadonlyMap<string, WorkstreamAssignment>;
+    selectedWorkstreamIds: string[];
+    workstreamToSection: Map<string, string>;
     evidenceById: Map<string, string>;
-    entities: Topic[];
+    workstreams: Workstream[];
   }): OrganizerState {
     const {
       status,
@@ -679,45 +671,47 @@ export class Organizer {
       roots,
       isCompletedMap,
       assignments,
-      selectedEntityIds,
-      entityToSection,
+      selectedWorkstreamIds,
+      workstreamToSection,
       evidenceById,
-      entities,
+      workstreams,
     } = options;
 
     const groupsMap = new Map<string, OrganizerStateGroup>();
-    for (const entityId of selectedEntityIds) {
-      const entity = entities.find((e) => e.id === entityId);
-      const name = entity ? topicPath(entityId, entities) : entityId;
-      groupsMap.set(entityId, {
-        key: entityId,
-        sectionId: entityToSection.get(entityId) ?? null,
+    for (const workstreamId of selectedWorkstreamIds) {
+      const workstream = workstreams.find((e) => e.id === workstreamId);
+      const name = workstream
+        ? workstreamPath(workstreamId, workstreams)
+        : workstreamId;
+      groupsMap.set(workstreamId, {
+        key: workstreamId,
+        sectionId: workstreamToSection.get(workstreamId) ?? null,
         name,
-        description: entity?.description || name,
+        description: workstream?.description || name,
         activeCount: 0,
         completedCount: 0,
         totalCount: 0,
-        roots: [],
+        threads: [],
       });
     }
 
     const unresolvedTasks: OrganizerStateUnresolved[] = [];
-    let activeRootsCount = 0;
-    let completedRootsCount = 0;
+    let activeCount = 0;
+    let completedCount = 0;
 
     for (const root of roots) {
       const assignment = assignments.get(root.id);
       const isCompleted = isCompletedMap.get(root.id) ?? false;
       if (isCompleted) {
-        completedRootsCount++;
+        completedCount++;
       } else {
-        activeRootsCount++;
+        activeCount++;
       }
 
       if (
         !assignment ||
-        assignment.status === "unresolved" ||
-        !assignment.entityId
+        assignment.status === "none" ||
+        !assignment.workstreamId
       ) {
         unresolvedTasks.push({
           id: root.id,
@@ -725,18 +719,18 @@ export class Organizer {
           completed: isCompleted,
           evidence: evidenceById.get(root.id) ?? null,
           reason: isCompleted
-            ? "Done; no topic."
-            : "No topic yet, so it stays Unfiled.",
+            ? "Complete; no workstream."
+            : "It has no workstream, so it's listed under Other.",
         });
         continue;
       }
 
-      const homeEntityId = activeHome(
-        assignment.entityId,
-        selectedEntityIds,
-        entities,
+      const homeWorkstreamId = activeHome(
+        assignment.workstreamId,
+        selectedWorkstreamIds,
+        workstreams,
       );
-      const group = homeEntityId ? groupsMap.get(homeEntityId) : null;
+      const group = homeWorkstreamId ? groupsMap.get(homeWorkstreamId) : null;
 
       if (group) {
         if (isCompleted) {
@@ -746,26 +740,30 @@ export class Organizer {
         }
         group.totalCount++;
 
-        const entity = entities.find((e) => e.id === assignment.entityId);
-        const topicLabel = entity ? topicPath(entity.id, entities) : null;
+        const workstream = workstreams.find(
+          (e) => e.id === assignment.workstreamId,
+        );
+        const workstreamLabel = workstream
+          ? workstreamPath(workstream.id, workstreams)
+          : null;
 
         let reason: string;
         if (isCompleted) {
-          reason = `Done; kept in ${group.name}.`;
+          reason = `Complete; kept in ${group.name}.`;
         } else if (assignment.provenance === "manual") {
-          reason = `You set its topic to ${topicLabel}; filed in ${group.name}.`;
-        } else if (topicLabel && topicLabel !== group.name) {
-          reason = `Its topic is ${topicLabel}; filed in ${group.name}.`;
+          reason = `You moved it to ${workstreamLabel}; listed in ${group.name}.`;
+        } else if (workstreamLabel && workstreamLabel !== group.name) {
+          reason = `Its workstream is ${workstreamLabel}; listed in ${group.name}.`;
         } else {
-          reason = `Its topic is ${group.name}.`;
+          reason = `Its workstream is ${group.name}.`;
         }
 
-        group.roots.push({
+        group.threads.push({
           id: root.id,
           title: root.title,
           completed: isCompleted,
-          topicId: assignment.entityId,
-          topicLabel,
+          workstreamId: assignment.workstreamId,
+          workstreamLabel,
           provenance: assignment.provenance,
           reason,
         });
@@ -775,7 +773,8 @@ export class Organizer {
           title: root.title,
           completed: isCompleted,
           evidence: evidenceById.get(root.id) ?? null,
-          reason: "Its topic has no workstream, so it stays Unfiled.",
+          reason:
+            "Its workstream isn't in the sidebar, so it's listed under Other.",
         });
       }
     }
@@ -786,16 +785,15 @@ export class Organizer {
 
     return {
       status,
-      progress: null,
       error,
       lastUpdatedAt: this.now(),
       groups: finalGroups,
-      unresolved: unresolvedTasks,
+      noWorkstream: unresolvedTasks,
       counts: {
-        activeRoots: activeRootsCount,
-        completedRoots: completedRootsCount,
-        totalRoots: roots.length,
-        unresolvedRoots: unresolvedTasks.length,
+        activeThreads: activeCount,
+        completedThreads: completedCount,
+        totalThreads: roots.length,
+        noWorkstreamThreads: unresolvedTasks.length,
         activeWorkstreams: finalGroups.length,
       },
     };
@@ -822,7 +820,7 @@ class SyncChanges {
 
   private nameOf(sectionId: string | null): string {
     return sectionId === null
-      ? "Unfiled"
+      ? "Other"
       : (this.names.get(sectionId) ?? "a deleted workstream");
   }
 
@@ -852,7 +850,7 @@ class SyncChanges {
       ...removed.map(
         (id) => `Removed ${this.nameOf(id)}, which had no threads`,
       ),
-      "Workstreams follow topics; change a thread’s topic to move it.",
+      "Each workstream lists its own threads; move a thread to change where it is listed.",
       ...(failed
         ? ["The pass stopped partway; the next one finishes it."]
         : []),
@@ -863,11 +861,20 @@ class SyncChanges {
       ...removed,
       ...moves.flatMap((m) => [m.from, m.to].filter((id) => id !== null)),
     ]);
+    // One entry, so one Undo reverses the pass; it is named for its main change.
+    const action = moves.length
+      ? "thread-moved"
+      : created.length
+        ? "workstream-created"
+        : renamed.length
+          ? "workstream-renamed"
+          : "workstream-removed";
+    const said = summary.join(", ");
     return {
-      action: "batch",
-      source: "auto",
+      action,
+      source: "workstreams",
       status: failed ? "failed" : "applied",
-      rationale: `Organized by topic: ${summary.join(", ")}`,
+      rationale: `${said[0]!.toUpperCase()}${said.slice(1)}`,
       threads: moves.map((m) => ({ id: m.threadId, name: m.title })),
       workstreams: [...touched].map((id) => ({ id, name: this.nameOf(id) })),
       undo: null,

@@ -22,8 +22,8 @@ export function shareArrangement<T extends WorkstreamThread>(
 
   const share = (node: WorkstreamNode<T>): WorkstreamNode<T> => {
     const last = before.get(node.id);
-    const subgroups = shareList(last?.subgroups, node.subgroups, share);
-    const candidate = { ...node, subgroups };
+    const workstreams = shareList(last?.workstreams, node.workstreams, share);
+    const candidate = { ...node, workstreams };
     return last && sameGroup(last, candidate) ? last : candidate;
   };
 
@@ -32,24 +32,24 @@ export function shareArrangement<T extends WorkstreamThread>(
     pinned: shareList(previous?.pinned, next.pinned, share),
     populated: shareList(previous?.populated, next.populated, share),
     dormant: shareList(previous?.dormant, next.dormant, share),
-    unfiled: share(next.unfiled),
+    other: share(next.other),
   };
 }
 
-/** Every node of an arrangement, nested subgroups included. */
+/** Every node of an arrangement, nested workstreams included. */
 function nodesIn<T extends WorkstreamThread>(
   arrangement: GroupArrangement<T>,
 ): WorkstreamNode<T>[] {
   const nodes: WorkstreamNode<T>[] = [];
   const visit = (node: WorkstreamNode<T>) => {
     nodes.push(node);
-    node.subgroups.forEach(visit);
+    node.workstreams.forEach(visit);
   };
   [
     ...arrangement.pinned,
     ...arrangement.populated,
     ...arrangement.dormant,
-    arrangement.unfiled,
+    arrangement.other,
   ].forEach(visit);
   return nodes;
 }
@@ -69,7 +69,7 @@ function shareList<T>(
 
 /**
  * Whether a node drawn now draws exactly what the previous one did. Its rows
- * and subgroups are the previous objects whenever their own contents match,
+ * and workstreams are the previous objects whenever their own contents match,
  * so those compare by identity.
  */
 function sameGroup<T extends WorkstreamThread>(
@@ -83,15 +83,15 @@ function sameGroup<T extends WorkstreamThread>(
     before.total === after.total &&
     before.needsYou === after.needsYou &&
     before.lastActiveAt === after.lastActiveAt &&
-    before.prioritized === after.prioritized &&
-    before.topicId === after.topicId &&
-    before.parentTopicId === after.parentTopicId &&
+    before.focused === after.focused &&
+    before.workstreamId === after.workstreamId &&
+    before.parentWorkstreamId === after.parentWorkstreamId &&
     before.hasSection === after.hasSection &&
     before.inline === after.inline &&
     before.categories === after.categories &&
     sameList(before.rows, after.rows) &&
     sameList(before.sectionIds, after.sectionIds) &&
-    sameList(before.subgroups, after.subgroups)
+    sameList(before.workstreams, after.workstreams)
   );
 }
 

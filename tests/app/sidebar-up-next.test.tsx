@@ -107,7 +107,7 @@ it("ranks a current needs-decision result as a question, but not a stale one", a
     within(band).getAllByRole("img", { name: "Needs input" }),
   ).toHaveLength(1);
   expect(
-    within(slot.getByRole("region", { name: "Unfiled" })).getAllByRole("img", {
+    within(slot.getByRole("region", { name: "Other" })).getAllByRole("img", {
       name: "Needs input",
     }),
   ).toHaveLength(1);
@@ -244,7 +244,7 @@ it("marks the agent's reported state, which outranks analysis", async () => {
       recaps: { asked: recap("review"), finished: recap("complete") },
     },
   );
-  const group = await slot.findByRole("region", { name: "Unfiled" });
+  const group = await slot.findByRole("region", { name: "Other" });
   const band = await slot.findByRole("region", { name: "Up Next" });
   expect(
     within(band).getByRole("link", { name: "Asked, Ready for review" }),
@@ -285,16 +285,16 @@ it("keeps Up Next open and names each row's workstream", async () => {
         title: "Manager",
         latestAttentionAt: 200,
       }),
-      sidebarThread("delegate", {
+      sidebarThread("child", {
         parentThreadId: "manager",
         sectionId: "sec_a",
-        title: "Delegate",
+        title: "Child",
         latestAttentionAt: 100,
       }),
     ],
     {
       settings: { showRecent: false },
-      analysis: { manager: asks(200), delegate: asks(100) },
+      analysis: { manager: asks(200), child: asks(100) },
     },
   );
   const band = await slot.findByRole("region", { name: "Up Next" });

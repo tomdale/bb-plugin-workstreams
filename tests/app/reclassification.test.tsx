@@ -1,16 +1,16 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
-import { Reclassification } from "../../src/app/page/Reclassification.tsx";
+import { Repair } from "../../src/app/page/RepairPreview.tsx";
 afterEach(cleanup);
 it("shows a read-only preview before an explicit apply and reports skipped corrections", async () => {
   const applied = vi.fn();
   const call = vi.fn(async (method: string) =>
-    method === "reclassificationPreview"
+    method === "repairPreview"
       ? {
           id: "plan",
           at: 1,
-          definitionKey: "catalog",
+          definitionKey: "tree",
           rows: [
             {
               threadId: "t",
@@ -24,24 +24,24 @@ it("shows a read-only preview before an explicit apply and reports skipped corre
       : { changed: 0, skipped: 1 },
   );
   render(
-    <Reclassification
+    <Repair
       rpc={{ call } as never}
       threadIds={["t"]}
       onApplied={applied}
     />,
   );
   fireEvent.click(
-    screen.getByRole("button", { name: "Preview topic repairs" }),
+    screen.getByRole("button", { name: "Preview moves" }),
   );
   await screen.findByText("Pipeline audit: Alpha → Beta");
   expect(screen.getByRole("status").textContent).toContain(
-    "1 topic proposals ready for review",
+    "1 moves ready for review",
   );
   expect(call).toHaveBeenCalledTimes(1);
   expect(applied).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole("button", { name: "Apply topic repairs" }));
-  await screen.findByText(/0 topics changed; 1 skipped/);
-  expect(call).toHaveBeenLastCalledWith("reclassificationApply", {
+  fireEvent.click(screen.getByRole("button", { name: "Apply the preview" }));
+  await screen.findByText(/Moved 0 threads; skipped 1/);
+  expect(call).toHaveBeenLastCalledWith("repairApply", {
     planId: "plan",
   });
   expect(applied).toHaveBeenCalledOnce();

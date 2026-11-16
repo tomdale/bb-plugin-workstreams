@@ -1,11 +1,11 @@
 import { useCallback, type Dispatch, type SetStateAction } from "react";
 import { groupCollapseKey, useCollapsed } from "./useCollapsed.ts";
-import type { TopicState } from "../../domain/topics.ts";
+import type { WorkstreamState } from "../../domain/topics.ts";
 
-/** What names a group's collapse state: its section, and its topic when it has one. */
+/** What names a group's collapse state: its section, and its workstream when it has one. */
 export type CollapseRef = {
   readonly id: string;
-  readonly topicId?: string | null;
+  readonly workstreamId?: string | null;
 };
 
 export type CollapseScope = {
@@ -21,8 +21,8 @@ export type CollapseScope = {
 
 /**
  * Every group fold in the thread list. A group's stored state follows its
- * topic, so it survives its section being deleted and recreated; a shared
- * topic's header has no section to look the topic up by, so it names its own.
+ * workstream, so it survives its section being deleted and recreated; a shared
+ * workstream's header has no section to look the workstream up by, so it names its own.
  * Folded threads and bands use the stored state directly (`isCollapsed`,
  * `toggle`).
  */
@@ -33,10 +33,10 @@ export function useGroupCollapse({
   setLowerExpanded,
 }: {
   /**
-   * The catalog's section-to-topic bindings. Only these name a fold, so a
-   * catalog change elsewhere leaves the fold callbacks as they were.
+   * The workstream tree's section-to-workstream bindings. Only these name a fold, so a
+   * workstream tree change elsewhere leaves the fold callbacks as they were.
    */
-  groups: TopicState["groups"] | undefined;
+  groups: WorkstreamState["groups"] | undefined;
   tiered: boolean;
   lowerExpanded: ReadonlySet<string>;
   setLowerExpanded: Dispatch<SetStateAction<ReadonlySet<string>>>;
@@ -44,7 +44,7 @@ export function useGroupCollapse({
   const { isCollapsed, toggle } = useCollapsed();
   const keyOf = useCallback(
     (group: CollapseRef) =>
-      groupCollapseKey(group.id, group.topicId ?? groups?.[group.id]),
+      groupCollapseKey(group.id, group.workstreamId ?? groups?.[group.id]),
     [groups],
   );
   const stored = useCallback(

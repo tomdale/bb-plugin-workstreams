@@ -19,8 +19,8 @@ import type {
   SnoozeWhen,
   ThreadSnooze,
 } from "../../domain/snooze.ts";
-import type { Topic } from "../../domain/topics.ts";
-import { topicIndex } from "../../domain/topic-path.ts";
+import type { Workstream } from "../../domain/topics.ts";
+import { workstreamIndex } from "../../domain/topic-path.ts";
 import {
   useSharedServerState,
   useSharedServerActions,
@@ -28,10 +28,10 @@ import {
   useThreadRecordSelector,
 } from "../serverState.ts";
 import { useCloseOnFoldLeave } from "./Fold.tsx";
-import { isAutomaticTopic } from "../task/TaskIdentity.tsx";
+import { isAutomaticWorkstream } from "../task/TaskIdentity.tsx";
 import { SnoozeMenuItems, type MenuKit } from "../snooze/SnoozeMenuItems.tsx";
 
-const NO_TOPICS: readonly Topic[] = [];
+const NO_WORKSTREAMS: readonly Workstream[] = [];
 
 export type RowMenuHandlers = {
   rename: (thread: PluginSidebarThread) => void;
@@ -48,7 +48,7 @@ export type RowMenuHandlers = {
   reportError: (cause: unknown) => void;
   /** The debug UI: opens the thread's model calls. */
   inspect: (thread: PluginSidebarThread) => void;
-  assignIdentity?: (thread: PluginSidebarThread, entityId: string) => void;
+  assignIdentity?: (thread: PluginSidebarThread, workstreamId: string) => void;
   reclassifyIdentity?: (thread: PluginSidebarThread) => void;
 };
 
@@ -111,32 +111,32 @@ function RowMenuContent({
   const portalScope = usePortalScopeProps();
   const debug = useDebugMode("inspect");
   const { rpc, refresh } = useSharedServerActions();
-  const entities = useSharedServerStateSelector(
-    (server) => server.catalog?.entities ?? NO_TOPICS,
+  const workstreams = useSharedServerStateSelector(
+    (server) => server.tree?.workstreams ?? NO_WORKSTREAMS,
   );
-  const index = useMemo(() => topicIndex(entities), [entities]);
-  // Undefined while an archived thread's topic is read; the submenu waits.
+  const index = useMemo(() => workstreamIndex(workstreams), [workstreams]);
+  // Undefined while an archived thread's workstream is read; the submenu waits.
   const record = useThreadRecordSelector(
     thread.id,
     (record) => record.assignment,
   );
   const assignment = record ?? null;
 
-  // Topic submenu: the same choices as the composer's topic picker.
-  const currentEntity = assignment?.entityId
-    ? (index.byId.get(assignment.entityId) ?? null)
+  // Move to: the same choices as the composer's workstream picker.
+  const currentWorkstream = assignment?.workstreamId
+    ? (index.byId.get(assignment.workstreamId) ?? null)
     : null;
-  const displayTopicPath = (id: string) => index.path(id).replace(/: /g, " › ");
-  const currentLabel = currentEntity
-    ? displayTopicPath(currentEntity.id)
-    : "No topic";
+  const displayWorkstreamPath = (id: string) => index.path(id);
+  const currentLabel = currentWorkstream
+    ? displayWorkstreamPath(currentWorkstream.id)
+    : "No workstream";
   const isFork = Boolean(assignment?.inheritedFrom);
-  const automatic = isAutomaticTopic(assignment);
-  const assignTopic = (entityId: string) => {
-    if (handlers.assignIdentity) handlers.assignIdentity(thread, entityId);
+  const automatic = isAutomaticWorkstream(assignment);
+  const assignWorkstream = (workstreamId: string) => {
+    if (handlers.assignIdentity) handlers.assignIdentity(thread, workstreamId);
     else
       void rpc
-        .call("taskAssign", { threadId: thread.id, entityId })
+        .call("threadMove", { threadId: thread.id, workstreamId })
         .then(() => refresh())
         .catch(handlers.reportError);
   };
@@ -155,7 +155,7 @@ function RowMenuContent({
         ) : null}
         <Separator />
         <ContextMenu.Sub>
-          <SubTrigger disabled={record === undefined}>Topic</SubTrigger>
+          <SubTrigger disabled={record === undefined}>Move to</SubTrigger>
           <ContextMenu.Portal>
             <ContextMenu.SubContent
               {...portalScope}
@@ -164,7 +164,7 @@ function RowMenuContent({
               {isFork ? (
                 <Item disabled onSelect={() => undefined}>
                   <span className="flex-1 truncate">
-                    {currentLabel} (same as parent thread)
+                    {currentLabel} (follows its parent thread)
                   </span>
                 </Item>
               ) : (
@@ -176,7 +176,7 @@ function RowMenuContent({
                         handlers.reclassifyIdentity(thread);
                       } else {
                         void rpc
-                          .call("taskReclassify", { threadId: thread.id })
+                          .call("threadAutomatic", { threadId: thread.id })
                           .then(() => refresh())
                           .catch(handlers.reportError);
                       }
@@ -193,18 +193,18 @@ function RowMenuContent({
                     ) : null}
                   </Item>
                   <Separator />
-                  {index.leafTopics.length ? (
-                    index.leafTopics.map(({ entity }) => {
+                  {index.leafWorkstreams.length ? (
+                    index.leafWorkstreams.map(({ workstream }) => {
                       const isChosen =
-                        !automatic && entity.id === currentEntity?.id;
+                        !automatic && workstream.id === currentWorkstream?.id;
                       return (
                         <Item
-                          key={entity.id}
+                          key={workstream.id}
                           disabled={isChosen}
-                          onSelect={() => assignTopic(entity.id)}
+                          onSelect={() => assignWorkstream(workstream.id)}
                         >
                           <span className="flex-1 truncate">
-                            {displayTopicPath(entity.id)}
+                            {displayWorkstreamPath(workstream.id)}
                           </span>
                           {isChosen ? (
                             <Icon name="Check" className="ml-2 size-3.5" />
@@ -213,9 +213,9 @@ function RowMenuContent({
                       );
                     })
                   ) : (
-                    // A topic tree always has a leaf, so this is an empty catalog.
+                    // A workstreams and groups always has a leaf, so this is an empty workstream tree.
                     <Item disabled onSelect={() => undefined}>
-                      No topics yet
+                      No workstreams yet
                     </Item>
                   )}
                 </>

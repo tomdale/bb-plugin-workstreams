@@ -19,7 +19,7 @@
  *
  * Only suggestions that can apply now are offered. One the tree has since
  * outgrown, while the modal is open, stays in its place, dimmed and out of
- * date, with its buttons off; the rest are counted at the foot, where Topics
+ * date, with its buttons off; the rest are counted at the foot, where Workstreams
  * can dismiss them.
  */
 import {
@@ -59,6 +59,7 @@ import {
   type SidebarView,
 } from "./suggestionMiniatures.ts";
 import type { Feed, Rpc, Suggestion } from "./useSuggestionFeed.ts";
+import { PATH_SEPARATOR } from "../../domain/topic-path.ts";
 
 type Decision = "accept" | "decline";
 type Decided = {
@@ -79,7 +80,7 @@ const DECIDED_MS = 6_000;
 const message = (cause: unknown) =>
   cause instanceof Error ? cause.message : String(cause);
 
-/** Threads moved, the measure Topics also lists suggestions by. */
+/** Threads moved, the measure Workstreams also lists suggestions by. */
 const weight = (s: Suggestion) =>
   s.change?.moves.reduce((n, m) => n + m.threads.length + m.carried, 0) ?? 0;
 
@@ -161,7 +162,7 @@ export function SuggestionsReview({
   sidebar,
   focusInitial,
   onClose,
-  onOpenTopics,
+  onOpenOrganize,
 }: {
   rpc: Rpc;
   feed: Feed;
@@ -169,7 +170,7 @@ export function SuggestionsReview({
   /** Set to a function that focuses the selected suggestion. */
   focusInitial: MutableRefObject<() => void>;
   onClose: () => void;
-  onOpenTopics: () => void;
+  onOpenOrganize: () => void;
 }) {
   const { state, setState, loadError, read, refresh } = feed;
   const compact = useIsCompactViewport();
@@ -242,7 +243,7 @@ export function SuggestionsReview({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       sidebar.projection,
-      sidebar.catalog,
+      sidebar.tree,
       sidebar.sort,
       sidebar.manualOrder,
       sidebar.sections,
@@ -502,16 +503,16 @@ export function SuggestionsReview({
                 className={MENU_ITEM_CLASS}
                 onSelect={() => decideAll("decline")}
               >
-                Reject all
+                Decline all
               </DropdownMenu.Item>
               <DropdownMenu.Separator className={MENU_SEPARATOR_CLASS} />
             </>
           ) : null}
           <DropdownMenu.Item
             className={MENU_ITEM_CLASS}
-            onSelect={onOpenTopics}
+            onSelect={onOpenOrganize}
           >
-            Open Topics
+            Open Organize
           </DropdownMenu.Item>
         </DropdownMenu.Content>
       </DropdownMenu.Portal>
@@ -618,7 +619,7 @@ export function SuggestionsReview({
                   .map(
                     (f) =>
                       `${plural(f.threads.length, "thread")} to ${
-                        f.to.prefix ? `${f.to.prefix}: ` : ""
+                        f.to.prefix ? `${f.to.prefix}${PATH_SEPARATOR}` : ""
                       }${f.to.name}`,
                   )
                   .join("; ") + "."
@@ -778,7 +779,7 @@ export function SuggestionsReview({
                   onClick={() => decideAll("decline")}
                   className={TEXT_BUTTON}
                 >
-                  Reject all
+                  Decline all
                 </button>
               </div>
             ) : null}

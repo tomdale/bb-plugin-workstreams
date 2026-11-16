@@ -14,7 +14,7 @@ import {
 import { WorkstreamIcon } from "../WorkstreamIcon.tsx";
 import {
   workstreamColorStyle,
-  type TopicColor,
+  type WorkstreamColor,
 } from "../../domain/workstreamColor.ts";
 import type { ServerState, WorkView } from "../useWorkstreams.ts";
 import { workView } from "../../domain/status.ts";
@@ -61,7 +61,7 @@ export const HomeThreadRow = memo(function HomeThreadRow({
   showAge: boolean;
   workstreamName?: string;
   workstreamHue?: number;
-  workstreamLevel?: TopicColor["level"];
+  workstreamLevel?: WorkstreamColor["level"];
   /** False in a list of pinned threads, whose heading already says so. */
   showPin?: boolean;
   trailing?: string;
@@ -153,8 +153,8 @@ export function HomeRow({
   showMarkSlot: boolean;
   /** The Timestamp setting: ages show only when it says Always. */
   showAge: boolean;
-  /** The workstream Up Next names under the title; null for Unfiled. */
-  workstream?: { name: string; color: TopicColor } | null;
+  /** The workstream Up Next names under the title; null for Other. */
+  workstream?: { name: string; color: WorkstreamColor } | null;
   /** What the thread asks of the user, from its current analysis. */
   ask?: string | null;
   /** Whether the row marks a pinned thread; on unless the list is Pinned. */

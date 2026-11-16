@@ -5,9 +5,9 @@
  * looking at now rather than only behind the next one Workstreams proposes.
  *
  * The match is by kind and time, because a suggestion is stored right after its
- * call returns: a split names the topic its call was about, and a tidy edit
+ * call returns: a split names the workstream its call was about, and a tidy edit
  * belongs to the newest tidy pass before it, which that pass's own outcome
- * confirms when the edit names a thread or topic. A call that has left the
+ * confirms when the edit names a thread or workstream. A call that has left the
  * trace store leaves the suggestion without one, which the debug thread says.
  */
 import { getMeta, setMeta, type Database } from "./db.ts";
@@ -34,7 +34,7 @@ const isId = (value: unknown): value is string =>
     value,
   );
 
-/** The threads and topics an edit names, which its call's answer names too. */
+/** The threads and workstreams an edit names, which its call's answer names too. */
 function refsOf(body: Record<string, unknown>): string[] {
   return Object.values(body).filter(isId);
 }
@@ -48,7 +48,7 @@ function mentions(trace: Trace, refs: readonly string[]): boolean {
 
 /**
  * The call that produced `row`, or null when none is still stored: a split's
- * own topic, else the newest pass of its kind before it.
+ * own workstream, else the newest pass of its kind before it.
  */
 function callOf(
   row: Row,
@@ -57,8 +57,9 @@ function callOf(
 ): string | null {
   for (const trace of candidates) {
     if (row.kind === "split") {
-      const topicId = (trace.input as { topicId?: unknown } | null)?.topicId;
-      if (topicId === body.topicId) return trace.id;
+      const workstreamId = (trace.input as { workstreamId?: unknown } | null)
+        ?.workstreamId;
+      if (workstreamId === body.workstreamId) return trace.id;
       continue;
     }
     // One tidy pass's edits replace the ones waiting from an older pass, so the

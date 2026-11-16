@@ -98,31 +98,31 @@ describe("a nested fold's rows", () => {
 });
 
 describe("a nested row's menu when its outer workstream closes", () => {
-  const topic = (id: string, name: string, parentId: string | null) => ({
+  const workstream = (id: string, name: string, parentId: string | null) => ({
     id,
     name,
     description: "",
     parentId,
     aliases: [],
   });
-  const catalog = {
-    entities: [
-      topic("va", "Beacon", null),
-      topic("auto", "Automations", "va"),
-      topic("alerts", "Alert Investigations", "auto"),
-      topic("cli", "CLI", "auto"),
+  const tree = {
+    workstreams: [
+      workstream("va", "Beacon", null),
+      workstream("auto", "Automations", "va"),
+      workstream("alerts", "Alert Investigations", "auto"),
+      workstream("cli", "CLI", "auto"),
     ],
     groups: { sec_alerts: "alerts", sec_cli: "cli" },
     layout: [
       {
-        topicId: "auto",
+        workstreamId: "auto",
         name: "Automations",
         prefix: ["Beacon"],
         lists: false,
         total: 6,
         children: [
           {
-            topicId: "alerts",
+            workstreamId: "alerts",
             name: "Alert Investigations",
             prefix: [],
             lists: true,
@@ -130,7 +130,7 @@ describe("a nested row's menu when its outer workstream closes", () => {
             children: [],
           },
           {
-            topicId: "cli",
+            workstreamId: "cli",
             name: "CLI",
             prefix: [],
             lists: true,
@@ -175,24 +175,24 @@ describe("a nested row's menu when its outer workstream closes", () => {
     const slot = await mount(threads(), {
       activeThreadId: null,
       sections: [
-        section("sec_alerts", "Beacon: Automations: Alert Investigations"),
-        section("sec_cli", "Beacon: Automations: CLI"),
+        section("sec_alerts", "Beacon › Automations: Alert Investigations"),
+        section("sec_cli", "Beacon › Automations: CLI"),
       ],
-      catalog,
+      tree,
       settings: { showRecent: false, showForYou: false },
     });
     const outer = await waitFor(() =>
-      slot.getByRole("region", { name: "Beacon: Automations" }),
+      slot.getByRole("region", { name: "Beacon › Automations" }),
     );
     const alerts = await waitFor(() =>
       within(outer).getByRole("region", {
-        name: "Beacon: Automations: Alert Investigations",
+        name: "Beacon › Automations: Alert Investigations",
       }),
     );
     // Taken before the menu opens: an open context menu hides the rest of the
     // page from the accessibility tree, so roles no longer find the sidebar.
     const collapse = within(outer).getByRole("button", {
-      name: "Collapse Beacon: Automations",
+      name: "Collapse Beacon › Automations",
     });
     fireEvent.contextMenu(
       within(alerts)

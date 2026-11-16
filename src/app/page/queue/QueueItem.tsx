@@ -31,7 +31,7 @@ import {
 import type { RecapFiles } from "../../../domain/recap.ts";
 import {
   workstreamColorStyle,
-  type TopicColor,
+  type WorkstreamColor,
 } from "../../../domain/workstreamColor.ts";
 import type { SnoozePrefs, SnoozeWhen } from "../../../domain/snooze.ts";
 import { SnoozeIcon } from "../../snooze/icons.tsx";
@@ -49,10 +49,10 @@ import { LEAD as PILE_LEAD } from "./stackEngine.ts";
 const CARD_ZOOM = 1.15;
 
 export type QueueHeading = {
-  /** The workstream path, joined for display ("Vercel Agent: Automations"). */
+  /** The workstream path, joined for display ("Vercel Agent › Automations"). */
   path: string | null;
-  /** The workstream's topic color, if filed. */
-  color: TopicColor | null;
+  /** The workstream's workstream color, if filed. */
+  color: WorkstreamColor | null;
   title: string;
 };
 
@@ -303,14 +303,14 @@ function PlainCard({
 }
 
 export type SuggestionMove = {
-  /** The topic the threads move to. */
+  /** The workstream the threads move to. */
   to: string;
-  /** Accepting creates the topic. */
+  /** Accepting creates the workstream. */
   created: boolean;
   threads: readonly string[];
 };
 
-/** A suggestion's card: why, then each topic with the threads moving into it. */
+/** A suggestion's card: why, then each workstream with the threads moving into it. */
 export const SuggestionCard = memo(function SuggestionCard({
   reason,
   moving,

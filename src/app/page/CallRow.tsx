@@ -15,37 +15,37 @@ const EVENT: Record<TraceKind, { label: string; description: string }> = {
   start: {
     label: "New thread",
     description:
-      "From a draft in the composer or a thread's first request, the model titled the thread and, for a top-level thread, chose its topic or proposed a new one. The turn's end settles both later.",
+      "From a draft in the composer or a thread's first request, the model titled the thread and, unless it is a child thread, chose its workstream or proposed a new one. The turn's end settles both later.",
   },
-  "full-analysis": {
+  "turn-end": {
     label: "Turn end",
     description:
-      "After a turn ended, the model settled the thread's goal and title, its status when the agent didn't report one, and after a new request its topic. This is an assessment, not proof that a change was applied.",
+      "After a turn ended, the model settled the thread's goal and title, its status when the agent didn't report one, and after a new request its workstream. This is an assessment, not proof that a change was applied.",
   },
   categories: {
     label: "Categories",
     description:
-      "The model assessed the topic's current thread collection and proposed an arrangement into contextual categories. Topic assignments are unchanged.",
+      "The model assessed the workstream's current threads and proposed an arrangement into contextual categories. No thread changes workstream.",
   },
   "category-fit": {
     label: "Category check",
     description:
-      "The model checked whether threads that arrived in the topic, or whose work changed, fit its current categories. When one didn't, the categories were rearranged.",
+      "The model checked whether threads that arrived in the workstream, or whose work changed, fit its current categories. When one didn't, the categories were rearranged.",
   },
   split: {
     label: "Split suggestion",
     description:
-      "The model assessed a first-level topic for lasting child topics and a complete filing plan, for you to accept or decline.",
+      "The model assessed whether a top-level workstream splits into lasting workstreams, and where each thread would go, for you to accept or decline.",
   },
   tidy: {
     label: "Tidy suggestions",
     description:
-      "The model proposed edits to the topic tree, each with a reason, for you to accept or decline.",
+      "The model proposed changes to your workstreams and groups, each with a reason, for you to accept or decline.",
   },
-  placement: {
+  "workstream-choice": {
     label: "Workstream choice",
     description:
-      "The model chose the thread's topic alone: within a group you dropped it on, for a topic preview or repair, or for a thread that had none.",
+      "The model chose the thread's workstream on its own: within a group you dropped it on, for a preview of automatic moves, or for a thread that had none.",
   },
 };
 const STATES: Record<string, { label: string; description: string }> = {
@@ -104,7 +104,7 @@ function CallResult({ trace }: { trace: TraceSummary }) {
   // Turn-end summaries start with a known status label. Unknown formats
   // stay intact under Model result rather than being interpreted.
   const [state, ...parts] = trace.summary.split(" · ");
-  const lifecycle = trace.kind === "full-analysis" ? STATES[state!] : undefined;
+  const lifecycle = trace.kind === "turn-end" ? STATES[state!] : undefined;
   const suggestions = parts.filter((part) => part.startsWith("goal "));
   const subject = parts
     .filter((part) => !suggestions.includes(part))
@@ -124,7 +124,7 @@ function CallResult({ trace }: { trace: TraceSummary }) {
       </span>
       {subject ? (
         <span className="break-words">
-          <span className="text-muted-foreground">Topic: </span>
+          <span className="text-muted-foreground">Workstream: </span>
           {subject}
         </span>
       ) : null}

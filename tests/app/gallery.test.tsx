@@ -57,6 +57,8 @@ async function mount(subPath = "gallery") {
         state: () => emptyState(),
         recapPrefs: () => ({ prefs: {} }),
         recapFiles: () => ({ files: {} }),
+        // The Gallery is listed while the debug UI is on.
+        prefs: () => ({ prefs: { advanced: { debugUi: true } } }),
       },
     },
   );

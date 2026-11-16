@@ -45,5 +45,5 @@ export function rng(seed: number) {
 export const EMPTY_ORDER: ManualOrder = {
   workstreams: [],
   threads: {},
-  prioritized: [],
+  focused: [],
 };

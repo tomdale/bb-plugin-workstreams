@@ -1,46 +1,47 @@
 /**
- * Organizing suggestions as the Topics view lists them: each suggestion is a
+ * Organizing suggestions as the Workstreams view lists them: each suggestion is a
  * block of rows, every row a subject with where it is now and where it would
  * be after accepting, so the Now and After columns line up down the page.
  * Pure, so tests can check the rows.
  *
  * A suggestion that moves threads has one row per thread. One that only
  * changes groups (merge, move under, rename, create) has one row per group it
- * changes; no thread changes group. A group is a topic as the sidebar shows it.
+ * changes; no thread changes group. A group is a workstream as the sidebar shows it.
  */
 import {
   movesThreads,
   type ChangeMove,
   type SuggestionChange,
-  type TopicPlace,
+  type WorkstreamPlace,
 } from "./suggestion-change.ts";
 
 export type LedgerRow = {
-  /** The thread's title, or the topic's name. */
+  /** The thread's title, or the workstream's name. */
   readonly subject: string;
   /** Where it is now; empty when it's the same as the row above. */
   readonly now: string;
-  /** The thread has no topic yet. */
-  readonly unfiled: boolean;
+  /** The thread has no workstream yet. */
+  readonly other: boolean;
   /** Where accepting puts it. */
   readonly after: string;
   /** Precedes `after`: "into" for a merge. */
   readonly verb: string | null;
-  /** Accepting creates the After topic; marked where it first appears. */
+  /** Accepting creates the After workstream; marked where it first appears. */
   readonly created: boolean;
 };
 
 /** Which ledger a suggestion belongs in. */
 export function ledgerKind(change: SuggestionChange): "threads" | "groups" {
-  return ["refile", "split", "file"].includes(change.op) || movesThreads(change)
+  return ["move-thread", "split", "repair"].includes(change.op) ||
+    movesThreads(change)
     ? "threads"
     : "groups";
 }
 
 const TOP = "Top level";
-const leaf = (place: TopicPlace) => place.at(-1)?.name ?? TOP;
-const parent = (place: TopicPlace) => place.slice(0, -1);
-const same = (a: TopicPlace, b: TopicPlace) =>
+const leaf = (place: WorkstreamPlace) => place.at(-1)?.name ?? TOP;
+const parent = (place: WorkstreamPlace) => place.slice(0, -1);
+const same = (a: WorkstreamPlace, b: WorkstreamPlace) =>
   a.length === b.length && a.every((part, i) => part.name === b[i]!.name);
 
 function threadRows(moves: readonly ChangeMove[]): LedgerRow[] {
@@ -48,7 +49,7 @@ function threadRows(moves: readonly ChangeMove[]): LedgerRow[] {
   const marked = new Set<string>();
   let previous: string | null = null;
   for (const move of moves) {
-    const now = move.from ? leaf(move.from) : "Unfiled";
+    const now = move.from ? leaf(move.from) : "No workstream";
     const after = leaf(move.to);
     const created = move.to.at(-1)?.created ?? false;
     for (const thread of move.threads) {
@@ -57,7 +58,7 @@ function threadRows(moves: readonly ChangeMove[]): LedgerRow[] {
       rows.push({
         subject: thread.title,
         now: now === previous ? "" : now,
-        unfiled: move.from === null,
+        other: move.from === null,
         after,
         verb: null,
         created: fresh,
@@ -68,12 +69,15 @@ function threadRows(moves: readonly ChangeMove[]): LedgerRow[] {
   return rows;
 }
 
-function topicRow(op: SuggestionChange["op"], move: ChangeMove): LedgerRow {
-  if (op === "create" || move.from === null)
+function workstreamRow(
+  op: SuggestionChange["op"],
+  move: ChangeMove,
+): LedgerRow {
+  if (op === "group" || move.from === null)
     return {
       subject: leaf(move.to),
       now: "",
-      unfiled: false,
+      other: false,
       after: parent(move.to).length ? leaf(parent(move.to)) : TOP,
       verb: null,
       created: true,
@@ -84,7 +88,7 @@ function topicRow(op: SuggestionChange["op"], move: ChangeMove): LedgerRow {
     return {
       subject: leaf(from),
       now,
-      unfiled: false,
+      other: false,
       after: leaf(move.to),
       verb: "into",
       created: false,
@@ -95,7 +99,7 @@ function topicRow(op: SuggestionChange["op"], move: ChangeMove): LedgerRow {
   return {
     subject: leaf(from),
     now,
-    unfiled: false,
+    other: false,
     after:
       moved && renamed
         ? `${under} › ${leaf(move.to)}`
@@ -112,5 +116,5 @@ export function ledgerRows(change: SuggestionChange): LedgerRow[] {
     const rows = threadRows(change.moves);
     if (rows.length) return rows;
   }
-  return change.moves.map((move) => topicRow(change.op, move));
+  return change.moves.map((move) => workstreamRow(change.op, move));
 }

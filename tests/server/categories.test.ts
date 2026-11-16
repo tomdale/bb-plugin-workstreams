@@ -17,7 +17,7 @@ afterEach(async () => {
   for (const host of hosts.splice(0)) await host.harness.lifecycle.dispose();
 });
 const collection = (n = 6): CategoryCollection => ({
-  topicId: "topic-a",
+  workstreamId: "topic-a",
   label: "Vertex",
   roots: Array.from({ length: n }, (_, i) => ({
     id: `t${i}`,
@@ -170,7 +170,7 @@ describe("persisted collection categories", () => {
       "Investigate access control instead of billing",
     );
     await engine.requestChanged("t0", "continue");
-    await engine.requestChanged("delegate", "Change the delegated task");
+    await engine.requestChanged("child", "Change the delegated task");
     expect(classify).toHaveBeenCalledTimes(2);
     engine.dispose();
     await create().reconcile();
@@ -398,8 +398,8 @@ describe("persisted collection categories", () => {
 
   it("derives collections once per reconcile and skips one whose collections are unchanged", async () => {
     const { engine, state, classify } = setup();
-    const other = { ...collection(), topicId: "topic-b", label: "Other" };
-    const small = { ...collection(2), topicId: "topic-c", label: "Small" };
+    const other = { ...collection(), workstreamId: "topic-b", label: "Other" };
+    const small = { ...collection(2), workstreamId: "topic-c", label: "Small" };
     state.collections = [collection(), other, small];
     const derive = vi.fn(() => state.collections);
     const counted = new Categories({
@@ -432,22 +432,22 @@ describe("persisted collection categories", () => {
     ];
     await counted.reconcile();
     expect(classify).toHaveBeenCalledTimes(3);
-    expect(classify.mock.calls[2]![0].topicId).toBe("topic-b");
+    expect(classify.mock.calls[2]![0].workstreamId).toBe("topic-b");
   });
 
   it("reassesses a collection that changed while another was being classified", async () => {
     const { state, classify, create, engine } = setup();
     engine.dispose();
-    const other = { ...collection(), topicId: "topic-b", label: "Other" };
+    const other = { ...collection(), workstreamId: "topic-b", label: "Other" };
     state.collections = [collection(), other];
     classify.mockImplementation(async (input: CategoryInput) => {
       // The first collection gains a root while the second is assessed.
-      if (input.topicId === "topic-b" && classify.mock.calls.length === 2)
+      if (input.workstreamId === "topic-b" && classify.mock.calls.length === 2)
         state.collections = [collection(7), other];
       return decision(input);
     });
     await create().reconcile();
-    expect(classify.mock.calls.map(([input]) => input.topicId)).toEqual([
+    expect(classify.mock.calls.map(([input]) => input.workstreamId)).toEqual([
       "topic-a",
       "topic-b",
       "topic-a",

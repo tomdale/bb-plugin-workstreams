@@ -103,7 +103,7 @@ async function measure(
 }
 
 const sections = [
-  section("sec_split", "Studio: App"),
+  section("sec_split", "Studio › App"),
   section("sec_plain", "Prompting"),
 ];
 
@@ -160,7 +160,7 @@ describe.skipIf(browserUnavailable)(
         );
         const upNext = await slot.findByRole("region", { name: "Up Next" });
         const plain = slot.getByRole("region", { name: "Prompting" });
-        const split = slot.getByRole("region", { name: "Studio: App" });
+        const split = slot.getByRole("region", { name: "Studio › App" });
         await waitFor(() => within(split).getByText("Nested child"));
         const row = (region: HTMLElement, title: string) =>
           within(region).getByRole("link", { name: title }).closest(".ws-row")!;
@@ -329,18 +329,18 @@ describe.skipIf(browserUnavailable)(
           }) as HTMLElement;
         const type = await measure(page, {
           headerPlain: byText(heading("Prompting", "Prompting"), "Prompting"),
-          headerOwner: byText(heading("Studio: App", "Studio: App"), "Studio"),
-          headerArea: byText(heading("Studio: App", "Studio: App"), "App"),
+          headerOwner: byText(heading("Studio › App", "Studio › App"), "Studio"),
+          headerArea: byText(heading("Studio › App", "Studio › App"), "App"),
           archivedPlain: byText(
             archivedHeading("Archived Prompting", "Prompting"),
             "Prompting",
           ),
           archivedOwner: byText(
-            archivedHeading("Archived Studio: App", "Studio: App"),
+            archivedHeading("Archived Studio › App", "Studio › App"),
             "Studio",
           ),
           archivedArea: byText(
-            archivedHeading("Archived Studio: App", "Studio: App"),
+            archivedHeading("Archived Studio › App", "Studio › App"),
             "App",
           ),
         });
@@ -388,7 +388,7 @@ describe.skipIf(browserUnavailable)(
           ...document.querySelectorAll<HTMLElement>(".ws-home-group-name"),
         ];
         const plain = names.find((el) => el.textContent === "Prompting")!;
-        const split = names.find((el) => el.textContent === "Studio: App")!;
+        const split = names.find((el) => el.textContent === "Studio › App")!;
         const type = await measure(page, {
           plain,
           owner: byText(split, "Studio"),

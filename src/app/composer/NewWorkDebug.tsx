@@ -1,7 +1,7 @@
 /**
  * The New thread composer's Debug section: a collapsed
  * disclosure under the composer with what it takes to judge a preview: the
- * topic and title, the reason, what the start call was given, the server's
+ * workstream and title, the reason, what the start call was given, the server's
  * notes on each step, and the exact prompt and raw response. Copy
  * diagnostics adds the composer's state and activity log.
  */
@@ -30,7 +30,7 @@ const seconds = (ms: number) => `${(ms / 1000).toFixed(1)}s`;
 function decisionTarget(decision: Preview): string {
   return decision.subject
     ? `New thread about ${decision.subject}`
-    : "New thread with no topic yet";
+    : "New thread with no workstream yet";
 }
 
 /** The decision's recorded model call, once loaded. */
@@ -159,8 +159,8 @@ export function NewWorkDebug({ newWork }: { newWork: NewWork }) {
                 “{clip(input?.request ?? trace.label, 160)}”
               </Field>
               <Field label="Project">{input?.project ?? "None"}</Field>
-              <Field label="Topics offered">
-                {plural(input?.placement?.entities?.length ?? 0, "topic")}
+              <Field label="Workstreams offered">
+                {plural(input?.choice?.workstreams?.length ?? 0, "workstream")}
               </Field>
               <Field label="Model">
                 {trace.model} · {seconds(trace.durationMs)}

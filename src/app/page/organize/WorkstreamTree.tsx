@@ -1,8 +1,8 @@
 /**
- * The topic tree: every topic, nested, with its open threads counted. Empty
- * topics hide behind Show N empty. Clicking a topic opens its editor: name,
- * parent, description, and aliases, with Add subtopic and Merge into….
- * Search narrows the tree to matching topics and their ancestors.
+ * The workstreams and groups: every workstream, nested, with its open threads counted. Empty
+ * workstreams hide behind Show N empty. Clicking a workstream opens its editor: name,
+ * parent, description, and aliases, with Add workstream and Merge into….
+ * Search narrows the tree to matching workstreams and their ancestors.
  */
 import { useMemo, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
@@ -17,33 +17,36 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { SectionHeading } from "../../primitives/SectionHeading.tsx";
-import type { Topic } from "../../../domain/topics.ts";
-import { topicAncestors } from "../../../domain/topics.ts";
-import { topicPath } from "../../../domain/topic-path.ts";
+import type { Workstream } from "../../../domain/topics.ts";
+import { workstreamAncestors } from "../../../domain/topics.ts";
+import { workstreamPath } from "../../../domain/topic-path.ts";
 import { compareGroupNames } from "../../../domain/group-name-order.ts";
 import { SelectField } from "../../SelectField.tsx";
 import { ghostButton } from "../controls.ts";
-import { CreateEntityDialog, MergeEntityDialog } from "../CatalogDialogs.tsx";
+import {
+  CreateWorkstreamDialog,
+  MergeWorkstreamDialog,
+} from "../WorkstreamDialogs.tsx";
 import type { useWorkstreams } from "../../useWorkstreams.ts";
 
 type Workstreams = ReturnType<typeof useWorkstreams>;
 
-const shownPath = (id: string, entities: readonly Topic[]) =>
-  topicPath(id, entities).replace(/: /g, " › ");
+const shownPath = (id: string, workstreams: readonly Workstream[]) =>
+  workstreamPath(id, workstreams);
 
-/** Open root threads per topic, each topic counting its subtopics'. */
-function topicCounts(
-  entities: readonly Topic[],
-  assignments: Readonly<Record<string, { entityId: string | null }>>,
+/** Open threads per workstream, each workstream counting its workstreams in a group'. */
+function workstreamCounts(
+  workstreams: readonly Workstream[],
+  assignments: Readonly<Record<string, { workstreamId: string | null }>>,
   roots: Iterable<string>,
 ): Map<string, number> {
   const counts = new Map<string, number>();
   for (const id of roots) {
-    const topic = assignments[id]?.entityId;
-    if (!topic) continue;
+    const workstream = assignments[id]?.workstreamId;
+    if (!workstream) continue;
     let ancestors: string[];
     try {
-      ancestors = topicAncestors(topic, entities);
+      ancestors = workstreamAncestors(workstream, workstreams);
     } catch {
       continue;
     }
@@ -53,15 +56,21 @@ function topicCounts(
 }
 
 type Dialogs =
-  | { kind: "edit"; topic: Topic }
+  | { kind: "edit"; workstream: Workstream }
   | { kind: "create"; parentId: string | null }
-  | { kind: "merge"; topic: Topic };
+  | { kind: "merge"; workstream: Workstream };
 
-export function TopicTree({ ws, query }: { ws: Workstreams; query: string }) {
-  const catalog = ws.server.catalog;
-  const entities = catalog?.entities ?? [];
+export function WorkstreamTree({
+  ws,
+  query,
+}: {
+  ws: Workstreams;
+  query: string;
+}) {
+  const tree = ws.server.tree;
+  const workstreams = tree?.workstreams ?? [];
   const [showEmpty, setShowEmpty] = useState(false);
-  // The open flag is separate from the topic, so a closing dialog keeps its
+  // The open flag is separate from the workstream, so a closing dialog keeps its
   // contents while it animates out.
   const [dialog, setDialog] = useState<Dialogs | null>(null);
   const [open, setOpen] = useState(false);
@@ -74,51 +83,51 @@ export function TopicTree({ ws, query }: { ws: Workstreams; query: string }) {
     const roots = [...ws.projection.rowOf.values()]
       .filter((row) => row.depth === 0)
       .map((row) => row.thread.id);
-    return topicCounts(entities, catalog?.assignments ?? {}, roots);
-  }, [entities, catalog?.assignments, ws.projection]);
+    return workstreamCounts(workstreams, tree?.assignments ?? {}, roots);
+  }, [workstreams, tree?.assignments, ws.projection]);
 
   const rows = useMemo(() => {
     const needle = query.trim().toLowerCase();
     const matches = new Set(
-      entities
+      workstreams
         .filter(
-          (entity) =>
+          (workstream) =>
             !needle ||
             [
-              shownPath(entity.id, entities),
-              entity.description,
-              ...entity.aliases,
+              shownPath(workstream.id, workstreams),
+              workstream.description,
+              ...workstream.aliases,
             ].some((text) => text.toLowerCase().includes(needle)),
         )
-        .map((entity) => entity.id),
+        .map((workstream) => workstream.id),
     );
     if (needle)
       for (const id of [...matches])
-        for (const at of safeAncestors(id, entities)) matches.add(at);
-    const out: { topic: Topic; depth: number }[] = [];
+        for (const at of safeAncestors(id, workstreams)) matches.add(at);
+    const out: { workstream: Workstream; depth: number }[] = [];
     const visit = (parentId: string | null, depth: number) => {
-      for (const topic of entities
+      for (const workstream of workstreams
         .filter((e) => e.parentId === parentId)
         .sort(
           (a, b) =>
             (counts.get(b.id) ?? 0) - (counts.get(a.id) ?? 0) ||
             compareGroupNames(a.name, b.name),
         )) {
-        if (!matches.has(topic.id)) continue;
-        if (!needle && !showEmpty && !counts.get(topic.id)) continue;
-        out.push({ topic, depth });
-        visit(topic.id, depth + 1);
+        if (!matches.has(workstream.id)) continue;
+        if (!needle && !showEmpty && !counts.get(workstream.id)) continue;
+        out.push({ workstream, depth });
+        visit(workstream.id, depth + 1);
       }
     };
     visit(null, 0);
     return out;
-  }, [entities, counts, query, showEmpty]);
-  const empty = entities.filter((e) => !counts.get(e.id)).length;
+  }, [workstreams, counts, query, showEmpty]);
+  const empty = workstreams.filter((e) => !counts.get(e.id)).length;
 
   return (
-    <section aria-label="Topics" className="mt-10">
+    <section aria-label="Workstreams" className="mt-10">
       <SectionHeading className="mb-1.5 flex items-center gap-2">
-        Topics
+        Workstreams and groups
         <span className="flex-1" />
         {empty && !query ? (
           <button
@@ -134,18 +143,18 @@ export function TopicTree({ ws, query }: { ws: Workstreams; query: string }) {
           className={cn(ghostButton, "normal-case tracking-normal")}
           onClick={() => show({ kind: "create", parentId: null })}
         >
-          New topic…
+          New workstream…
         </button>
       </SectionHeading>
       {rows.length ? (
         <ul className="-mx-2">
-          {rows.map(({ topic, depth }) => {
-            const count = counts.get(topic.id) ?? 0;
+          {rows.map(({ workstream, depth }) => {
+            const count = counts.get(workstream.id) ?? 0;
             return (
-              <li key={topic.id}>
+              <li key={workstream.id}>
                 <button
                   type="button"
-                  onClick={() => show({ kind: "edit", topic })}
+                  onClick={() => show({ kind: "edit", workstream })}
                   className="flex w-full cursor-pointer items-baseline gap-3 rounded-md py-1 pr-2 text-left hover:bg-state-hover"
                   style={{ paddingLeft: 8 + depth * 16 }}
                 >
@@ -155,7 +164,7 @@ export function TopicTree({ ws, query }: { ws: Workstreams; query: string }) {
                       !count && "text-muted-foreground/70",
                     )}
                   >
-                    {topic.name}
+                    {workstream.name}
                   </span>
                   <span className="text-xs tabular-nums text-muted-foreground/70">
                     {count || ""}
@@ -167,35 +176,35 @@ export function TopicTree({ ws, query }: { ws: Workstreams; query: string }) {
         </ul>
       ) : (
         <p className="text-muted-foreground">
-          {query ? "No matching topics." : "No topics yet."}
+          {query ? "No matching workstreams." : "No workstreams yet."}
         </p>
       )}
       {dialog?.kind === "edit" ? (
-        <EditTopicDialog
+        <EditWorkstreamDialog
           open={open}
           onOpenChange={setOpen}
-          topic={dialog.topic}
-          entities={entities}
+          workstream={dialog.workstream}
+          workstreams={workstreams}
           ws={ws}
-          onAddSubtopic={() =>
-            show({ kind: "create", parentId: dialog.topic.id })
+          onAddWorkstream={() =>
+            show({ kind: "create", parentId: dialog.workstream.id })
           }
-          onMerge={() => show({ kind: "merge", topic: dialog.topic })}
+          onMerge={() => show({ kind: "merge", workstream: dialog.workstream })}
         />
       ) : null}
       {dialog?.kind === "create" && open ? (
-        <CreateEntityDialog
+        <CreateWorkstreamDialog
           parentId={dialog.parentId}
-          entities={entities}
+          workstreams={workstreams}
           rpc={ws.rpc}
           onSuccess={() => setOpen(false)}
           onClose={() => setOpen(false)}
         />
       ) : null}
       {dialog?.kind === "merge" && open ? (
-        <MergeEntityDialog
-          entity={dialog.topic}
-          entities={entities}
+        <MergeWorkstreamDialog
+          workstream={dialog.workstream}
+          workstreams={workstreams}
           rpc={ws.rpc}
           onSuccess={() => setOpen(false)}
           onClose={() => setOpen(false)}
@@ -205,9 +214,12 @@ export function TopicTree({ ws, query }: { ws: Workstreams; query: string }) {
   );
 }
 
-function safeAncestors(id: string, entities: readonly Topic[]): string[] {
+function safeAncestors(
+  id: string,
+  workstreams: readonly Workstream[],
+): string[] {
   try {
-    return topicAncestors(id, entities);
+    return workstreamAncestors(id, workstreams);
   } catch {
     return [];
   }
@@ -215,50 +227,50 @@ function safeAncestors(id: string, entities: readonly Topic[]): string[] {
 
 /** Name, parent, description, and aliases, saved together. */
 const AUTOMATIC_PROJECT = "__automatic__";
-const projectValue = (topic: Topic) =>
-  topic.projectSource === "disabled"
+const projectValue = (workstream: Workstream) =>
+  workstream.projectSource === "disabled"
     ? ""
-    : topic.projectSource === "learned" || !topic.projectId
+    : workstream.projectSource === "learned" || !workstream.projectId
       ? AUTOMATIC_PROJECT
-      : topic.projectId;
+      : workstream.projectId;
 
-function EditTopicDialog({
+function EditWorkstreamDialog({
   open,
   onOpenChange,
-  topic,
-  entities,
+  workstream,
+  workstreams,
   ws,
-  onAddSubtopic,
+  onAddWorkstream,
   onMerge,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  topic: Topic;
-  entities: readonly Topic[];
+  workstream: Workstream;
+  workstreams: readonly Workstream[];
   ws: Workstreams;
-  onAddSubtopic: () => void;
+  onAddWorkstream: () => void;
   onMerge: () => void;
 }) {
-  const [name, setName] = useState(topic.name);
-  const [parentId, setParentId] = useState(topic.parentId ?? "");
-  const [description, setDescription] = useState(topic.description);
-  const [projectId, setProjectId] = useState(projectValue(topic));
-  const [aliases, setAliases] = useState(topic.aliases.join(", "));
+  const [name, setName] = useState(workstream.name);
+  const [parentId, setParentId] = useState(workstream.parentId ?? "");
+  const [description, setDescription] = useState(workstream.description);
+  const [projectId, setProjectId] = useState(projectValue(workstream));
+  const [aliases, setAliases] = useState(workstream.aliases.join(", "));
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [editing, setEditing] = useState(topic.id);
-  if (editing !== topic.id) {
-    setEditing(topic.id);
-    setName(topic.name);
-    setParentId(topic.parentId ?? "");
-    setDescription(topic.description);
-    setProjectId(projectValue(topic));
-    setAliases(topic.aliases.join(", "));
+  const [editing, setEditing] = useState(workstream.id);
+  if (editing !== workstream.id) {
+    setEditing(workstream.id);
+    setName(workstream.name);
+    setParentId(workstream.parentId ?? "");
+    setDescription(workstream.description);
+    setProjectId(projectValue(workstream));
+    setAliases(workstream.aliases.join(", "));
     setError(null);
   }
-  // A topic can't move under itself or its own subtopics.
-  const parents = entities.filter(
-    (e) => !safeAncestors(e.id, entities).includes(topic.id),
+  // A workstream can't move under itself or its own workstreams in a group.
+  const parents = workstreams.filter(
+    (e) => !safeAncestors(e.id, workstreams).includes(workstream.id),
   );
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -272,26 +284,26 @@ function EditTopicDialog({
         .filter(Boolean);
       if (list.some((alias) => alias.length > 80))
         throw new Error("Keep each alias to 80 characters or fewer.");
-      if (name.trim() && name.trim() !== topic.name)
-        await ws.rpc.call("catalogRename", {
-          entityId: topic.id,
+      if (name.trim() && name.trim() !== workstream.name)
+        await ws.rpc.call("workstreamRename", {
+          workstreamId: workstream.id,
           name: name.trim(),
         });
-      if ((parentId || null) !== topic.parentId)
-        await ws.rpc.call("catalogReparent", {
-          entityId: topic.id,
+      if ((parentId || null) !== workstream.parentId)
+        await ws.rpc.call("workstreamMove", {
+          workstreamId: workstream.id,
           parentId: parentId || null,
         });
       if (
-        description.trim() !== topic.description ||
-        list.join("\n") !== topic.aliases.join("\n") ||
-        projectId !== projectValue(topic)
+        description.trim() !== workstream.description ||
+        list.join("\n") !== workstream.aliases.join("\n") ||
+        projectId !== projectValue(workstream)
       )
-        await ws.rpc.call("catalogUpdateMetadata", {
-          entityId: topic.id,
+        await ws.rpc.call("workstreamUpdate", {
+          workstreamId: workstream.id,
           description: description.trim(),
           aliases: list,
-          ...(projectId !== projectValue(topic)
+          ...(projectId !== projectValue(workstream)
             ? projectId === AUTOMATIC_PROJECT
               ? { projectId: null, projectAutomatic: true }
               : { projectId: projectId || null }
@@ -309,9 +321,9 @@ function EditTopicDialog({
       <DialogContent className="max-w-md">
         <form onSubmit={submit} className="space-y-3">
           <DialogHeader>
-            <DialogTitle>Edit topic</DialogTitle>
+            <DialogTitle>Edit workstream</DialogTitle>
             <DialogDescription>
-              {shownPath(topic.id, entities)}
+              {shownPath(workstream.id, workstreams)}
             </DialogDescription>
           </DialogHeader>
           {error ? (
@@ -332,15 +344,15 @@ function EditTopicDialog({
             />
           </label>
           <div className="text-xs font-medium">
-            Parent
+            Group
             <SelectField
-              label="Parent"
+              label="Group"
               value={parentId}
               options={[
-                { value: "", label: "Top level" },
+                { value: "", label: "No group" },
                 ...parents.map((e) => ({
                   value: e.id,
-                  label: shownPath(e.id, entities),
+                  label: shownPath(e.id, workstreams),
                 })),
               ]}
               onChange={setParentId}
@@ -356,8 +368,9 @@ function EditTopicDialog({
                 {
                   value: AUTOMATIC_PROJECT,
                   label:
-                    topic.projectSource === "learned" && topic.projectId
-                      ? `Automatic · ${ws.projects.find((project) => project.id === topic.projectId)?.name ?? "Unavailable project"}`
+                    workstream.projectSource === "learned" &&
+                    workstream.projectId
+                      ? `Automatic · ${ws.projects.find((project) => project.id === workstream.projectId)?.name ?? "Unavailable project"}`
                       : "Automatic · No project",
                 },
                 { value: "", label: "No project" },
@@ -401,9 +414,9 @@ function EditTopicDialog({
                 type="button"
                 variant="ghost"
                 size="sm"
-                onClick={onAddSubtopic}
+                onClick={onAddWorkstream}
               >
-                Add subtopic…
+                Add workstream…
               </Button>
               <Button type="button" variant="ghost" size="sm" onClick={onMerge}>
                 Merge into…

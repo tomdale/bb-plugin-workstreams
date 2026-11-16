@@ -1,15 +1,15 @@
 import { createTestPluginHost } from "./test-host.ts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { openDatabase } from "../../src/server/db.ts";
-import { TopicStore } from "../../src/server/topics.ts";
-import { topicAncestors } from "../../src/domain/topics.ts";
+import { WorkstreamStore } from "../../src/server/topics.ts";
+import { workstreamAncestors } from "../../src/domain/topics.ts";
 
 const hosts: ReturnType<typeof createTestPluginHost>[] = [];
 const store = () => {
   const host = createTestPluginHost({ pluginId: `corpus-${hosts.length}` });
   hosts.push(host);
   const db = openDatabase(host.bb);
-  return { host, db, corpus: new TopicStore(db) };
+  return { host, db, workstreamStore: new WorkstreamStore(db) };
 };
 
 afterEach(async () => {
@@ -18,33 +18,33 @@ afterEach(async () => {
   );
 });
 
-describe("TopicStore", () => {
+describe("WorkstreamStore", () => {
   it("builds missing local ancestry", () => {
-    const { corpus } = store();
-    const direct = corpus.rememberProposal({
+    const { workstreamStore: workstreamStore } = store();
+    const direct = workstreamStore.rememberProposal({
       name: "Root Item",
       description: "No ancestors",
       parentId: null,
       ancestors: null,
     });
     expect(direct.parentId).toBeNull();
-    const child = corpus.rememberProposal({
+    const child = workstreamStore.rememberProposal({
       name: "Up Next",
       description: "Upcoming tasks",
       parentId: null,
       ancestors: [{ name: "Lantern", description: "Product" }],
     });
-    const product = corpus.resolve("Lantern")!;
+    const product = workstreamStore.resolve("Lantern")!;
     expect(child.parentId).toBe(product.id);
-    expect(() => corpus.create("Deeper", "", child.id)).toThrow(
+    expect(() => workstreamStore.create("Deeper", "", child.id)).toThrow(
       "at most two levels",
     );
   });
   it("records a proposal that restates existing ancestry under that ancestry", () => {
-    const { corpus } = store();
-    const subagents = corpus.create("Subagents", "Background workers");
-    const revision = corpus.revision();
-    const workforest = corpus.rememberProposal({
+    const { workstreamStore: workstreamStore } = store();
+    const subagents = workstreamStore.create("Subagents", "Background workers");
+    const revision = workstreamStore.revision();
+    const workforest = workstreamStore.rememberProposal({
       name: "Workforest",
       description: "Checkout integration",
       parentId: subagents.id,
@@ -52,33 +52,33 @@ describe("TopicStore", () => {
     });
     expect(workforest.parentId).toBe(subagents.id);
     expect(
-      corpus
+      workstreamStore
         .list()
         .map((e) => e.name)
         .sort(),
     ).toEqual(["Subagents", "Workforest"]);
-    expect(corpus.getById(subagents.id)?.description).toBe(
+    expect(workstreamStore.getById(subagents.id)?.description).toBe(
       "Background workers",
     );
-    expect(corpus.revision()).toBeGreaterThan(revision);
+    expect(workstreamStore.revision()).toBeGreaterThan(revision);
 
-    const settled = corpus.revision();
+    const settled = workstreamStore.revision();
     expect(
-      corpus.rememberProposal({
+      workstreamStore.rememberProposal({
         name: "workforest",
         description: "Other wording",
         parentId: null,
         ancestors: [{ name: "Subagents", description: "" }],
       }),
     ).toEqual(workforest);
-    expect(corpus.revision()).toBe(settled);
+    expect(workstreamStore.revision()).toBe(settled);
     expect(() =>
-      corpus.rememberProposal({
+      workstreamStore.rememberProposal({
         name: "Orphan",
         description: "",
         parentId: "missing",
       }),
-    ).toThrow(/Unknown topic parent/);
+    ).toThrow(/Unknown group/);
   });
   it("adds its migration without breaking already-migrated storage", () => {
     const { host } = store();
@@ -93,13 +93,13 @@ describe("TopicStore", () => {
       });
     const db = openDatabase(host.bb);
     db.prepare(
-      "INSERT INTO ws_workstream(section_id, created_by) VALUES ('section-a', 'user')",
+      "INSERT INTO ws_section(section_id, created_by) VALUES ('section-a', 'user')",
     ).run();
     spy.mockRestore();
     openDatabase(host.bb);
     expect(
       (
-        db.prepare("SELECT section_id FROM ws_workstream").get() as {
+        db.prepare("SELECT section_id FROM ws_section").get() as {
           section_id: string;
         }
       ).section_id,
@@ -107,7 +107,7 @@ describe("TopicStore", () => {
     expect(
       db
         .prepare(
-          "SELECT name FROM sqlite_master WHERE name = 'ws_corpus_subject'",
+          "SELECT name FROM sqlite_master WHERE name = 'ws_thread_workstream'",
         )
         .get(),
     ).toBeTruthy();
@@ -129,103 +129,103 @@ describe("TopicStore", () => {
         return migrate(db, migrations.slice(0, boundary));
       });
     const db = openDatabase(host.bb);
-    const entity = { id: "alpha" };
+    const workstream = { id: "alpha" };
     db.prepare(
       "INSERT INTO ws_corpus_entity(id, name, description, parent_id, aliases) VALUES ('alpha', 'Alpha', '', NULL, '[]')",
     ).run();
     const insert = db.prepare(
       "INSERT INTO ws_corpus_subject(thread_id, entity_id, evidence, source) VALUES (?, ?, ?, ?)",
     );
-    insert.run("chosen", entity.id, null, "selected");
+    insert.run("chosen", workstream.id, null, "selected");
     insert.run("cleared", null, null, "selected");
-    insert.run("classified", entity.id, "k", "classified");
-    insert.run("quick", entity.id, null, "quick");
+    insert.run("classified", workstream.id, "k", "classified");
+    insert.run("quick", workstream.id, null, "quick");
     spy.mockRestore();
 
-    const corpus = new TopicStore(openDatabase(host.bb));
+    const workstreamStore = new WorkstreamStore(openDatabase(host.bb));
     expect(
       db
-        .prepare("SELECT thread_id, source FROM ws_corpus_subject ORDER BY 1")
+        .prepare("SELECT thread_id, source FROM ws_thread_workstream ORDER BY 1")
         .all(),
     ).toEqual([
       { thread_id: "chosen", source: "manual" },
-      { thread_id: "classified", source: "full" },
+      { thread_id: "classified", source: "automatic" },
       { thread_id: "cleared", source: "manual" },
-      { thread_id: "quick", source: "quick" },
+      { thread_id: "quick", source: "composer" },
     ]);
-    expect(corpus.assignment("chosen")).toMatchObject({
-      entityId: entity.id,
+    expect(workstreamStore.assignment("chosen")).toMatchObject({
+      workstreamId: workstream.id,
       provenance: "manual",
     });
-    expect(corpus.assignment("cleared").provenance).toBe("manual");
+    expect(workstreamStore.assignment("cleared").provenance).toBe("manual");
     // Automatic sources keep their priority; only a human choice is promoted.
-    expect(corpus.assignment("classified").provenance).toBe("full");
-    expect(corpus.assignment("quick").provenance).toBe("quick");
+    expect(workstreamStore.assignment("classified").provenance).toBe("automatic");
+    expect(workstreamStore.assignment("quick").provenance).toBe("composer");
     // Analysis can no longer replace the choice.
     expect(
-      corpus.applyAnalysis(
+      workstreamStore.applyAnalysis(
         "chosen",
-        { subjectId: null, proposed: null },
-        "full",
+        { workstreamId: null, proposed: null },
+        "automatic",
         "k2",
       ),
     ).toBe(false);
-    expect(corpus.assignment("chosen").entityId).toBe(entity.id);
+    expect(workstreamStore.assignment("chosen").workstreamId).toBe(workstream.id);
   });
 
   it("resolves aliases and scopes matching names by explicit parent", () => {
-    const { corpus } = store();
-    const left = corpus.create("Platform", "", null);
-    const right = corpus.create("Commerce", "", null);
-    const leftFeature = corpus.create("Settings", "left", left.id, [
+    const { workstreamStore: workstreamStore } = store();
+    const left = workstreamStore.create("Platform", "", null);
+    const right = workstreamStore.create("Commerce", "", null);
+    const leftFeature = workstreamStore.create("Settings", "left", left.id, [
       "Preferences",
     ]);
-    const rightFeature = corpus.create("Settings", "right", right.id);
-    expect(corpus.resolve(" preferences ", left.id)?.id).toBe(leftFeature.id);
-    expect(corpus.resolve("Settings", right.id)?.id).toBe(rightFeature.id);
-    expect(corpus.resolve("Settings", null)).toBeNull();
+    const rightFeature = workstreamStore.create("Settings", "right", right.id);
+    expect(workstreamStore.resolve(" preferences ", left.id)?.id).toBe(leftFeature.id);
+    expect(workstreamStore.resolve("Settings", right.id)?.id).toBe(rightFeature.id);
+    expect(workstreamStore.resolve("Settings", null)).toBeNull();
   });
 
   it("rejects unknown parents and invalid cyclic parent updates", () => {
-    const { host, corpus } = store();
+    const { host, workstreamStore: workstreamStore } = store();
     const db = openDatabase(host.bb);
-    expect(() => corpus.create("Orphan", "", "missing")).toThrow(
-      /Unknown topic parent/,
+    expect(() => workstreamStore.create("Orphan", "", "missing")).toThrow(
+      /Unknown group/,
     );
-    const root = corpus.create("Root", "");
-    const child = corpus.create("Child", "", root.id);
-    db.prepare("UPDATE ws_corpus_entity SET parent_id = ? WHERE id = ?").run(
+    const root = workstreamStore.create("Root", "");
+    const child = workstreamStore.create("Child", "", root.id);
+    db.prepare("UPDATE ws_workstream SET parent_id = ? WHERE id = ?").run(
       child.id,
       root.id,
     );
-    expect(() => corpus.create("Nested", "", root.id)).toThrow(/parent cycle/);
-    expect(corpus.list().find((item) => item.id === child.id)?.parentId).toBe(
+    expect(() => workstreamStore.create("Nested", "", root.id)).toThrow(/inside itself/);
+    expect(workstreamStore.list().find((item) => item.id === child.id)?.parentId).toBe(
       root.id,
     );
   });
 
   it("rejects assignment to unknown entities and retains specific subjects under broad placement", () => {
-    const { corpus } = store();
-    expect(() => corpus.assign("thread-x", "missing")).toThrow(/Unknown topic/);
-    const broad = corpus.create("Engineering", "");
-    const specific = corpus.create("Billing migration", "", broad.id);
-    corpus.bindGroup("section-engineering", broad.id);
-    corpus.assign("thread-x", specific.id);
-    expect(corpus.assignment("thread-x").entityId).toBe(specific.id);
+    const { workstreamStore: workstreamStore } = store();
+    expect(() => workstreamStore.assign("thread-x", "missing")).toThrow(/Unknown workstream/);
+    const broad = workstreamStore.create("Engineering", "");
+    const specific = workstreamStore.create("Billing migration", "", broad.id);
+    workstreamStore.bindGroup("section-engineering", broad.id);
+    workstreamStore.assign("thread-x", specific.id);
+    expect(workstreamStore.assignment("thread-x").workstreamId).toBe(specific.id);
   });
 
   it("assignment doesn't move native thread placement", () => {
-    const { host, corpus } = store();
+    const { host, workstreamStore: workstreamStore } = store();
     const db = openDatabase(host.bb);
     db.prepare(
       "INSERT INTO ws_seen_thread(thread_id, section_id, parent_thread_id, title) VALUES ('t1', 'sec-home', NULL, 'Thread 1')",
     ).run();
 
-    const entity = corpus.create("Feature", "Feature desc");
-    const assignment = corpus.assign("t1", entity.id);
+    const workstream = workstreamStore.create("Feature", "Feature desc");
+    const assignment = workstreamStore.assign("t1", workstream.id);
 
     expect(assignment.status).toBe("assigned");
-    expect(assignment.entityId).toBe(entity.id);
+    expect(assignment.workstreamId).toBe(workstream.id);
 
     // Verify placement in ws_seen_thread was not modified
     const seen = db
@@ -235,109 +235,109 @@ describe("TopicStore", () => {
   });
 
   it("moving thread doesn't rewrite task identity", () => {
-    const { host, corpus } = store();
+    const { host, workstreamStore: workstreamStore } = store();
     const db = openDatabase(host.bb);
     db.prepare(
       "INSERT INTO ws_seen_thread(thread_id, section_id, parent_thread_id, title) VALUES ('t1', 'sec-old', NULL, 'Thread 1')",
     ).run();
 
-    const entity = corpus.create("Feature", "Feature desc");
-    corpus.assign("t1", entity.id);
+    const workstream = workstreamStore.create("Feature", "Feature desc");
+    workstreamStore.assign("t1", workstream.id);
 
     // Simulate moving thread native section
     db.prepare(
       "UPDATE ws_seen_thread SET section_id = 'sec-new' WHERE thread_id = 't1'",
     ).run();
 
-    const assignment = corpus.assignment("t1");
+    const assignment = workstreamStore.assignment("t1");
     expect(assignment.status).toBe("assigned");
-    expect(assignment.entityId).toBe(entity.id);
+    expect(assignment.workstreamId).toBe(workstream.id);
   });
 
   it("merges update references across subjects, groups, and children", () => {
-    const { corpus } = store();
-    const source = corpus.create("OldAlpha", "Old alpha feature", null, [
+    const { workstreamStore: workstreamStore } = store();
+    const source = workstreamStore.create("OldAlpha", "Old alpha feature", null, [
       "LegacyAlpha",
     ]);
-    const target = corpus.create("NewBeta", "New beta feature");
-    const child = corpus.create("ChildFeature", "Child of alpha", source.id);
-    corpus.assign("t-alpha", child.id);
-    corpus.bindGroup("sec-alpha", source.id);
+    const target = workstreamStore.create("NewBeta", "New beta feature");
+    const child = workstreamStore.create("ChildFeature", "Child of alpha", source.id);
+    workstreamStore.assign("t-alpha", child.id);
+    workstreamStore.bindGroup("sec-alpha", source.id);
 
-    const initialRev = corpus.revision();
-    const result = corpus.merge(source.id, target.id);
+    const initialRev = workstreamStore.revision();
+    const result = workstreamStore.merge(source.id, target.id);
 
     expect(result.id).toBe(target.id);
-    expect(corpus.revision()).toBeGreaterThan(initialRev);
+    expect(workstreamStore.revision()).toBeGreaterThan(initialRev);
 
     // Source is gone
-    expect(corpus.getById(source.id)).toBeNull();
+    expect(workstreamStore.getById(source.id)).toBeNull();
 
     // The child keeps its thread while its parent changes.
-    const assignment = corpus.assignment("t-alpha");
-    expect(assignment.entityId).toBe(child.id);
+    const assignment = workstreamStore.assignment("t-alpha");
+    expect(assignment.workstreamId).toBe(child.id);
     expect(assignment.status).toBe("assigned");
 
     // Child reparented to target
-    const updatedChild = corpus.getById(child.id);
+    const updatedChild = workstreamStore.getById(child.id);
     expect(updatedChild?.parentId).toBe(target.id);
 
     // Group binding updated to target
-    expect(corpus.groups().get("sec-alpha")).toBe(target.id);
+    expect(workstreamStore.groups().get("sec-alpha")).toBe(target.id);
 
     // Target absorbed source name and aliases
-    const updatedTarget = corpus.getById(target.id);
+    const updatedTarget = workstreamStore.getById(target.id);
     expect(updatedTarget?.aliases).toContain("OldAlpha");
     expect(updatedTarget?.aliases).toContain("LegacyAlpha");
   });
 
   it("rejects cycles on reparenting", () => {
-    const { corpus } = store();
-    const root = corpus.create("Root", "Root item");
-    const child = corpus.create("Child", "Child item", root.id);
+    const { workstreamStore: workstreamStore } = store();
+    const root = workstreamStore.create("Root", "Root item");
+    const child = workstreamStore.create("Child", "Child item", root.id);
     expect(() =>
-      corpus.create("Grandchild", "Grandchild item", child.id),
+      workstreamStore.create("Grandchild", "Grandchild item", child.id),
     ).toThrow("at most two levels");
-    const sibling = corpus.create("Sibling", "Sibling item", root.id);
+    const sibling = workstreamStore.create("Sibling", "Sibling item", root.id);
 
     // Reparent self
-    expect(() => corpus.reparent(child.id, child.id)).toThrow(
-      /Cannot reparent an entity under itself/,
+    expect(() => workstreamStore.move(child.id, child.id)).toThrow(
+      /can't move into itself/,
     );
 
     // Reparent ancestor under descendant creates cycle
-    expect(() => corpus.reparent(root.id, child.id)).toThrow(/cycle/);
+    expect(() => workstreamStore.move(root.id, child.id)).toThrow(/inside/);
 
     // Valid reparenting succeeds
-    const reparented = corpus.reparent(sibling.id, null);
+    const reparented = workstreamStore.move(sibling.id, null);
     expect(reparented.parentId).toBeNull();
   });
 
   it("keeps manual selections stable across restart and analyses", () => {
-    const { host, corpus } = store();
-    const entity = corpus.create("Billing", "Billing feature");
-    corpus.assign("t1", entity.id, { provenance: "manual" });
+    const { host, workstreamStore: workstreamStore } = store();
+    const workstream = workstreamStore.create("Billing", "Billing feature");
+    workstreamStore.assign("t1", workstream.id, { provenance: "manual" });
     expect(
-      corpus.applyAnalysis(
+      workstreamStore.applyAnalysis(
         "t1",
-        { subjectId: null, proposed: null },
-        "full",
+        { workstreamId: null, proposed: null },
+        "automatic",
         "basis",
       ),
     ).toBe(false);
 
     // Reopen store from same db (simulating restart)
     const db = openDatabase(host.bb);
-    const reloaded = new TopicStore(db);
+    const reloaded = new WorkstreamStore(db);
 
     const assignment = reloaded.assignment("t1");
     expect(assignment.status).toBe("assigned");
-    expect(assignment.entityId).toBe(entity.id);
+    expect(assignment.workstreamId).toBe(workstream.id);
     expect(assignment.provenance).toBe("manual");
   });
 
   it("ensures children inherit root identity and mutations apply to root", () => {
-    const { host, corpus } = store();
+    const { host, workstreamStore: workstreamStore } = store();
     const db = openDatabase(host.bb);
     db.prepare(
       "INSERT INTO ws_seen_thread(thread_id, section_id, parent_thread_id, title) VALUES ('t-root', NULL, NULL, 'Root')",
@@ -349,36 +349,36 @@ describe("TopicStore", () => {
       "INSERT INTO ws_seen_thread(thread_id, section_id, parent_thread_id, title) VALUES ('t-grandchild', NULL, 't-child', 'Grandchild')",
     ).run();
 
-    const entity1 = corpus.create("Feature 1", "First feature");
-    const entity2 = corpus.create("Feature 2", "Second feature");
+    const workstream1 = workstreamStore.create("Feature 1", "First feature");
+    const workstream2 = workstreamStore.create("Feature 2", "Second feature");
 
     // Assign root
-    corpus.assign("t-root", entity1.id);
+    workstreamStore.assign("t-root", workstream1.id);
 
     // Child and grandchild inherit
-    const childAssign = corpus.assignment("t-child");
+    const childAssign = workstreamStore.assignment("t-child");
     expect(childAssign.status).toBe("assigned");
-    expect(childAssign.entityId).toBe(entity1.id);
+    expect(childAssign.workstreamId).toBe(workstream1.id);
     expect(childAssign.inheritedFrom).toBe("t-root");
 
-    const grandAssign = corpus.assignment("t-grandchild");
+    const grandAssign = workstreamStore.assignment("t-grandchild");
     expect(grandAssign.status).toBe("assigned");
-    expect(grandAssign.entityId).toBe(entity1.id);
+    expect(grandAssign.workstreamId).toBe(workstream1.id);
     expect(grandAssign.inheritedFrom).toBe("t-root");
 
     // Mutating child re-assigns root
-    corpus.assign("t-grandchild", entity2.id);
-    expect(corpus.assignment("t-root").entityId).toBe(entity2.id);
-    expect(corpus.assignment("t-child").entityId).toBe(entity2.id);
+    workstreamStore.assign("t-grandchild", workstream2.id);
+    expect(workstreamStore.assignment("t-root").workstreamId).toBe(workstream2.id);
+    expect(workstreamStore.assignment("t-child").workstreamId).toBe(workstream2.id);
 
     // Clearing child clears root
-    corpus.clear("t-child");
-    expect(corpus.assignment("t-root").status).toBe("unresolved");
-    expect(corpus.assignment("t-grandchild").status).toBe("unresolved");
+    workstreamStore.clear("t-child");
+    expect(workstreamStore.assignment("t-root").status).toBe("none");
+    expect(workstreamStore.assignment("t-grandchild").status).toBe("none");
   });
 
   it("resolves one thread without reading the topic tree, and many from one read", () => {
-    const { host, corpus } = store();
+    const { host, workstreamStore: workstreamStore } = store();
     const db = openDatabase(host.bb);
     for (const [id, parent] of [
       ["root", null],
@@ -389,249 +389,249 @@ describe("TopicStore", () => {
       db.prepare(
         "INSERT INTO ws_seen_thread(thread_id, section_id, parent_thread_id, title) VALUES (?, NULL, ?, ?)",
       ).run(id, parent, id);
-    const product = corpus.create("Lantern", "Product");
-    const leaf = corpus.create("Up Next", "Upcoming", product.id);
-    corpus.assign("root", leaf.id, { provenance: "full", evidence: "basis" });
-    corpus.assign("cleared", null);
+    const product = workstreamStore.create("Lantern", "Product");
+    const leaf = workstreamStore.create("Up Next", "Upcoming", product.id);
+    workstreamStore.assign("root", leaf.id, { provenance: "automatic", evidence: "basis" });
+    workstreamStore.assign("cleared", null);
     const ids = ["root", "child", "bare", "cleared", "unseen"];
-    const list = vi.spyOn(corpus, "list");
+    const list = vi.spyOn(workstreamStore, "list");
 
-    const single = ids.map((id) => corpus.assignment(id));
+    const single = ids.map((id) => workstreamStore.assignment(id));
     expect(list).not.toHaveBeenCalled();
     expect(single[1]).toMatchObject({
-      entityId: leaf.id,
-      label: "Lantern: Up Next",
+      workstreamId: leaf.id,
+      label: "Lantern › Up Next",
       ancestorIds: [leaf.id, product.id],
       evidence: "basis",
       inheritedFrom: "root",
     });
     expect(single[3]).toMatchObject({
-      status: "unresolved",
+      status: "none",
       provenance: "manual",
     });
 
-    const many = corpus.assignmentsOf(ids);
+    const many = workstreamStore.assignmentsOf(ids);
     expect(list).toHaveBeenCalledTimes(1);
     expect(ids.map((id) => many.get(id))).toEqual(single);
-    const all = corpus.assignments();
+    const all = workstreamStore.assignments();
     expect(ids.slice(0, 4).map((id) => all[id])).toEqual(single.slice(0, 4));
   });
 
   it("validates scoped name and alias collisions on rename and reparent", () => {
-    const { corpus } = store();
-    const root = corpus.create("Root", "");
-    corpus.create("Alpha", "first", root.id, ["AliasA"]);
-    const b = corpus.create("Beta", "second", root.id);
+    const { workstreamStore: workstreamStore } = store();
+    const root = workstreamStore.create("Root", "");
+    workstreamStore.create("Alpha", "first", root.id, ["AliasA"]);
+    const b = workstreamStore.create("Beta", "second", root.id);
 
     // Renaming to existing name under same parent fails
-    expect(() => corpus.rename(b.id, "Alpha")).toThrow(/conflicts/);
+    expect(() => workstreamStore.rename(b.id, "Alpha")).toThrow(/already/);
 
     // Renaming to existing alias under same parent fails
-    expect(() => corpus.rename(b.id, "AliasA")).toThrow(/conflicts/);
+    expect(() => workstreamStore.rename(b.id, "AliasA")).toThrow(/already/);
 
     // Other parent scope
-    const otherRoot = corpus.create("OtherRoot", "");
-    const c = corpus.create("Alpha", "third", otherRoot.id);
+    const otherRoot = workstreamStore.create("OtherRoot", "");
+    const c = workstreamStore.create("Alpha", "third", otherRoot.id);
 
     // Reparenting to root where "Alpha" already exists fails
-    expect(() => corpus.reparent(c.id, root.id)).toThrow(/conflicts/);
+    expect(() => workstreamStore.move(c.id, root.id)).toThrow(/already/);
   });
 
   it("updates metadata with validation and bumps revision", () => {
-    const { corpus } = store();
-    const root = corpus.create("Platform", "Base platform");
-    const feature = corpus.create("Auth", "Initial auth", root.id, ["Login"]);
-    const revBefore = corpus.revision();
+    const { workstreamStore: workstreamStore } = store();
+    const root = workstreamStore.create("Platform", "Base platform");
+    const feature = workstreamStore.create("Auth", "Initial auth", root.id, ["Login"]);
+    const revBefore = workstreamStore.revision();
 
     // Update description and aliases
-    const updated = corpus.updateMetadata(feature.id, {
+    const updated = workstreamStore.updateMetadata(feature.id, {
       description: "Updated authentication system",
       aliases: ["Sign-in", "SSO"],
     });
 
     expect(updated.description).toBe("Updated authentication system");
     expect(updated.aliases).toEqual(["Sign-in", "SSO"]);
-    expect(corpus.revision()).toBeGreaterThan(revBefore);
+    expect(workstreamStore.revision()).toBeGreaterThan(revBefore);
 
     // Reject alias matching name
     expect(() =>
-      corpus.updateMetadata(feature.id, { aliases: ["Auth"] }),
-    ).toThrow(/alias must differ from its name/);
+      workstreamStore.updateMetadata(feature.id, { aliases: ["Auth"] }),
+    ).toThrow(/alias must differ from the name/);
 
     // Sibling conflict check
-    corpus.create("Billing", "Billing feature", root.id, ["Payments"]);
+    workstreamStore.create("Billing", "Billing feature", root.id, ["Payments"]);
     expect(() =>
-      corpus.updateMetadata(feature.id, { aliases: ["Payments"] }),
-    ).toThrow(/already resolves to an entity/);
+      workstreamStore.updateMetadata(feature.id, { aliases: ["Payments"] }),
+    ).toThrow(/already names a workstream/);
   });
 
   it("rejects a duplicate name or a colliding alias on creation", () => {
-    const { corpus } = store();
-    corpus.create("Alpha", "Initial alpha");
+    const { workstreamStore: workstreamStore } = store();
+    workstreamStore.create("Alpha", "Initial alpha");
 
     // Strict create rejects duplicate name in same scope
-    expect(() => corpus.create("Alpha", "Duplicate alpha")).toThrow(
+    expect(() => workstreamStore.create("Alpha", "Duplicate alpha")).toThrow(
       /already exists/,
     );
 
     // Strict create rejects alias colliding with existing name
-    expect(() => corpus.create("Beta", "Beta", null, ["Alpha"])).toThrow(
-      /already resolves/,
+    expect(() => workstreamStore.create("Beta", "Beta", null, ["Alpha"])).toThrow(
+      /already names/,
     );
   });
 
   it("atomic updateMetadata validates collisions, supports no-op, and updates revision", () => {
-    const { corpus } = store();
-    const e1 = corpus.create("Billing", "Billing engine", null, ["Invoice"]);
-    const e2 = corpus.create("Payments", "Payments engine");
+    const { workstreamStore: workstreamStore } = store();
+    const e1 = workstreamStore.create("Billing", "Billing engine", null, ["Invoice"]);
+    const e2 = workstreamStore.create("Payments", "Payments engine");
 
-    const revBefore = corpus.revision();
+    const revBefore = workstreamStore.revision();
 
     // No-op update does not bump revision
-    const same = corpus.updateMetadata(e1.id, {
+    const same = workstreamStore.updateMetadata(e1.id, {
       description: "Billing engine",
       aliases: ["Invoice"],
     });
     expect(same.description).toBe("Billing engine");
-    expect(corpus.revision()).toBe(revBefore);
+    expect(workstreamStore.revision()).toBe(revBefore);
 
     // Collision with another entity in scope throws
     expect(() =>
-      corpus.updateMetadata(e2.id, { aliases: ["Invoice"] }),
-    ).toThrow(/already resolves/);
-    expect(corpus.revision()).toBe(revBefore);
+      workstreamStore.updateMetadata(e2.id, { aliases: ["Invoice"] }),
+    ).toThrow(/already names/);
+    expect(workstreamStore.revision()).toBe(revBefore);
 
     // Valid update updates metadata and bumps revision
-    const updated = corpus.updateMetadata(e1.id, {
+    const updated = workstreamStore.updateMetadata(e1.id, {
       description: "Next billing",
       aliases: ["Invoicing", "Bills"],
     });
     expect(updated.description).toBe("Next billing");
     expect(updated.aliases).toEqual(["Invoicing", "Bills"]);
-    expect(corpus.revision()).toBeGreaterThan(revBefore);
+    expect(workstreamStore.revision()).toBeGreaterThan(revBefore);
   });
 
   it("merges matching second-level topics and preserves leaf references", () => {
-    const { corpus } = store();
-    const targetRoot = corpus.create("TargetRoot");
-    const targetBackend = corpus.create("Backend", "", targetRoot.id);
-    const sourceRoot = corpus.create("SourceRoot");
-    const sourceBackend = corpus.create("Backend", "", sourceRoot.id);
-    const migrations = corpus.create("Migrations", "", sourceRoot.id);
-    const queue = corpus.create("Queue", "", sourceRoot.id);
-    corpus.assign("t-backend", sourceBackend.id);
-    corpus.assign("t-migrations", migrations.id);
-    corpus.assign("t-queue", queue.id);
-    corpus.bindGroup("sec-backend", sourceBackend.id);
-    corpus.bindGroup("sec-migrations", migrations.id);
+    const { workstreamStore: workstreamStore } = store();
+    const targetRoot = workstreamStore.create("TargetRoot");
+    const targetBackend = workstreamStore.create("Backend", "", targetRoot.id);
+    const sourceRoot = workstreamStore.create("SourceRoot");
+    const sourceBackend = workstreamStore.create("Backend", "", sourceRoot.id);
+    const migrations = workstreamStore.create("Migrations", "", sourceRoot.id);
+    const queue = workstreamStore.create("Queue", "", sourceRoot.id);
+    workstreamStore.assign("t-backend", sourceBackend.id);
+    workstreamStore.assign("t-migrations", migrations.id);
+    workstreamStore.assign("t-queue", queue.id);
+    workstreamStore.bindGroup("sec-backend", sourceBackend.id);
+    workstreamStore.bindGroup("sec-migrations", migrations.id);
 
-    corpus.merge(sourceRoot.id, targetRoot.id);
+    workstreamStore.merge(sourceRoot.id, targetRoot.id);
 
-    expect(corpus.getById(sourceRoot.id)).toBeNull();
-    expect(corpus.getById(sourceBackend.id)).toBeNull();
-    expect(corpus.getById(migrations.id)?.parentId).toBe(targetRoot.id);
-    expect(corpus.getById(queue.id)?.parentId).toBe(targetRoot.id);
-    expect(topicAncestors(migrations.id, corpus.list())).toEqual([
+    expect(workstreamStore.getById(sourceRoot.id)).toBeNull();
+    expect(workstreamStore.getById(sourceBackend.id)).toBeNull();
+    expect(workstreamStore.getById(migrations.id)?.parentId).toBe(targetRoot.id);
+    expect(workstreamStore.getById(queue.id)?.parentId).toBe(targetRoot.id);
+    expect(workstreamAncestors(migrations.id, workstreamStore.list())).toEqual([
       migrations.id,
       targetRoot.id,
     ]);
-    expect(corpus.assignment("t-backend").entityId).toBe(targetBackend.id);
-    expect(corpus.assignment("t-migrations").entityId).toBe(migrations.id);
-    expect(corpus.assignment("t-queue").entityId).toBe(queue.id);
-    expect(corpus.groups().get("sec-backend")).toBe(targetBackend.id);
-    expect(corpus.groups().get("sec-migrations")).toBe(migrations.id);
+    expect(workstreamStore.assignment("t-backend").workstreamId).toBe(targetBackend.id);
+    expect(workstreamStore.assignment("t-migrations").workstreamId).toBe(migrations.id);
+    expect(workstreamStore.assignment("t-queue").workstreamId).toBe(queue.id);
+    expect(workstreamStore.groups().get("sec-backend")).toBe(targetBackend.id);
+    expect(workstreamStore.groups().get("sec-migrations")).toBe(migrations.id);
   });
 
   it("merge rolls back completely on alias collision with no partial updates", () => {
-    const { corpus } = store();
-    const parentA = corpus.create("ParentA");
-    const parentB = corpus.create("ParentB");
+    const { workstreamStore: workstreamStore } = store();
+    const parentA = workstreamStore.create("ParentA");
+    const parentB = workstreamStore.create("ParentB");
 
     // Sibling of target has alias "ConflictAlias" in parentA scope
-    corpus.create("Sibling", "Sibling under A", parentA.id, ["ConflictAlias"]);
-    const target = corpus.create("Target", "Target entity", parentA.id);
+    workstreamStore.create("Sibling", "Sibling under A", parentA.id, ["ConflictAlias"]);
+    const target = workstreamStore.create("Target", "Target entity", parentA.id);
 
     // Source under parentB has alias "ConflictAlias" (valid in parentB scope)
-    const source = corpus.create("Source", "Source entity", parentB.id, [
+    const source = workstreamStore.create("Source", "Source entity", parentB.id, [
       "ConflictAlias",
     ]);
-    corpus.assign("t-child", source.id);
+    workstreamStore.assign("t-child", source.id);
 
-    const revBefore = corpus.revision();
+    const revBefore = workstreamStore.revision();
 
     // Merge must throw due to alias collision with Sibling in target's parent scope
-    expect(() => corpus.merge(source.id, target.id)).toThrow(/conflicts/);
+    expect(() => workstreamStore.merge(source.id, target.id)).toThrow(/already/);
 
     // All entities still exist and are untouched (transaction rolled back)
-    expect(corpus.getById(source.id)).not.toBeNull();
-    expect(corpus.assignment("t-child").entityId).toBe(source.id);
-    expect(corpus.revision()).toBe(revBefore);
+    expect(workstreamStore.getById(source.id)).not.toBeNull();
+    expect(workstreamStore.assignment("t-child").workstreamId).toBe(source.id);
+    expect(workstreamStore.revision()).toBe(revBefore);
   });
 
   it("mutation no-ops do not bump revision for identical assign and clear", () => {
-    const { corpus } = store();
-    const entity = corpus.create("Feature", "Feature desc");
-    corpus.assign("t1", entity.id, { provenance: "manual" });
-    const rev1 = corpus.revision();
+    const { workstreamStore: workstreamStore } = store();
+    const workstream = workstreamStore.create("Feature", "Feature desc");
+    workstreamStore.assign("t1", workstream.id, { provenance: "manual" });
+    const rev1 = workstreamStore.revision();
 
     // Assigning identical entity, provenance, and evidence is a no-op
-    const a2 = corpus.assign("t1", entity.id, { provenance: "manual" });
-    expect(corpus.revision()).toBe(rev1);
-    expect(a2.entityId).toBe(entity.id);
+    const a2 = workstreamStore.assign("t1", workstream.id, { provenance: "manual" });
+    expect(workstreamStore.revision()).toBe(rev1);
+    expect(a2.workstreamId).toBe(workstream.id);
 
     // Clearing an unassigned thread is a no-op
-    corpus.clear("unassigned-thread");
-    expect(corpus.revision()).toBe(rev1);
+    workstreamStore.clear("unassigned-thread");
+    expect(workstreamStore.revision()).toBe(rev1);
 
     // Clearing assigned thread bumps revision
-    corpus.clear("t1");
-    expect(corpus.revision()).toBeGreaterThan(rev1);
+    workstreamStore.clear("t1");
+    expect(workstreamStore.revision()).toBeGreaterThan(rev1);
   });
 
   it("applies analyses under the source priority", () => {
-    const { corpus } = store();
-    const a = corpus.create("Alpha", "");
-    const b = corpus.create("Beta", "");
+    const { workstreamStore: workstreamStore } = store();
+    const a = workstreamStore.create("Alpha", "");
+    const b = workstreamStore.create("Beta", "");
     const answer = (id: string | null, scopeShift = false) => ({
-      subjectId: id,
+      workstreamId: id,
       proposed: null,
       scopeShift,
     });
     // Quick fills an empty thread and replaces only its own guess.
-    expect(corpus.applyAnalysis("t", answer(a.id), "quick", null)).toBe(true);
-    expect(corpus.applyAnalysis("t", answer(b.id), "quick", null)).toBe(true);
-    expect(corpus.assignment("t").provenance).toBe("quick");
+    expect(workstreamStore.applyAnalysis("t", answer(a.id), "composer", null)).toBe(true);
+    expect(workstreamStore.applyAnalysis("t", answer(b.id), "composer", null)).toBe(true);
+    expect(workstreamStore.assignment("t").provenance).toBe("composer");
     // Full settles over quick, and quick never replaces full.
-    expect(corpus.applyAnalysis("t", answer(a.id), "full", "k1")).toBe(true);
-    expect(corpus.applyAnalysis("t", answer(b.id), "quick", null)).toBe(false);
-    expect(corpus.assignment("t")).toMatchObject({
-      entityId: a.id,
-      provenance: "full",
+    expect(workstreamStore.applyAnalysis("t", answer(a.id), "automatic", "k1")).toBe(true);
+    expect(workstreamStore.applyAnalysis("t", answer(b.id), "composer", null)).toBe(false);
+    expect(workstreamStore.assignment("t")).toMatchObject({
+      workstreamId: a.id,
+      provenance: "automatic",
       evidence: "k1",
     });
     // Inherited changes only on a scope shift from Full analysis.
-    corpus.assign("i", a.id, { provenance: "inherited" });
-    expect(corpus.applyAnalysis("i", answer(b.id), "full", "k2")).toBe(false);
-    expect(corpus.basis("i")).toBe("k2");
-    expect(corpus.applyAnalysis("i", answer(b.id), "quick", null)).toBe(false);
-    expect(corpus.applyAnalysis("i", answer(b.id, true), "full", "k3")).toBe(
+    workstreamStore.assign("i", a.id, { provenance: "inherited" });
+    expect(workstreamStore.applyAnalysis("i", answer(b.id), "automatic", "k2")).toBe(false);
+    expect(workstreamStore.basis("i")).toBe("k2");
+    expect(workstreamStore.applyAnalysis("i", answer(b.id), "composer", null)).toBe(false);
+    expect(workstreamStore.applyAnalysis("i", answer(b.id, true), "automatic", "k3")).toBe(
       true,
     );
-    expect(corpus.assignment("i")).toMatchObject({
-      entityId: b.id,
-      provenance: "full",
+    expect(workstreamStore.assignment("i")).toMatchObject({
+      workstreamId: b.id,
+      provenance: "automatic",
     });
   });
 
   it("keeps inherited priority when a proposed child still needs a reviewed filing plan", () => {
-    const { corpus } = store();
-    const product = corpus.create("Product", "A multi-capability product");
-    corpus.assign("i", product.id, { provenance: "inherited" });
+    const { workstreamStore: workstreamStore } = store();
+    const product = workstreamStore.create("Product", "A multi-capability product");
+    workstreamStore.assign("i", product.id, { provenance: "inherited" });
     expect(
-      corpus.applyAnalysis(
+      workstreamStore.applyAnalysis(
         "i",
         {
-          subjectId: null,
+          workstreamId: null,
           proposed: {
             name: "Billing",
             description: "Billing capability",
@@ -639,117 +639,117 @@ describe("TopicStore", () => {
           },
           scopeShift: false,
         },
-        "full",
+        "automatic",
         "new-request",
       ),
     ).toBe(false);
-    expect(corpus.assignment("i")).toMatchObject({
-      entityId: product.id,
+    expect(workstreamStore.assignment("i")).toMatchObject({
+      workstreamId: product.id,
       provenance: "inherited",
       evidence: "new-request",
     });
-    expect(corpus.subtopics(product.id)).toBe(0);
-    expect(corpus.divisionRequests()[product.id]?.name).toBe("Billing");
+    expect(workstreamStore.workstreams(product.id)).toBe(0);
+    expect(workstreamStore.divisionRequests()[product.id]?.name).toBe("Billing");
   });
 
   it("lets Full analysis narrow an inherited topic without a scope shift", () => {
-    const { corpus, db } = store();
-    const product = corpus.create("Product", "");
-    const other = corpus.create("Other", "");
+    const { workstreamStore: workstreamStore, db } = store();
+    const product = workstreamStore.create("Product", "");
+    const other = workstreamStore.create("Other", "");
     const answer = (
-      subjectId: string | null,
+      workstreamId: string | null,
       proposed: { name: string; parentId: string | null } | null = null,
     ) => ({
-      subjectId,
+      workstreamId,
       proposed: proposed ? { ...proposed, description: "" } : null,
       scopeShift: false,
     });
-    const feature = corpus.create("Feature", "", product.id);
+    const feature = workstreamStore.create("Feature", "", product.id);
     for (const id of ["i", "j"])
       db.prepare(
-        "INSERT INTO ws_corpus_subject(thread_id, entity_id, source) VALUES (?, ?, 'inherited')",
+        "INSERT INTO ws_thread_workstream(thread_id, workstream_id, source) VALUES (?, ?, 'inherited')",
       ).run(id, product.id);
     // A sibling or the same topic is no narrowing.
-    expect(corpus.applyAnalysis("i", answer(other.id), "full", "k1")).toBe(
+    expect(workstreamStore.applyAnalysis("i", answer(other.id), "automatic", "k1")).toBe(
       false,
     );
-    expect(corpus.applyAnalysis("i", answer(product.id), "full", "k2")).toBe(
+    expect(workstreamStore.applyAnalysis("i", answer(product.id), "automatic", "k2")).toBe(
       false,
     );
     // An existing descendant narrows it, and Quick analysis never does.
-    expect(corpus.applyAnalysis("i", answer(feature.id), "quick", null)).toBe(
+    expect(workstreamStore.applyAnalysis("i", answer(feature.id), "composer", null)).toBe(
       false,
     );
-    expect(corpus.applyAnalysis("i", answer(feature.id), "full", "k3")).toBe(
+    expect(workstreamStore.applyAnalysis("i", answer(feature.id), "automatic", "k3")).toBe(
       true,
     );
-    expect(corpus.assignment("i")).toMatchObject({
-      entityId: feature.id,
-      provenance: "full",
+    expect(workstreamStore.assignment("i")).toMatchObject({
+      workstreamId: feature.id,
+      provenance: "automatic",
     });
     // Narrowing remains within the two-level identity limit.
     expect(
-      corpus.applyAnalysis(
+      workstreamStore.applyAnalysis(
         "j",
         answer(null, { name: "CLI commands", parentId: product.id }),
-        "full",
+        "automatic",
         "k4",
       ),
     ).toBe(false);
-    expect(corpus.assignment("j").entityId).toBe(product.id);
-    expect(corpus.divisionRequests()[product.id]?.name).toBe("CLI commands");
+    expect(workstreamStore.assignment("j").workstreamId).toBe(product.id);
+    expect(workstreamStore.divisionRequests()[product.id]?.name).toBe("CLI commands");
   });
 
   it("inherits a topic only into a thread with none or a quick guess", () => {
-    const { corpus } = store();
-    const a = corpus.create("Alpha", "");
-    const b = corpus.create("Beta", "");
-    corpus.assign("source", a.id, { provenance: "full" });
-    expect(corpus.inherit("fork", "source")).toBe(true);
-    expect(corpus.assignment("fork")).toMatchObject({
-      entityId: a.id,
+    const { workstreamStore: workstreamStore } = store();
+    const a = workstreamStore.create("Alpha", "");
+    const b = workstreamStore.create("Beta", "");
+    workstreamStore.assign("source", a.id, { provenance: "automatic" });
+    expect(workstreamStore.inherit("fork", "source")).toBe(true);
+    expect(workstreamStore.assignment("fork")).toMatchObject({
+      workstreamId: a.id,
       provenance: "inherited",
     });
-    corpus.assign("mine", b.id, { provenance: "manual" });
-    expect(corpus.inherit("mine", "source")).toBe(false);
-    expect(corpus.inherit("orphan", "nobody")).toBe(false);
+    workstreamStore.assign("mine", b.id, { provenance: "manual" });
+    expect(workstreamStore.inherit("mine", "source")).toBe(false);
+    expect(workstreamStore.inherit("orphan", "nobody")).toBe(false);
   });
 
   it("keeps a discovered topic with an associated project until the association is cleared", () => {
-    const { corpus } = store();
-    const topic = corpus.rememberProposal({
+    const { workstreamStore: workstreamStore } = store();
+    const workstream = workstreamStore.rememberProposal({
       name: "Configured",
       description: "",
     });
-    corpus.edit(topic.id, { projectId: "project" });
-    expect(corpus.prune()).toEqual([]);
-    corpus.edit(topic.id, { projectId: null });
-    expect(corpus.prune()).toEqual([]);
-    corpus.updateMetadata(topic.id, { projectAutomatic: true });
-    expect(corpus.prune().map((entity) => entity.id)).toEqual([topic.id]);
+    workstreamStore.edit(workstream.id, { projectId: "project" });
+    expect(workstreamStore.prune()).toEqual([]);
+    workstreamStore.edit(workstream.id, { projectId: null });
+    expect(workstreamStore.prune()).toEqual([]);
+    workstreamStore.updateMetadata(workstream.id, { projectAutomatic: true });
+    expect(workstreamStore.prune().map((workstream) => workstream.id)).toEqual([workstream.id]);
   });
 
   it("prunes discovered topics nothing uses, deepest first, and keeps yours", () => {
-    const { corpus } = store();
-    const mine = corpus.create("Mine", "");
-    const leaf = corpus.rememberProposal({
+    const { workstreamStore: workstreamStore } = store();
+    const mine = workstreamStore.create("Mine", "");
+    const leaf = workstreamStore.rememberProposal({
       name: "Leaf",
       description: "",
       parentId: null,
       ancestors: [{ name: "Found", description: "" }],
     });
-    const used = corpus.rememberProposal({
+    const used = workstreamStore.rememberProposal({
       name: "Used",
       description: "",
       parentId: null,
     });
-    corpus.assign("t", used.id, { provenance: "full" });
-    const removed = corpus.prune().map((t) => t.name);
+    workstreamStore.assign("t", used.id, { provenance: "automatic" });
+    const removed = workstreamStore.prune().map((t) => t.name);
     expect(removed).toEqual(["Leaf", "Found"]);
-    expect(corpus.getById(leaf.id)).toBeNull();
-    expect(corpus.getById(mine.id)).not.toBeNull();
-    expect(corpus.getById(used.id)).not.toBeNull();
-    corpus.forget("t");
-    expect(corpus.prune().map((t) => t.name)).toEqual(["Used"]);
+    expect(workstreamStore.getById(leaf.id)).toBeNull();
+    expect(workstreamStore.getById(mine.id)).not.toBeNull();
+    expect(workstreamStore.getById(used.id)).not.toBeNull();
+    workstreamStore.forget("t");
+    expect(workstreamStore.prune().map((t) => t.name)).toEqual(["Used"]);
   });
 });

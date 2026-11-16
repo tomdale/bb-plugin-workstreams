@@ -45,7 +45,7 @@ const rpc = <T = unknown>(w: World, method: string, input: unknown) =>
   w.harness.behavior.callRpc(method, input) as Promise<T>;
 const retitles = async (w: World) =>
   (await rpc<{ entries: Entry[] }>(w, "journal", {})).entries.filter(
-    (e) => e.action === "retitle",
+    (e) => e.action === "title-updated",
   );
 const settle = async (ms = 6_000) => {
   await vi.advanceTimersByTimeAsync(ms);
@@ -84,7 +84,7 @@ describe("keeping thread titles current", () => {
     expect(w.threads.get("t1")?.title).toBe("Fix stale build cache");
     const [entry] = await retitles(w);
     expect(entry).toMatchObject({
-      source: "auto",
+      source: "workstreams",
       rationale: "Titled an untitled thread",
       threads: [{ id: "t1", name: "Fix stale build cache" }],
     });

@@ -2,14 +2,14 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { renderSlot } from "@get-bb/plugin-sdk/testing/app";
-import { CreateEntityDialog } from "../../src/app/page/CatalogDialogs.tsx";
-import { TopicTree } from "../../src/app/page/topics/TopicTree.tsx";
+import { CreateWorkstreamDialog } from "../../src/app/page/WorkstreamDialogs.tsx";
+import { WorkstreamTree } from "../../src/app/page/organize/WorkstreamTree.tsx";
 
 Element.prototype.scrollIntoView ??= () => {};
 afterEach(cleanup);
 
-const topic = {
-  id: "topic",
+const workstream = {
+  id: "workstream",
   name: "Example",
   parentId: null,
   description: "",
@@ -19,11 +19,11 @@ const topic = {
 /** The topic tree's editor, opened on the one topic it lists. */
 function mountEditor(call = vi.fn()) {
   renderSlot(
-    { component: TopicTree },
+    { component: WorkstreamTree },
     {
       query: "Example",
       ws: {
-        server: { catalog: { entities: [topic], assignments: {} } },
+        server: { tree: { workstreams: [workstream], assignments: {} } },
         projection: { rowOf: new Map() },
         projects: [],
         rpc: { call },
@@ -36,10 +36,10 @@ function mountEditor(call = vi.fn()) {
 
 it("bounds topic name and description fields to their RPC limits", () => {
   renderSlot(
-    { component: CreateEntityDialog },
+    { component: CreateWorkstreamDialog },
     {
       parentId: null,
-      entities: [],
+      workstreams: [],
       rpc: { call: vi.fn() } as never,
       onSuccess: vi.fn(),
       onClose: vi.fn(),
@@ -63,10 +63,10 @@ it("bounds the topic editor's name and description to their RPC limits", () => {
 it("explains oversized aliases before creating a topic", async () => {
   const call = vi.fn();
   renderSlot(
-    { component: CreateEntityDialog },
+    { component: CreateWorkstreamDialog },
     {
       parentId: null,
-      entities: [],
+      workstreams: [],
       rpc: { call } as never,
       onSuccess: vi.fn(),
       onClose: vi.fn(),

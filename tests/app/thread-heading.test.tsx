@@ -64,7 +64,7 @@ const HeadingView = memo(function HeadingView({
     <div>
       <h2>{context.title}</h2>
       <p aria-label="goal">{context.goal ?? "none"}</p>
-      <p aria-label="workstream">{context.workstream?.name ?? "unfiled"}</p>
+      <p aria-label="workstream">{context.workstream?.name ?? "other"}</p>
       <p aria-label="workstream color">
         {context.workstream?.color.hue ?? "none"}
       </p>
@@ -144,7 +144,7 @@ it("names the thread exactly as BB lists it, whatever the analysis inferred", as
 
 it("uses the root topic's color for a delegate in a different native section", async () => {
   const child = sidebarThread("child", {
-    title: "Delegate",
+    title: "Child",
     parentThreadId: "root",
     sectionId: "sec_2",
   });
@@ -152,18 +152,18 @@ it("uses the root topic's color for a delegate in a different native section", a
   const slot = await mount(
     child,
     {
-      catalog: {
-        entities: [
+      tree: {
+        workstreams: [
           {
-            id: "topic",
+            id: "workstream",
             name: "Lumen",
             description: "",
             parentId: null,
             aliases: [],
           },
         ],
-        groups: { sec_1: "topic" },
-        colors: { topic: { hue: 211, level: 1 } },
+        groups: { sec_1: "workstream" },
+        colors: { workstream: { hue: 211, level: 1 } },
         assignments: {},
         revision: 1,
       },

@@ -61,10 +61,10 @@ const merge = suggestion(
     ],
   },
   {
-    topics: [],
+    workstreams: [],
     removed: ["alpha"],
-    assignments: [{ threadId: "root", topicId: "beta" }],
-    held: [{ threadId: "root", topicId: "alpha", title: "Root task" }],
+    assignments: [{ threadId: "root", workstreamId: "beta" }],
+    held: [{ threadId: "root", workstreamId: "alpha", title: "Root task" }],
     archived: 0,
     touched: [],
   },
@@ -84,10 +84,10 @@ const rename = suggestion(
     ],
   },
   {
-    topics: [{ id: "beta", name: "Beta site", parentId: null }],
+    workstreams: [{ id: "beta", name: "Beta site", parentId: null }],
     removed: [],
     assignments: [],
-    held: [{ threadId: "beta", topicId: "beta", title: "Beta task" }],
+    held: [{ threadId: "beta", workstreamId: "beta", title: "Beta task" }],
     archived: 0,
     touched: [],
   },
@@ -96,7 +96,7 @@ const third = suggestion(
   "third",
   "Move “Loose task” to Beta",
   {
-    op: "refile",
+    op: "move-thread",
     moves: [
       {
         from: null,
@@ -107,17 +107,17 @@ const third = suggestion(
     ],
   },
   {
-    topics: [],
+    workstreams: [],
     removed: [],
-    assignments: [{ threadId: "loose", topicId: "beta" }],
-    held: [{ threadId: "beta", topicId: "beta", title: "Beta task" }],
+    assignments: [{ threadId: "loose", workstreamId: "beta" }],
+    held: [{ threadId: "beta", workstreamId: "beta", title: "Beta task" }],
     archived: 0,
     touched: [],
   },
 );
 const outdated = suggestion(
   "old",
-  "Move Infra under Platform",
+  "Move Infra into Platform",
   null,
   null,
   "Infra no longer exists.",
@@ -131,8 +131,8 @@ const stateOf = (suggestions: Suggestion[]): SuggestionsStateWire => ({
 });
 
 /** Alpha and Beta, with the sidebar's roots filed in them; "loose" is Unfiled. */
-const catalog = {
-  entities: [
+const tree = {
+  workstreams: [
     {
       id: "alpha",
       name: "Alpha",
@@ -153,7 +153,7 @@ async function open(
 ) {
   const slot = await mount(undefined, {
     pendingSuggestions: suggestions.length,
-    catalog,
+    tree,
     assignments,
     rpc: { suggestions: () => ({ state: stateOf(suggestions) }), ...rpc },
     ...options,
@@ -214,7 +214,7 @@ it("lists each suggestion as a sentence, the first selected and titling the pane
     review.getByRole("button", { name: "Decline: Merge Alpha into Beta" }),
   ).toBeTruthy();
   // Out-of-date suggestions are counted, not listed.
-  expect(review.queryByText("Move Infra under Platform")).toBeNull();
+  expect(review.queryByText("Move Infra into Platform")).toBeNull();
   expect(review.getByText("1 out of date")).toBeTruthy();
 });
 
@@ -278,7 +278,7 @@ it("draws the sidebar now and after accepting the selected change", async () => 
 
 it("says so when a change moves no thread, and when it can't be drawn", async () => {
   const quiet = suggestion("quiet", "Create Ops", merge.change, {
-    topics: [{ id: "new:/ops", name: "Ops", parentId: null }],
+    workstreams: [{ id: "new:/ops", name: "Ops", parentId: null }],
     removed: [],
     assignments: [],
     held: [],
@@ -550,7 +550,7 @@ it("accepts all from the list's foot in one call", async () => {
   await review.findAllByRole("button", { name: /Undo/ });
 });
 
-it("holds Accept all, Reject all and Open Topics in the header menu", async () => {
+it("holds Accept all, Decline all and Open Organize in the header menu", async () => {
   const decide = vi.fn((_input: unknown) =>
     decideResult(
       [
@@ -569,9 +569,9 @@ it("holds Accept all, Reject all and Open Topics in the header menu", async () =
   const items = (await slot.findAllByRole("menuitem")).map(
     (item) => item.textContent,
   );
-  expect(items).toEqual(["Accept all", "Reject all", "Open Topics"]);
+  expect(items).toEqual(["Accept all", "Decline all", "Open Organize"]);
   await userEvent.click(
-    await slot.findByRole("menuitem", { name: "Reject all" }),
+    await slot.findByRole("menuitem", { name: "Decline all" }),
   );
   await waitFor(() =>
     expect(decide).toHaveBeenCalledWith({
@@ -587,19 +587,19 @@ it("offers no bulk actions for a single suggestion", async () => {
   await userEvent.click(review.getByRole("button", { name: "More actions" }));
   expect(
     (await slot.findAllByRole("menuitem")).map((item) => item.textContent),
-  ).toEqual(["Open Topics"]);
+  ).toEqual(["Open Organize"]);
 });
 
 it("opens Topics from the menu", async () => {
   const { slot, review } = await open([merge]);
   await userEvent.click(review.getByRole("button", { name: "More actions" }));
   await userEvent.click(
-    await slot.findByRole("menuitem", { name: "Open Topics" }),
+    await slot.findByRole("menuitem", { name: "Open Organize" }),
   );
   expect(slot.inspection.navigateCalls).toContainEqual({
     method: "toPluginPanel",
     path: "home",
-    options: { subPath: "topics" },
+    options: { subPath: "organize" },
   });
 });
 
@@ -695,11 +695,11 @@ it("draws a change to a workstream whose threads are snoozed, as dashed ticks wi
       ],
     },
     {
-      topics: [{ id: "gamma", name: "Gamma site", parentId: null }],
+      workstreams: [{ id: "gamma", name: "Gamma site", parentId: null }],
       removed: [],
       assignments: [],
       // A root the sidebar does not list: the server names it.
-      held: [{ threadId: "snoozed", topicId: "gamma", title: "Snoozed work" }],
+      held: [{ threadId: "snoozed", workstreamId: "gamma", title: "Snoozed work" }],
       archived: 0,
       touched: [],
     },
@@ -729,7 +729,7 @@ it("draws a workstream whose threads are all archived as a name, and counts them
       ],
     },
     {
-      topics: [{ id: "gamma", name: "Gamma site", parentId: null }],
+      workstreams: [{ id: "gamma", name: "Gamma site", parentId: null }],
       removed: [],
       assignments: [],
       held: [],
@@ -752,10 +752,10 @@ it("draws a workstream whose threads are all archived as a name, and counts them
 async function openWith(suggestions: Suggestion[]) {
   const slot = await mount(undefined, {
     pendingSuggestions: suggestions.length,
-    catalog: {
-      ...catalog,
-      entities: [
-        ...catalog.entities,
+    tree: {
+      ...tree,
+      workstreams: [
+        ...tree.workstreams,
         {
           id: "gamma",
           name: "Gamma",

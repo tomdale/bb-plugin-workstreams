@@ -31,7 +31,7 @@ export function SuggestionsChip({
   rpc,
   sidebar,
   count,
-  onOpenTopics,
+  onOpenOrganize,
   children,
 }: {
   rpc: Rpc;
@@ -39,7 +39,7 @@ export function SuggestionsChip({
   sidebar: SidebarView;
   /** Organizing suggestions waiting for a decision. */
   count: number;
-  onOpenTopics: () => void;
+  onOpenOrganize: () => void;
   /** The heading row, given the count's slot. */
   children: (slot: ReactNode) => ReactElement;
 }) {
@@ -107,9 +107,9 @@ export function SuggestionsChip({
           sidebar={sidebar}
           focusInitial={focusInitial}
           onClose={() => setOpen(false)}
-          onOpenTopics={() => {
+          onOpenOrganize={() => {
             setOpen(false);
-            onOpenTopics();
+            onOpenOrganize();
           }}
         />
       </DialogContent>

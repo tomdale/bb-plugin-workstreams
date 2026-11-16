@@ -22,7 +22,7 @@ export type TitleCase = {
 export const titleCases: TitleCase[] = [
   {
     id: "child-phase",
-    group: "Harbor: Sandbox Plugin",
+    group: "Harbor › Sandbox Plugin",
     parent: "Build Harbor Access sandbox tunnel",
     request:
       "Implement Phase 0 of the Harbor Access plan in docs/access-plan.md: the machine registry and the tunnel handshake stub. Stop after Phase 0 and report.",
@@ -31,7 +31,7 @@ export const titleCases: TitleCase[] = [
   },
   {
     id: "child-review",
-    group: "Harbor: Sandbox Plugin",
+    group: "Harbor › Sandbox Plugin",
     parent: "Build Harbor Access sandbox tunnel",
     request:
       "Review the Phase 1 transport implementation on branch tunnel-phase-1 for security problems and boundary violations. Read-only: report findings, don't edit.",
@@ -40,7 +40,7 @@ export const titleCases: TitleCase[] = [
   },
   {
     id: "child-checkpoint",
-    group: "Harbor: Sandbox Plugin",
+    group: "Harbor › Sandbox Plugin",
     parent: "Build Harbor Access sandbox tunnel",
     request:
       "Checkpoint review of Phase 2: check the lifecycle of relay connections (open, idle timeout, teardown) against the plan before we continue.",
@@ -49,7 +49,7 @@ export const titleCases: TitleCase[] = [
   },
   {
     id: "pr-number",
-    group: "Beacon: Code Review",
+    group: "Beacon › Code Review",
     request:
       "Review beacon/agents PR 4842. It adds a live status comment that the review bot updates while a review runs, instead of posting a new comment each time.",
     must: [["status", "comment"]],
@@ -57,7 +57,7 @@ export const titleCases: TitleCase[] = [
   },
   {
     id: "pr-checks",
-    group: "Ledger: Billing",
+    group: "Ledger › Billing",
     request:
       "The checks on ledger/api PR 89240 are failing: lint errors and a type error in the invoice webhook handler. Fix them and push.",
     must: [["webhook", "invoice", "checks", "lint"]],
@@ -68,7 +68,7 @@ export const titleCases: TitleCase[] = [
     group: "Streams Plugin",
     request:
       "Turn the design in docs/Ideal Hierarchies.md into a plan, then implement it. It covers the partition rule, the depth cap and promotion, placement with a model, and tidy passes.",
-    must: [["hierarch", "partition", "topic", "placement"]],
+    must: [["hierarch", "partition", "workstream", "placement"]],
     avoid: ["streams", "design plan"],
   },
   {
@@ -81,7 +81,7 @@ export const titleCases: TitleCase[] = [
   },
   {
     id: "group-feature",
-    group: "Beacon: Code Review",
+    group: "Beacon › Code Review",
     request:
       "Explain how Beacon's security review works end to end: which service starts it, where findings are stored, and how they reach the PR.",
     must: [["security"]],
@@ -89,14 +89,14 @@ export const titleCases: TitleCase[] = [
   },
   {
     id: "long-object",
-    group: "Streams Plugin: Recap Cards",
+    group: "Streams Plugin › Recap Cards",
     request:
       "Recap cards lost the completed tasks list and the next action after the refactor. Bring both back, matching the old layout.",
     must: [["task", "next action"]],
     avoid: ["streams", "recap card"],
   },
   {
-    id: "unfiled",
+    id: "other",
     request:
       "Investigate why the dev server's memory grows after every hot reload until it crashes after an hour or so.",
     must: [

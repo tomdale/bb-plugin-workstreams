@@ -42,7 +42,7 @@ it.each([1, 2] as const)(
       confidence: "high",
       reason: "Parser changes",
       subject: "Alpha",
-      subjectId: "ent_alpha",
+      workstreamId: "ent_alpha",
       title: "Parser diagnostics",
     };
     const draftIdentity = vi.fn(async (_input: unknown) => ({ filed: false }));
@@ -62,8 +62,8 @@ it.each([1, 2] as const)(
           },
         }),
         state: () => emptyState(),
-        catalog: () => ({
-          entities: [
+        tree: () => ({
+          workstreams: [
             {
               id: "ent_alpha",
               name: "Alpha",
@@ -88,7 +88,7 @@ it.each([1, 2] as const)(
     );
     try {
       expect(
-        await screen.findAllByRole("button", { name: "Topic: Automatic" }),
+        await screen.findAllByRole("button", { name: "Workstream: Automatic" }),
       ).toHaveLength(views);
       await act(async () => {});
       commits.fill(0);
@@ -121,7 +121,7 @@ it.each([1, 2] as const)(
       expect(preview).toHaveBeenCalledTimes(1);
       expect(draftIdentity).toHaveBeenCalledTimes(61);
       expect(
-        screen.getAllByRole("button", { name: "Topic: Alpha" }),
+        screen.getAllByRole("button", { name: "Workstream: Alpha" }),
       ).toHaveLength(views);
     } finally {
       for (const slot of slots) slot.lifecycle.unmount();

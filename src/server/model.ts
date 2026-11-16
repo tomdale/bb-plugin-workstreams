@@ -36,10 +36,10 @@ import {
   type TidyInput,
 } from "../domain/tidy.ts";
 import {
-  parsePlacement,
-  placementPrompt,
-  placementSchema,
-  type PlacementInput,
+  parseWorkstreamChoice,
+  workstreamChoicePrompt,
+  workstreamChoiceSchema,
+  type WorkstreamChoiceInput,
 } from "../domain/placement.ts";
 import {
   TRACE_KIND_TITLE,
@@ -63,10 +63,10 @@ import {
 import { UserError } from "./service.ts";
 import { boundedJson, type TraceStore } from "./trace.ts";
 
-/** A call recorded before turn ends chose topics asks for none. */
+/** A call recorded before turn ends chose workstreams asks for none. */
 const withPlacement = (input: TurnEndInput): TurnEndInput => ({
   ...input,
-  placement: input.placement ?? null,
+  choice: input.choice ?? null,
 });
 
 export const MODEL_CALLS = {
@@ -75,16 +75,17 @@ export const MODEL_CALLS = {
     parse: (text: string, input: StartInput) => parseStart(text, input),
     schema: (input: StartInput) => startSchema(input),
   },
-  "full-analysis": {
+  "turn-end": {
     prompt: (input: TurnEndInput) => turnEndPrompt(withPlacement(input)),
     parse: (text: string, input: TurnEndInput) =>
       parseTurnEnd(text, withPlacement(input)),
     schema: (input: TurnEndInput) => turnEndSchema(withPlacement(input)),
   },
-  placement: {
-    prompt: (input: PlacementInput) => placementPrompt(input),
-    parse: (text: string, input: PlacementInput) => parsePlacement(text, input),
-    schema: (input: PlacementInput) => placementSchema(input),
+  "workstream-choice": {
+    prompt: (input: WorkstreamChoiceInput) => workstreamChoicePrompt(input),
+    parse: (text: string, input: WorkstreamChoiceInput) =>
+      parseWorkstreamChoice(text, input),
+    schema: (input: WorkstreamChoiceInput) => workstreamChoiceSchema(input),
   },
   "category-fit": {
     prompt: (input: CategoryFitInput) => categoryFitPrompt(input),
@@ -146,20 +147,20 @@ export function summarize(
   value: unknown,
   input: unknown,
 ): string | null {
-  const topicOf = (
-    topic: {
-      subjectId: string | null;
+  const workstreamOf = (
+    workstream: {
+      workstreamId: string | null;
       proposed: { name: string } | null;
     } | null,
-    entities: readonly { id: string; name: string }[] | undefined,
+    workstreams: readonly { id: string; name: string }[] | undefined,
   ) =>
-    topic
-      ? topic.subjectId
-        ? (entities?.find((e) => e.id === topic.subjectId)?.name ??
-          topic.subjectId)
-        : topic.proposed
-          ? `new topic ${topic.proposed.name}`
-          : "no topic"
+    workstream
+      ? workstream.workstreamId
+        ? (workstreams?.find((e) => e.id === workstream.workstreamId)?.name ??
+          workstream.workstreamId)
+        : workstream.proposed
+          ? `new workstream ${workstream.proposed.name}`
+          : "no workstream"
       : null;
   switch (kind) {
     case "categories": {
@@ -176,8 +177,8 @@ export function summarize(
       const s = value as OutputOf<"start">;
       return [
         s.title ? `title “${s.title}”` : "no title",
-        s.topic
-          ? `${topicOf(s.topic, (input as StartInput).placement?.entities) ?? "no topic"}`
+        s.workstream
+          ? `${workstreamOf(s.workstream, (input as StartInput).choice?.workstreams) ?? "no workstream"}`
           : null,
       ]
         .filter(Boolean)
@@ -192,11 +193,11 @@ export function summarize(
     }
     case "split": {
       const { split } = value as OutputOf<"split">;
-      return split.subgroups.length
-        ? split.subgroups
+      return split.workstreams.length
+        ? split.workstreams
             .map((g) => `${g.name} (${g.threadIds.length})`)
             .join(", ")
-        : "kept one-level topic";
+        : "kept as one workstream";
     }
     case "tidy": {
       const edits = value as OutputOf<"tidy">;
@@ -204,20 +205,20 @@ export function summarize(
         ? edits.map(({ edit }) => edit.op).join(", ")
         : "no edits";
     }
-    case "placement": {
-      const p = value as OutputOf<"placement">;
-      return `${topicOf(p, (input as PlacementInput).entities) ?? "no topic"}${p.scopeShift ? " (scope shift)" : ""}`;
+    case "workstream-choice": {
+      const p = value as OutputOf<"workstream-choice">;
+      return `${workstreamOf(p, (input as WorkstreamChoiceInput).workstreams) ?? "no workstream"}${p.scopeShift ? " (scope shift)" : ""}`;
     }
-    case "full-analysis": {
-      const a = value as OutputOf<"full-analysis">;
+    case "turn-end": {
+      const a = value as OutputOf<"turn-end">;
       return [
         a.status ? a.status.state : "reported",
         a.title ? `title “${a.title}”` : null,
         a.goal ? `goal “${a.goal}”` : null,
-        a.topicError
-          ? "invalid topic"
-          : a.topic
-            ? `${topicOf(a.topic, (input as TurnEndInput).placement?.entities) ?? "no topic"}${a.topic.scopeShift ? " (scope shift)" : ""}`
+        a.workstreamError
+          ? "invalid workstream"
+          : a.workstream
+            ? `${workstreamOf(a.workstream, (input as TurnEndInput).choice?.workstreams) ?? "no workstream"}${a.workstream.scopeShift ? " (scope shift)" : ""}`
             : null,
       ]
         .filter(Boolean)
@@ -309,15 +310,15 @@ export class Inference {
       outputSchema: spec.schema?.(input),
       maxTokens: spec.maxTokens,
     });
-    const topicError = result.ok
-      ? (result.value as { topicError?: string }).topicError
+    const workstreamError = result.ok
+      ? (result.value as { workstreamError?: string }).workstreamError
       : undefined;
     // A thread's start is asked again once when its answer is unusable, so
-    // a valid title survives an invalid topic and the composer still shows
+    // a valid title survives an invalid workstream and the composer still shows
     // one; other calls are retried by their callers or a later event.
     if (
       kind === "start" &&
-      ((!result.ok && result.invalid) || topicError) &&
+      ((!result.ok && result.invalid) || workstreamError) &&
       !options.signal?.aborted
     ) {
       const remaining =
@@ -326,13 +327,13 @@ export class Inference {
           : options.timeoutMs - (this.now() - started);
       if (remaining === undefined || remaining > 100) {
         this.annotate(result.traceId, {
-          validation: topicError ?? "Invalid response",
+          validation: workstreamError ?? "Invalid response",
           repair: "one bounded retry",
         });
         const repaired = await this.call(kind, {
           prompt: `${prompt}\n\nValidation requirement: return only a JSON object with the requested fields.${
-            (input as StartInput).placement !== null
-              ? " topic must be exactly an ID in square brackets in <topic_tree> of a topic without subtopics, never a name, path, or decorated label. Use null when ownership is unsupported."
+            (input as StartInput).choice !== null
+              ? " workstream must be exactly an ID in square brackets in <workstream_tree> of a workstream, never a group, name, path, or decorated label. Use null when ownership is unsupported."
               : ""
           }`,
           parse: (text) => spec.parse(text, input),
@@ -581,12 +582,14 @@ export class Inference {
       ok: true,
       value,
       traceId: record(
-        (value as { topicError?: string }).topicError ? "invalid" : "ok",
+        (value as { workstreamError?: string }).workstreamError
+          ? "invalid"
+          : "ok",
         {
           completion,
           parsed: value,
-          ...((value as { topicError?: string }).topicError
-            ? { error: (value as { topicError: string }).topicError }
+          ...((value as { workstreamError?: string }).workstreamError
+            ? { error: (value as { workstreamError: string }).workstreamError }
             : {}),
         },
       ),

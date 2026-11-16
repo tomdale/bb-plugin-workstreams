@@ -1,4 +1,4 @@
-import type { TopicAssignment } from "../domain/topics.ts";
+import type { WorkstreamAssignment } from "../domain/topics.ts";
 
 /** Facts whose changes invalidate an inference about a thread's current work. */
 export function threadEvidence(thread: {
@@ -20,10 +20,10 @@ export function threadEvidence(thread: {
   ]);
 }
 
-/** Includes provenance and basis so a correction to the same topic still wins. */
-export function assignmentEvidence(assignment: TopicAssignment): string {
+/** Includes provenance and basis so a correction to the same workstream still wins. */
+export function assignmentEvidence(assignment: WorkstreamAssignment): string {
   return JSON.stringify([
-    assignment.entityId,
+    assignment.workstreamId,
     assignment.provenance,
     assignment.evidence,
     assignment.inheritedFrom,

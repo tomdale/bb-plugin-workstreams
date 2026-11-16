@@ -11,7 +11,7 @@ it("distinguishes independent projects, supplied projects, remounts, and user ov
       id: "preview",
       traceId: null,
       confidence: "low" as const,
-      reason: "No topic",
+      reason: "No workstream",
       subject: null,
     }),
     cancelRoute: () => {},

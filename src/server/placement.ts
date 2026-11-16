@@ -1,34 +1,37 @@
 /**
- * Placement: what choosing a root's topic reads, and the closed-set call that
- * asks only that. A thread's start and a turn's end ask the topic together
+ * Placement: what choosing a root's workstream reads, and the closed-set call that
+ * asks only that. A thread's start and a turn's end ask the workstream together
  * with their other fields (`question` builds the evidence they share); this
- * call alone serves a move into a multi-topic group, a topic preview or
- * repair, and a root that only lacks a topic.
+ * call alone serves a move into a multi-workstream group, a workstream preview or
+ * repair, and a root that only lacks a workstream.
  *
  * Its evidence is the generated title, the first, second, and latest
  * substantive requests, the project, and the checkout, plus hints:
  *
- * - the topic of the thread it continues or was started from, and of the
- *   workstream whose ＋ started it when that topic holds subtopics;
- * - the topic most threads in its checkout have, unless the checkout is a
+ * - the workstream of the thread it continues or was started from, and of the
+ *   workstream whose ＋ started it when that workstream holds workstreams in a group;
+ * - the workstream most threads in its checkout have, unless the checkout is a
  *   coordination workspace, one whose threads point at other repositories
  *   (at least two of them name a GitHub repository or a `~/Code` path
  *   outside it), where location says nothing about the work.
  */
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import type { ModelChoice } from "../domain/prefs.ts";
-import type { PlacementInput, PlacementOutput } from "../domain/placement.ts";
-import { topicPath } from "../domain/topic-path.ts";
+import type {
+  WorkstreamChoiceInput,
+  WorkstreamChoiceOutput,
+} from "../domain/placement.ts";
+import { workstreamPath } from "../domain/topic-path.ts";
 import type { Database } from "./db.ts";
 import type { Inference } from "./model.ts";
 import { isSubstantiveRequest, placementRequests } from "./requests.ts";
 import { continuationThreadId } from "./requestProvenance.ts";
-import type { TopicStore } from "./topics.ts";
+import type { WorkstreamStore } from "./topics.ts";
 
 type Sdk = BbPluginApi["sdk"];
 
 /** What placement reads from a BB thread. */
-export type PlacementThread = {
+export type ChoiceThread = {
   readonly id: string;
   readonly title: string | null;
   readonly projectId: string;
@@ -37,11 +40,11 @@ export type PlacementThread = {
   readonly parentThreadId?: string | null;
 };
 
-export type PlacementQuestion = {
-  input: PlacementInput;
+export type ChoiceQuestion = {
+  input: WorkstreamChoiceInput;
   basis: string;
   /** The answer when no call is needed: a root with nothing to place by. */
-  settled?: PlacementOutput;
+  settled?: WorkstreamChoiceOutput;
 };
 
 /** Roots that point at other repositories before a checkout coordinates. */
@@ -65,7 +68,7 @@ export function pointsElsewhere(text: string, checkout: string): boolean {
   return false;
 }
 
-export class Placement {
+export class WorkstreamChoice {
   /** Hints recorded before a thread's first request is placed. */
   private readonly startHints = new Map<string, string>();
   private readonly checkouts = new Map<string, string | null>();
@@ -76,32 +79,32 @@ export class Placement {
       db: Database;
       inference: Inference;
       model: () => Promise<ModelChoice>;
-      topics: TopicStore;
+      workstreamStore: WorkstreamStore;
       project: (projectId: string) => Promise<string | null>;
-      /** The basis an automatic topic is settled from. */
+      /** The basis an automatic workstream is settled from. */
       basisOf: (requests: readonly string[], project: string | null) => string;
       log: (message: string) => void;
     },
   ) {}
 
   /**
-   * Remembers where a new thread was started from when that topic couldn't
-   * be inherited (it holds subtopics), so placement weighs it.
+   * Remembers where a new thread was started from when that workstream couldn't
+   * be inherited (it holds workstreams in a group), so placement weighs it.
    */
   hintStart(
     threadId: string,
-    topicId: string,
+    workstreamId: string,
     from: "thread" | "workstream" | "picked",
   ) {
-    const label = this.label(topicId);
+    const label = this.label(workstreamId);
     if (!label) return;
     this.startHints.set(
       threadId,
       from === "workstream"
         ? `It was started from the ${label} workstream.`
         : from === "picked"
-          ? `It was started with the topic ${label}, which now has subtopics.`
-          : `It was started from a thread filed under ${label}.`,
+          ? `It was started in ${label}, which is now a group.`
+          : `It was started from a thread in ${label}.`,
     );
     if (this.startHints.size > 200)
       this.startHints.delete(this.startHints.keys().next().value!);
@@ -116,25 +119,25 @@ export class Placement {
 
   /**
    * What placing a root from these requests would ask, or null when there is
-   * nothing to settle: you set its topic, or it was settled from these
+   * nothing to settle: you set its workstream, or it was settled from these
    * requests.
    */
   async question(
-    thread: PlacementThread,
+    thread: ChoiceThread,
     rawRequests: readonly string[],
     options: { force?: boolean; within?: string; digest?: string | null } = {},
-  ): Promise<PlacementQuestion | null> {
-    const topics = this.deps.topics;
-    const assignment = topics.assignment(thread.id);
+  ): Promise<ChoiceQuestion | null> {
+    const workstreamStore = this.deps.workstreamStore;
+    const assignment = workstreamStore.assignment(thread.id);
     if (assignment.provenance === "manual" && !options.within) return null;
     const requests = placementRequests(rawRequests);
     // With neither a substantive request nor a title there is nothing to
-    // place by; settling "no topic" keeps the root from being asked again
+    // place by; settling "no workstream" keeps the root from being asked again
     // until a request arrives.
     const blank = requests.length === 0 && !thread.title;
     if (blank && options.within)
       throw new Error(
-        "The thread has no request or title to choose a topic from.",
+        "The thread has no request or title to choose a workstream from.",
       );
     if (blank && assignment.provenance !== null) return null;
     const project = await this.deps.project(thread.projectId);
@@ -142,17 +145,17 @@ export class Placement {
     if (
       !options.force &&
       assignment.provenance !== null &&
-      assignment.provenance !== "quick" &&
-      topics.basis(thread.id) === basis
+      assignment.provenance !== "composer" &&
+      workstreamStore.basis(thread.id) === basis
     )
       return null;
     const checkout = await this.checkout(thread.environmentId ?? null);
     if (checkout) this.observe(thread.id, checkout, rawRequests);
-    const entities = topics.list();
+    const workstreams = workstreamStore.list();
     return {
       basis,
       ...(blank
-        ? { settled: { subjectId: null, proposed: null, scopeShift: false } }
+        ? { settled: { workstreamId: null, proposed: null, scopeShift: false } }
         : {}),
       input: {
         title: thread.title,
@@ -160,7 +163,7 @@ export class Placement {
         requests,
         project,
         checkout,
-        entities,
+        workstreams,
         counts: this.counts(),
         hints: this.hints(thread, rawRequests, checkout),
         current: assignment.label
@@ -178,11 +181,13 @@ export class Placement {
    * What filing a composer draft reads before it is a thread: the tree with
    * its thread counts and the project the draft would start in.
    */
-  draft(project: string | null): Omit<PlacementInput, "requests" | "title"> {
+  draft(
+    project: string | null,
+  ): Omit<WorkstreamChoiceInput, "requests" | "title"> {
     return {
       project,
       checkout: null,
-      entities: this.deps.topics.list(),
+      workstreams: this.deps.workstreamStore.list(),
       counts: this.counts(),
       hints: [],
       current: null,
@@ -192,12 +197,12 @@ export class Placement {
   /** Asks the model; throws when the call fails or its answer is invalid. */
   async ask(
     threadId: string,
-    question: PlacementQuestion,
+    question: ChoiceQuestion,
     options: { label: string; timeoutMs?: number; signal?: AbortSignal },
-  ): Promise<{ answer: PlacementOutput; traceId: string | null }> {
+  ): Promise<{ answer: WorkstreamChoiceOutput; traceId: string | null }> {
     if (question.settled) return { answer: question.settled, traceId: null };
     const { value, traceId } = await this.deps.inference.run(
-      "placement",
+      "workstream-choice",
       question.input,
       {
         model: await this.deps.model(),
@@ -246,9 +251,9 @@ export class Placement {
     ).map((row) => row.path);
   }
 
-  private label(topicId: string): string | null {
+  private label(workstreamId: string): string | null {
     try {
-      return topicPath(topicId, this.deps.topics.list());
+      return workstreamPath(workstreamId, this.deps.workstreamStore.list());
     } catch {
       return null;
     }
@@ -282,14 +287,14 @@ export class Placement {
       .run(threadId, checkout, elsewhere ? 1 : 0);
   }
 
-  /** Visible roots assigned to each topic. */
+  /** Visible roots assigned to each workstream. */
   private counts(): Record<string, number> {
     const out: Record<string, number> = {};
     for (const row of this.deps.db
       .prepare(
-        `SELECT s.entity_id AS id, COUNT(*) AS n FROM ws_corpus_subject s
+        `SELECT s.workstream_id AS id, COUNT(*) AS n FROM ws_thread_workstream s
          JOIN ws_seen_thread t ON t.thread_id = s.thread_id
-         WHERE s.entity_id IS NOT NULL GROUP BY s.entity_id`,
+         WHERE s.workstream_id IS NOT NULL GROUP BY s.workstream_id`,
       )
       .all() as { id: string; n: number }[])
       out[row.id] = row.n;
@@ -297,7 +302,7 @@ export class Placement {
   }
 
   private hints(
-    thread: PlacementThread,
+    thread: ChoiceThread,
     requests: readonly string[],
     checkout: string | null,
   ): string[] {
@@ -306,26 +311,24 @@ export class Placement {
     if (started) hints.push(started);
     const referenced = continuationThreadId(thread.sourceThreadId, requests);
     if (referenced && referenced !== thread.id) {
-      const source = this.deps.topics.assignment(referenced);
-      if (source.label)
-        hints.push(`It continues a thread filed under ${source.label}.`);
+      const source = this.deps.workstreamStore.assignment(referenced);
+      if (source.label) hints.push(`It continues a thread in ${source.label}.`);
     }
     if (checkout && !this.coordinates(checkout)) {
-      const usual = this.usualTopic(checkout, thread.id);
-      if (usual)
-        hints.push(`Threads in its checkout are usually filed under ${usual}.`);
+      const usual = this.usualWorkstream(checkout, thread.id);
+      if (usual) hints.push(`Threads in its checkout are usually in ${usual}.`);
     }
     return hints;
   }
 
-  /** The topic most of a checkout's other threads have, when one clearly leads. */
-  private usualTopic(checkout: string, threadId: string): string | null {
+  /** The workstream most of a checkout's other threads have, when one clearly leads. */
+  private usualWorkstream(checkout: string, threadId: string): string | null {
     const rows = this.deps.db
       .prepare(
-        `SELECT s.entity_id AS id, COUNT(*) AS n FROM ws_thread_checkout c
-         JOIN ws_corpus_subject s ON s.thread_id = c.thread_id
-         WHERE c.path = ? AND c.thread_id != ? AND s.entity_id IS NOT NULL
-         GROUP BY s.entity_id ORDER BY n DESC`,
+        `SELECT s.workstream_id AS id, COUNT(*) AS n FROM ws_thread_checkout c
+         JOIN ws_thread_workstream s ON s.thread_id = c.thread_id
+         WHERE c.path = ? AND c.thread_id != ? AND s.workstream_id IS NOT NULL
+         GROUP BY s.workstream_id ORDER BY n DESC`,
       )
       .all(checkout, threadId) as { id: string; n: number }[];
     const total = rows.reduce((sum, row) => sum + row.n, 0);

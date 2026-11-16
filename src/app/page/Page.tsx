@@ -1,9 +1,9 @@
 /**
  * The Workstreams page is the queue: one thing at a time that needs the
  * user (see `Queue`). Everything else waits behind the dim ⋯ in the corner:
- * Activity (the journal), Topics (the organizer's health, its suggestions,
- * and the topic tree), the Gallery (a specimen of every reply-block part),
- * and, with the debug UI on, the model calls. Each opens as a full view.
+ * Activity (the journal), Organize (organizing suggestions and every
+ * workstream and group), and, with the debug UI on, the Gallery (a specimen
+ * of every reply-block part) and the model traces. Each opens as a full view.
  */
 import { useCallback, useEffect, useLayoutEffect, useState } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
@@ -20,33 +20,26 @@ import {
 } from "../snooze/SnoozeMenuItems.tsx";
 import { Activity } from "./Activity.tsx";
 import { Gallery } from "./Gallery.tsx";
-import { TopicsTab } from "./topics/TopicsTab.tsx";
+import { OrganizeTab } from "./organize/OrganizeTab.tsx";
 import { Queue } from "./queue/Queue.tsx";
 import { BackButton, Overview } from "./overview/Overview.tsx";
 import { setOpenOverview } from "./overview/route.ts";
 
 type View =
   | { kind: "queue" }
-  | { kind: "topics" }
+  | { kind: "organize" }
   | { kind: "gallery" }
   | { kind: "overview"; id: string }
   | { kind: "activity"; focus: string | null; modelCalls: boolean };
 
 /**
  * `subPath` deep links open a view: `activity[/<entry>]`, `debug` (model
- * calls), `gallery`, `topics`, and `overview/<group>` (a sidebar group's id,
- * or `unsorted` for Unfiled). `organization`, `catalog`, and `map` name views
- * that are now part of Topics and still open it.
+ * traces), `gallery`, `organize`, and `overview/<workstream>` (a sidebar
+ * workstream's id, or `other` for Other).
  */
 function viewOf(subPath: string): View {
   const [head, ...rest] = subPath.split("/");
-  if (
-    head === "topics" ||
-    head === "catalog" ||
-    head === "organization" ||
-    head === "map"
-  )
-    return { kind: "topics" };
+  if (head === "organize") return { kind: "organize" };
   if (head === "activity")
     return {
       kind: "activity",
@@ -82,7 +75,7 @@ export function WorkstreamsPage({
   if (view.kind === "queue")
     return (
       <div className="relative flex h-full min-h-0 flex-1 flex-col">
-        <Queue ws={ws} onTopics={() => setView({ kind: "topics" })} />
+        <Queue ws={ws} onOrganize={() => setView({ kind: "organize" })} />
         <PageMenu onOpen={setView} />
       </div>
     );
@@ -101,8 +94,8 @@ export function WorkstreamsPage({
         <h1 className="mt-3 text-[15px] font-semibold tracking-tight">
           {VIEW_TITLES[view.kind]}
         </h1>
-        {view.kind === "topics" ? (
-          <TopicsTab ws={ws} query="" />
+        {view.kind === "organize" ? (
+          <OrganizeTab ws={ws} query="" />
         ) : view.kind === "gallery" ? (
           <Gallery />
         ) : (
@@ -121,7 +114,7 @@ export function WorkstreamsPage({
 
 const VIEW_TITLES: Record<View["kind"], string> = {
   queue: "",
-  topics: "Topics",
+  organize: "Organize",
   gallery: "Gallery",
   overview: "Overview",
   activity: "Activity",
@@ -157,25 +150,27 @@ function PageMenu({ onOpen }: { onOpen: (view: View) => void }) {
           </DropdownMenu.Item>
           <DropdownMenu.Item
             className={item}
-            onSelect={() => onOpen({ kind: "topics" })}
+            onSelect={() => onOpen({ kind: "organize" })}
           >
-            Topics
-          </DropdownMenu.Item>
-          <DropdownMenu.Item
-            className={item}
-            onSelect={() => onOpen({ kind: "gallery" })}
-          >
-            Gallery
+            Organize
           </DropdownMenu.Item>
           {debug ? (
-            <DropdownMenu.Item
-              className={item}
-              onSelect={() =>
-                onOpen({ kind: "activity", focus: null, modelCalls: true })
-              }
-            >
-              Model calls
-            </DropdownMenu.Item>
+            <>
+              <DropdownMenu.Item
+                className={item}
+                onSelect={() =>
+                  onOpen({ kind: "activity", focus: null, modelCalls: true })
+                }
+              >
+                Model traces
+              </DropdownMenu.Item>
+              <DropdownMenu.Item
+                className={item}
+                onSelect={() => onOpen({ kind: "gallery" })}
+              >
+                Gallery
+              </DropdownMenu.Item>
+            </>
           ) : null}
         </DropdownMenu.Content>
       </DropdownMenu.Portal>

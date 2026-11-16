@@ -15,10 +15,10 @@ export type ManualOrder = {
   /**
    * Focused section ids, as a set: focused workstreams pin above the others
    * in `workstreams` order, and focus Up Next (see `selectUpNext`). Stored,
-   * and named in the reorder RPC, as `prioritized`, so saved arrangements
+   * and named in the reorder RPC, as `focused`, so saved arrangements
    * and running clients keep working; the UI calls it Focus.
    */
-  readonly prioritized: readonly string[];
+  readonly focused: readonly string[];
 };
 
 /**

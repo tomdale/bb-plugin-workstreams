@@ -443,7 +443,7 @@ function useScrollState(
  * Where the heading text sits in each of its two places, in px from the
  * overlay's origin.
  */
-type Placement = {
+type HeadingPlacement = {
   /** In the timeline, at the scroller's top edge. */
   pane: { x: number; y: number; width: number };
   /** The scroller's full width, at its top edge. */
@@ -467,7 +467,7 @@ function measurePlacement(
   base: number,
   centered: boolean,
   inset: { current: TextInset },
-): Placement {
+): HeadingPlacement {
   // Everything is relative to the overlay's own origin. The overlay sits in
   // the same sliding surface as the pane, so these coordinates do not change
   // while the surface moves.
@@ -512,7 +512,7 @@ function measurePlacement(
   // The title bar is the header above the thread window in the same pane. Its
   // title cluster is on the left and its actions are the next sibling of the
   // flexible region that holds the cluster.
-  let bar: Placement["bar"] = null;
+  let bar: HeadingPlacement["bar"] = null;
   const header = mount.scroller
     .closest("[data-split-pane-id]")
     ?.querySelector<HTMLElement>(":scope > header");
@@ -556,7 +556,7 @@ function measurePlacement(
   };
 }
 
-const samePlacement = (a: Placement | null, b: Placement): boolean =>
+const samePlacement = (a: HeadingPlacement | null, b: HeadingPlacement): boolean =>
   !!a &&
   Math.abs(a.pane.x - b.pane.x) < 0.5 &&
   Math.abs(a.pane.y - b.pane.y) < 0.5 &&
@@ -583,8 +583,8 @@ function usePlacement(
   base: number,
   centered: boolean,
   filled: boolean,
-): Placement | null {
-  const [placement, setPlacement] = useState<Placement | null>(null);
+): HeadingPlacement | null {
+  const [placement, setPlacement] = useState<HeadingPlacement | null>(null);
   const placed = useRef<{ mount: Mount; filled: boolean } | null>(null);
   useLayoutEffect(() => {
     if (!mount) {

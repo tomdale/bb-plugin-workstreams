@@ -11,8 +11,8 @@ import plugin from "../../src/server/index.ts";
 import { savePrefs } from "../../src/server/prefs.ts";
 import type { PrefsPatch } from "../../src/domain/prefs.ts";
 import { openDatabase } from "../../src/server/db.ts";
-import { TopicStore } from "../../src/server/topics.ts";
-import { placementIds } from "../../src/domain/placement.ts";
+import { WorkstreamStore } from "../../src/server/topics.ts";
+import { promptIds } from "../../src/domain/placement.ts";
 
 type Thread = ReturnType<typeof makeThreadResponse>;
 type Section = {
@@ -33,27 +33,26 @@ export type FakeCompletion = (call: {
 }) => FakeAnswer | Promise<FakeAnswer>;
 
 /** How the placement prompt opens, so a fake can tell it apart. */
-const PLACEMENT = "You file one agent thread under a topic";
+const PLACEMENT = "You choose the workstream for one agent thread";
 
 /** How a turn's end asks for a topic beside its description. */
-const TURN_END_TOPIC = "and decide which topic it belongs under now";
+const TURN_END_WORKSTREAM = "and decide which workstream it belongs in now";
 
 /** How a thread's start opens; a root's also files it under a topic. */
 const START = "You name one new agent thread from its opening request";
-const START_TOPIC = `${START} and file it under a topic`;
+const START_WORKSTREAM = `${START} and choose its workstream`;
 
 /** Whether a prompt chooses a thread's topic, alone or with other fields. */
-export const choosesTopic = (prompt: string) =>
+export const choosesWorkstream = (prompt: string) =>
   prompt.includes(PLACEMENT) ||
-  prompt.includes(TURN_END_TOPIC) ||
-  prompt.includes(START_TOPIC);
+  prompt.includes(TURN_END_WORKSTREAM) ||
+  prompt.includes(START_WORKSTREAM);
 
 /**
  * Whether a prompt is a thread's start, which names it. The composer's
  * preview opens the same way and also chooses a topic.
  */
-export const isStart = (prompt: string) =>
-  prompt.includes(START) && !prompt.includes(`${START} and choose its topic`);
+export const isStart = (prompt: string) => prompt.includes(START);
 
 /** How the prompts that write titles open. */
 const NAMING = [
@@ -87,7 +86,7 @@ function asTitleParts(answer: string) {
  */
 function asPlacement(
   answer: string,
-  entities: Parameters<typeof placementIds>[0],
+  workstreams: Parameters<typeof promptIds>[0],
 ) {
   let parsed: Record<string, unknown>;
   try {
@@ -95,8 +94,8 @@ function asPlacement(
   } catch {
     return answer;
   }
-  if (!parsed || typeof parsed !== "object" || "topic" in parsed) return answer;
-  const ids = placementIds(entities);
+  if (!parsed || typeof parsed !== "object" || "workstream" in parsed) return answer;
+  const ids = promptIds(workstreams);
   const short = (id: unknown) =>
     typeof id === "string" ? (ids.get(id) ?? id) : null;
   const proposed = parsed.proposed as {
@@ -105,7 +104,7 @@ function asPlacement(
     parentId?: string | null;
   } | null;
   return JSON.stringify({
-    topic: short(parsed.subjectId),
+    workstream: short(parsed.workstreamId),
     propose: proposed
       ? {
           name: proposed.name,
@@ -137,7 +136,7 @@ const DEFAULT_ANSWER = JSON.stringify({
   state: "review",
   ask: null,
   title: null,
-  subjectId: null,
+  workstreamId: null,
   proposed: null,
 });
 
@@ -223,8 +222,8 @@ export async function fakeWorld(
       // answer, the rest as an analysis or opening title.
       const starting = isStart(input.prompt);
       if (
-        input.prompt.includes(TURN_END_TOPIC) ||
-        input.prompt.includes(START_TOPIC)
+        input.prompt.includes(TURN_END_WORKSTREAM) ||
+        input.prompt.includes(START_WORKSTREAM)
       ) {
         const ask = async (prompt: string) => textOf(await answer(prompt));
         const answer = async (prompt: string) =>
@@ -234,12 +233,12 @@ export async function fakeWorld(
             signal: call.signal,
           })) ?? DEFAULT_ANSWER;
         const description = await answer(
-          starting ? input.prompt.replace(START_TOPIC, START) : input.prompt,
+          starting ? input.prompt.replace(START_WORKSTREAM, START) : input.prompt,
         );
         // A test that answers in the call's own shape is used as written.
         try {
           const own = JSON.parse(textOf(description)) as unknown;
-          if (own && typeof own === "object" && "topic" in own)
+          if (own && typeof own === "object" && "workstream" in own)
             return { text: textOf(description), usage };
         } catch {
           // Not JSON: handled below.
@@ -256,14 +255,14 @@ export async function fakeWorld(
           // An unparseable answer stays as written, so it fails to parse.
           return { text: textOf(description), usage };
         }
-        const topic = JSON.parse(
+        const workstream = JSON.parse(
           asPlacement(
             // Without the description's opening, so fakes that tell the two
             // calls apart by it answer this part as placement.
             await ask(
               `${PLACEMENT}\n\n${input.prompt.replace("You describe one agent thread", "This agent thread")}`,
             ),
-            new TopicStore(openDatabase(host.bb)).list(),
+            new WorkstreamStore(openDatabase(host.bb)).list(),
           ),
         ) as Record<string, unknown>;
         if (starting) described = asStart(described);
@@ -271,9 +270,9 @@ export async function fakeWorld(
           ...(reasoning ? { reasoning, stopReason: "stop" } : {}),
           text: JSON.stringify({
             ...described,
-            topic: topic.topic,
-            propose: topic.propose,
-            scopeShift: topic.scopeShift,
+            workstream: workstream.workstream,
+            propose: workstream.propose,
+            scopeShift: workstream.scopeShift,
           }),
           usage,
         };
@@ -286,7 +285,7 @@ export async function fakeWorld(
       const naming = NAMING.some((opening) => input.prompt.includes(opening));
       const translate = (text: string) =>
         placing
-          ? asPlacement(text, new TopicStore(openDatabase(host.bb)).list())
+          ? asPlacement(text, new WorkstreamStore(openDatabase(host.bb)).list())
           : starting
             ? startText(asTitleParts(text))
             : naming

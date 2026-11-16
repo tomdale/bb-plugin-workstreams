@@ -1,9 +1,9 @@
 import { writeFile } from "node:fs/promises";
 import {
-  placementPrompt,
-  placementSchema,
-  parsePlacement,
-  type PlacementInput,
+  workstreamChoicePrompt,
+  workstreamChoiceSchema,
+  parseWorkstreamChoice,
+  type WorkstreamChoiceInput,
 } from "../src/domain/placement.ts";
 import {
   gatewayKey,
@@ -12,7 +12,7 @@ import {
 import { DEFAULT_MODELS } from "../src/domain/prefs.ts";
 
 // Synthetic workstream moves: the old owner and checkout must not override the user's destination.
-const entities = [
+const workstreams = [
   {
     id: "personal",
     name: "Personal",
@@ -94,10 +94,10 @@ const timer = setTimeout(() => controller.abort(), 240_000);
 try {
   for (let n = 0; n < repetitions; n++)
     for (const test of cases) {
-      const input: PlacementInput = {
+      const input: WorkstreamChoiceInput = {
         ...test,
         within: "plugin",
-        entities,
+        workstreams,
         project: "Personal Tools",
         checkout: "/workspace/personal-tools",
         hints: ["The thread previously belonged to Personal."],
@@ -111,19 +111,19 @@ try {
           apiKey,
           signal: controller.signal,
           model,
-          prompt: placementPrompt(input),
-          outputSchema: placementSchema(input),
+          prompt: workstreamChoicePrompt(input),
+          outputSchema: workstreamChoiceSchema(input),
           maxTokens: 2048,
           reasoningLevel: "none",
         });
         response = answer.text;
         cost = answer.usage.cost ?? null;
-        const parsed = parsePlacement(response, input);
+        const parsed = parseWorkstreamChoice(response, input);
         results.push({
           id: test.id,
           expected: test.expected,
-          chosen: parsed.subjectId,
-          pass: parsed.subjectId === test.expected,
+          chosen: parsed.workstreamId,
+          pass: parsed.workstreamId === test.expected,
           response,
           cost,
           durationMs: Date.now() - start,

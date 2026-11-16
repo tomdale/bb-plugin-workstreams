@@ -88,7 +88,7 @@ function mount(viewed: string, sidebarThreads: Listing, snoozes: Snoozes) {
         ...emptyState(),
         analysis: {},
         recaps: {},
-        order: { workstreams: [], threads: {}, prioritized: [] },
+        order: { workstreams: [], threads: {}, focused: [] },
         snoozes,
         snoozePrefs: {},
       }),

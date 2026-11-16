@@ -1,7 +1,7 @@
 import type { PluginSidebarThread } from "@get-bb/plugin-sdk/app";
 import { Icon } from "@/components/ui/icon";
 import type { Row } from "../../domain/project.ts";
-import type { TopicColor } from "../../domain/workstreamColor.ts";
+import type { WorkstreamColor } from "../../domain/workstreamColor.ts";
 import type { ServerState, WorkView } from "../useWorkstreams.ts";
 import { hasStatusMark } from "../sidebar/presentation.ts";
 import { HIDDEN_NOW, HomeThreadRow } from "./HomeRow.tsx";
@@ -27,7 +27,7 @@ export function PinnedBlock({
   recaps: ServerState["recaps"];
   workstreamOf: (row: Row<PluginSidebarThread>) => {
     name: string;
-    color: TopicColor;
+    color: WorkstreamColor;
   } | null;
   now: number;
   showAge: boolean;

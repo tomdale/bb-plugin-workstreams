@@ -23,8 +23,8 @@ import { WorkstreamGroups, type HomeEnv } from "./Groups.tsx";
 import { PinnedBlock } from "./PinnedBlock.tsx";
 import { UpNextBlock } from "./UpNextBlock.tsx";
 import { HIDDEN_NOW } from "./HomeRow.tsx";
-import { detectPlacement, homeMode, type Placement } from "./layout.ts";
-import { planHome, prioritizedSet } from "./model.ts";
+import { detectPlacement, homeMode, type RowLocation } from "./layout.ts";
+import { planHome, focusedSet } from "./model.ts";
 import { useHomeState } from "./useHomeState.ts";
 import { useSettled } from "./useSettled.ts";
 import { rowsById } from "../sidebar/rows.ts";
@@ -33,7 +33,7 @@ import "./home.css";
 export function HomeSection(_props: PluginHomepageSectionProps) {
   const narrowViewport = useIsCompactViewport();
   const probe = useRef<HTMLSpanElement>(null);
-  const [placement, setPlacement] = useState<Placement | null>(null);
+  const [placement, setPlacement] = useState<RowLocation | null>(null);
   // Layout effects run before paint, so BB's own list never flashes.
   useLayoutEffect(
     () => setPlacement(detectPlacement(probe.current, narrowViewport)),
@@ -80,14 +80,14 @@ class HomeBoundary extends Component<
   }
 }
 
-function HomeScreen({ placement }: { placement: Exclude<Placement, "wide"> }) {
+function HomeScreen({ placement }: { placement: Exclude<RowLocation, "wide"> }) {
   const ws = useWorkstreams();
   const displayNow = useNow();
   const { prefs } = usePrefs();
   const state = useHomeState();
   const { server, sections, projection } = ws;
-  const prioritized = useMemo(
-    () => prioritizedSet(server.order, sections),
+  const focused = useMemo(
+    () => focusedSet(server.order, sections),
     [server.order, sections],
   );
   const groupSort = prefs?.sidebar.groupSort ?? "alphabetical";
@@ -96,20 +96,20 @@ function HomeScreen({ placement }: { placement: Exclude<Placement, "wide"> }) {
     () =>
       planHome(projection, {
         ...ws.upNextOptions,
-        prioritized,
+        focused,
         groupSort,
         showUpNext: ws.showForYou,
         showSnoozed: ws.showSnoozed,
-        topics: ws.topics,
+        workstreams: ws.workstreams,
       }),
     [
       projection,
       ws.upNextOptions,
-      prioritized,
+      focused,
       groupSort,
       ws.showForYou,
       ws.showSnoozed,
-      ws.topics,
+      ws.workstreams,
     ],
   );
   // Preferences and plugin state arrive after the first frame, and drawing
@@ -136,8 +136,8 @@ function HomeScreen({ placement }: { placement: Exclude<Placement, "wide"> }) {
     showAge: (prefs?.sidebar.timestamps ?? "show") === "show",
     threadCount: prefs?.sidebar.threadCount ?? "collapsed",
     needsYouCount: prefs?.sidebar.needsYouCount ?? "collapsed",
-    colorOf: (sectionId, topicId) =>
-      colorForWorkstream(sectionId, ws.server.catalog, topicId),
+    colorOf: (sectionId, workstreamId) =>
+      colorForWorkstream(sectionId, ws.server.tree, workstreamId),
     ...state,
   };
   return (
@@ -174,7 +174,7 @@ function HomeScreen({ placement }: { placement: Exclude<Placement, "wide"> }) {
                       name,
                       color: colorForWorkstream(
                         row.workstreamId,
-                        ws.server.catalog,
+                        ws.server.tree,
                       ),
                     }
                   : null;
@@ -198,7 +198,7 @@ function HomeScreen({ placement }: { placement: Exclude<Placement, "wide"> }) {
                       name,
                       color: colorForWorkstream(
                         row.workstreamId,
-                        ws.server.catalog,
+                        ws.server.tree,
                       ),
                     }
                   : null;

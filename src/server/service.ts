@@ -1,12 +1,12 @@
 /**
  * Workstream state and every mutation Workstreams performs.
  *
- * A workstream is a native BB section plus a record in `ws_workstream`. All
+ * A workstream is a native BB section plus a record in `ws_section`. All
  * mutations and the reconciler run through one serial queue and write through
  * to the reconciler's last-seen snapshot, so the reconciler never mistakes a
  * Workstreams change for one made elsewhere.
  */
-import { restoreTopics, TopicStore } from "./topics.ts";
+import { restoreWorkstreams, WorkstreamStore } from "./topics.ts";
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import type { Database } from "./db.ts";
 import { getMeta, setMeta } from "./db.ts";
@@ -46,8 +46,8 @@ export class WorkstreamService {
     private readonly onChange: (scope?: ChangeScope) => void,
     private readonly now: () => number = Date.now,
     private readonly titlesEnabled: () => boolean = () => true,
-    /** Undo put the topic tree back, so workstreams must follow it. */
-    private readonly onTopicsRestored: () => void = () => {},
+    /** Undo put the workstreams and groups back, so workstreams must follow it. */
+    private readonly onWorkstreamsRestored: () => void = () => {},
   ) {}
 
   /** Runs `task` after every earlier mutation or reconcile has settled. */
@@ -124,8 +124,8 @@ export class WorkstreamService {
         suggestion,
       );
       const entry = this.journal.add({
-        action: "retitle",
-        source: "auto",
+        action: "title-updated",
+        source: "workstreams",
         rationale:
           basis === "opening"
             ? "Titled from the opening request"
@@ -169,8 +169,8 @@ export class WorkstreamService {
       if (done === 0)
         throw new UserError("Nothing to undo: everything changed again since.");
       const entry = this.journal.add({
-        action: "undo",
-        source: "user",
+        action: "change-undone",
+        source: "you",
         status: skipped > 0 ? "partial" : "applied",
         rationale: `Undid: ${original.rationale}`,
         threads: original.threads,
@@ -253,7 +253,7 @@ export class WorkstreamService {
       }
       await sdk.threadSections.delete({ id: step.sectionId });
       this.db
-        .prepare("DELETE FROM ws_workstream WHERE section_id = ?")
+        .prepare("DELETE FROM ws_section WHERE section_id = ?")
         .run(step.sectionId);
       this.db
         .prepare("DELETE FROM ws_seen_section WHERE section_id = ?")
@@ -261,8 +261,8 @@ export class WorkstreamService {
       return { done: 1, skipped: 0 };
     }
     if (step.kind === "project-association") {
-      const topics = new TopicStore(this.db);
-      const current = topics.getById(step.entityId);
+      const workstreamStore = new WorkstreamStore(this.db);
+      const current = workstreamStore.getById(step.workstreamId);
       if (
         !current ||
         current.projectRevision !== step.to.revision ||
@@ -270,17 +270,17 @@ export class WorkstreamService {
         (current.projectSource ?? null) !== step.to.source
       )
         return { done: 0, skipped: 1 };
-      topics.edit(step.entityId, {
+      workstreamStore.edit(step.workstreamId, {
         projectId: step.from.projectId,
         projectSource: step.disableLearning ? "disabled" : step.from.source,
       });
-      this.onTopicsRestored();
+      this.onWorkstreamsRestored();
       return { done: 1, skipped: 0 };
     }
-    if (step.kind === "restore-topics") {
-      if (!restoreTopics(this.db, step.snapshotId, step.fingerprint))
+    if (step.kind === "restore-workstreams") {
+      if (!restoreWorkstreams(this.db, step.snapshotId, step.fingerprint))
         return { done: 0, skipped: 1 };
-      this.onTopicsRestored();
+      this.onWorkstreamsRestored();
       return { done: 1, skipped: 0 };
     }
     const sections = await listSections(sdk);
@@ -293,7 +293,7 @@ export class WorkstreamService {
 
   /**
    * Journals a thread started from the New thread composer or a Debug
-   * report. The organizer files it by its topic.
+   * report. The organizer files it by its workstream.
    */
   recordCreated(
     threadId: string,
@@ -307,7 +307,7 @@ export class WorkstreamService {
           .get(sectionId) as { name: string } | undefined)
       : undefined;
     const entry = this.journal.add({
-      action: "route",
+      action: "thread-started",
       source,
       rationale: details.rationale,
       threads: [{ id: threadId, name: details.title }],
@@ -358,14 +358,14 @@ export class WorkstreamService {
           if (before === undefined) {
             this.db
               .prepare(
-                `INSERT INTO ws_workstream (section_id, created_by)
+                `INSERT INTO ws_section (section_id, created_by)
                  VALUES (?, 'user') ON CONFLICT(section_id) DO NOTHING`,
               )
               .run(section.id);
             if (seeded) {
               this.journal.add({
-                action: "create-workstream",
-                source: "external",
+                action: "workstream-created",
+                source: "outside",
                 rationale: `Created ${section.name} outside Workstreams`,
                 threads: [],
                 workstreams: [{ id: section.id, name: section.name }],
@@ -377,8 +377,8 @@ export class WorkstreamService {
           } else if (before !== section.name) {
             if (seeded) {
               this.journal.add({
-                action: "rename-workstream",
-                source: "external",
+                action: "workstream-renamed",
+                source: "outside",
                 rationale: `Renamed ${before} to ${section.name} outside Workstreams`,
                 threads: [],
                 workstreams: [{ id: section.id, name: section.name }],
@@ -393,8 +393,8 @@ export class WorkstreamService {
           if (names.has(id)) continue;
           if (seeded) {
             this.journal.add({
-              action: "delete-workstream",
-              source: "external",
+              action: "workstream-removed",
+              source: "outside",
               rationale: `Deleted ${name} outside Workstreams`,
               threads: [],
               workstreams: [{ id, name }],
@@ -406,7 +406,7 @@ export class WorkstreamService {
             .prepare("DELETE FROM ws_seen_section WHERE section_id = ?")
             .run(id);
           this.db
-            .prepare("DELETE FROM ws_workstream WHERE section_id = ?")
+            .prepare("DELETE FROM ws_section WHERE section_id = ?")
             .run(id);
         }
 
@@ -442,11 +442,11 @@ export class WorkstreamService {
               ? (names.get(from) ??
                 seenSections.get(from) ??
                 "a deleted workstream")
-              : "Unfiled";
-            const toName = to ? (names.get(to) ?? "a workstream") : "Unfiled";
+              : "Other";
+            const toName = to ? (names.get(to) ?? "a workstream") : "Other";
             this.journal.add({
-              action: "move",
-              source: "external",
+              action: "thread-moved",
+              source: "outside",
               rationale: `Moved from ${fromName} to ${toName} outside Workstreams`,
               threads: [{ id: thread.id, name: thread.title }],
               workstreams: [
@@ -497,7 +497,7 @@ export class WorkstreamService {
       // seen also decides which threads' records clients may read, so the
       // change names no threads.
       if (changed || snapshotChanged)
-        this.onChange({ slices: ["analysis", "recaps", "catalog", "order"] });
+        this.onChange({ slices: ["analysis", "recaps", "tree", "order"] });
       return changed;
     });
   }

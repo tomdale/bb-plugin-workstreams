@@ -4,9 +4,9 @@ import {
   focusedSections,
   groupRoots,
   nestGroups,
-  sharedTopicId,
+  sharedWorkstreamId,
   type WorkstreamNode,
-  type WorkstreamTopics,
+  type WorkstreamTree,
 } from "../../src/domain/groups.ts";
 import { DAY_MS, projectWorkstreams } from "../../src/domain/project.ts";
 import { planDrop } from "../../src/app/sidebar/drop.ts";
@@ -14,7 +14,7 @@ import type { LayoutNode } from "../../src/domain/layout.ts";
 import { EMPTY_ORDER, thread, type TestThread } from "./fixtures.ts";
 
 const now = 100 * DAY_MS;
-const entities = [
+const workstreams = [
   { id: "va", name: "Beacon", parentId: null },
   { id: "auto", name: "Automations", parentId: "va" },
   { id: "alerts", name: "Alert Investigations", parentId: "auto" },
@@ -23,12 +23,12 @@ const entities = [
   { id: "ws", name: "Workstreams", parentId: null },
 ];
 const node = (
-  topicId: string,
+  workstreamId: string,
   name: string,
   children: LayoutNode[] = [],
   options: { lists?: boolean; prefix?: string[] } = {},
 ): LayoutNode => ({
-  topicId,
+  workstreamId,
   name,
   prefix: options.prefix ?? [],
   lists: options.lists ?? children.length === 0,
@@ -52,11 +52,11 @@ const SPLIT = [
   ),
   node("ws", "Workstreams"),
 ];
-const topics = (
+const tree = (
   bindings: Record<string, string>,
   layout: LayoutNode[] = LEGACY,
-): WorkstreamTopics => ({
-  entities,
+): WorkstreamTree => ({
+  workstreams,
   bindings,
   layout,
 });
@@ -66,7 +66,7 @@ function outline(nodes: readonly WorkstreamNode<TestThread>[], depth = 0) {
   const lines: string[] = [];
   for (const node of nodes) {
     lines.push(`${"  ".repeat(depth)}${node.label} (${node.total})`);
-    lines.push(...outline(node.subgroups, depth + 1));
+    lines.push(...outline(node.workstreams, depth + 1));
   }
   return lines;
 }
@@ -81,7 +81,7 @@ describe("nestGroups", () => {
         thread("w1", { sectionId: "sec_ws" }),
       ],
       [
-        { id: "sec_auto", name: "Beacon: Automations" },
+        { id: "sec_auto", name: "Beacon › Automations" },
         {
           id: "sec_alerts",
           name: "Beacon: Automations: Alert Investigations",
@@ -92,10 +92,10 @@ describe("nestGroups", () => {
     );
     const nodes = nestGroups(
       projection.all,
-      topics({ sec_auto: "auto", sec_alerts: "alerts", sec_ws: "ws" }),
+      tree({ sec_auto: "auto", sec_alerts: "alerts", sec_ws: "ws" }),
     );
     expect(outline(nodes)).toEqual([
-      "Beacon: Automations (3)",
+      "Beacon › Automations (3)",
       "  Alert Investigations (1)",
       "Workstreams (1)",
     ]);
@@ -114,7 +114,7 @@ describe("nestGroups", () => {
         thread("w1", { sectionId: "sec_ws" }),
       ],
       [
-        { id: "sec_auto", name: "Beacon: Automations" },
+        { id: "sec_auto", name: "Beacon › Automations" },
         {
           id: "sec_alerts",
           name: "Beacon: Automations: Alert Investigations",
@@ -125,13 +125,13 @@ describe("nestGroups", () => {
     );
     const nodes = nestGroups(
       projection.all,
-      topics({ sec_auto: "auto", sec_alerts: "alerts", sec_ws: "ws" }),
+      tree({ sec_auto: "auto", sec_alerts: "alerts", sec_ws: "ws" }),
     );
-    // "Beacon: Automations" wears Beacon's color, and the area nested under
+    // "Beacon › Automations" wears Beacon's color, and the area nested under
     // it and the parentless workstream name no container at all.
-    expect(nodes[0]!.parentTopicId).toBe("va");
-    expect(nodes[0]!.subgroups[0]!.parentTopicId).toBeNull();
-    expect(nodes[1]!.parentTopicId).toBeNull();
+    expect(nodes[0]!.parentWorkstreamId).toBe("va");
+    expect(nodes[0]!.workstreams[0]!.parentWorkstreamId).toBeNull();
+    expect(nodes[1]!.parentWorkstreamId).toBeNull();
   });
 
   it("heads subgroups with a topic no section backs", () => {
@@ -152,17 +152,17 @@ describe("nestGroups", () => {
     );
     const [top, ...rest] = nestGroups(
       projection.all,
-      topics({ sec_alerts: "alerts", sec_cli: "cli" }, SPLIT),
+      tree({ sec_alerts: "alerts", sec_cli: "cli" }, SPLIT),
     );
     expect(rest).toEqual([]);
     expect(outline([top!])).toEqual([
-      "Beacon: Automations (3)",
+      "Beacon › Automations (3)",
       "  Alert Investigations (1)",
       "  CLI (2)",
     ]);
-    expect(top!.id).toBe(sharedTopicId("auto"));
+    expect(top!.id).toBe(sharedWorkstreamId("auto"));
     expect(top!.hasSection).toBe(false);
-    expect(top!.topicId).toBe("auto");
+    expect(top!.workstreamId).toBe("auto");
     expect(top!.rows).toEqual([]);
   });
 
@@ -184,7 +184,7 @@ describe("nestGroups", () => {
       outline(
         nestGroups(
           projection.all,
-          topics(
+          tree(
             {
               sec_alerts: "alerts",
               sec_cli: "cli",
@@ -213,7 +213,7 @@ describe("nestGroups", () => {
       outline(
         nestGroups(
           projection.all.filter((group) => group.id !== "sec_cli"),
-          topics({ sec_alerts: "alerts", sec_review: "review" }, [
+          tree({ sec_alerts: "alerts", sec_review: "review" }, [
             node("va", "Beacon", [
               node("alerts", "Alert Investigations", [], {
                 prefix: ["Automations"],
@@ -225,7 +225,7 @@ describe("nestGroups", () => {
       ),
     ).toEqual([
       "Beacon (2)",
-      "  Automations: Alert Investigations (1)",
+      "  Automations › Alert Investigations (1)",
       "  Code Review (1)",
     ]);
   });
@@ -244,7 +244,7 @@ describe("nestGroups", () => {
       "Beta (0)",
     ]);
     expect(
-      outline(nestGroups(projection.all, topics({ sec_a: "gone" }))),
+      outline(nestGroups(projection.all, tree({ sec_a: "gone" }))),
     ).toEqual(["Alpha (1)", "Beta (0)"]);
     // A section the last pass didn't lay out nests under the nearest topic
     // the layout draws, or stands alone in input order without one.
@@ -260,7 +260,7 @@ describe("nestGroups", () => {
       outline(
         nestGroups(
           emptied.all,
-          topics({ sec_alerts: "alerts", sec_cli: "cli" }, [
+          tree({ sec_alerts: "alerts", sec_cli: "cli" }, [
             node(
               "auto",
               "Automations",
@@ -273,7 +273,7 @@ describe("nestGroups", () => {
         ),
       ),
     ).toEqual([
-      "Beacon: Automations (1)",
+      "Beacon › Automations (1)",
       "  Alert Investigations (1)",
       "  CLI (0)",
     ]);
@@ -281,7 +281,7 @@ describe("nestGroups", () => {
       outline(
         nestGroups(
           projection.all,
-          topics({ sec_a: "ws", sec_b: "cli" }, [node("ws", "Workstreams")]),
+          tree({ sec_a: "ws", sec_b: "cli" }, [node("ws", "Workstreams")]),
         ),
       ),
     ).toEqual(["Workstreams (1)", "Beta (0)"]);
@@ -290,14 +290,14 @@ describe("nestGroups", () => {
 
 describe("arrangeGroups with topics", () => {
   const sections = [
-    { id: "sec_auto", name: "Beacon: Automations" },
+    { id: "sec_auto", name: "Beacon › Automations" },
     {
       id: "sec_alerts",
       name: "Beacon: Automations: Alert Investigations",
     },
     { id: "sec_ws", name: "Workstreams" },
   ];
-  const bindings = topics({
+  const bindings = tree({
     sec_auto: "auto",
     sec_alerts: "alerts",
     sec_ws: "ws",
@@ -309,17 +309,17 @@ describe("arrangeGroups with topics", () => {
       sections,
       { now },
     );
-    const { unfiled } = arrangeGroups(projection, "alphabetical", bindings);
-    expect(unfiled).toMatchObject({
-      name: "Unfiled",
-      label: "Unfiled",
+    const { other } = arrangeGroups(projection, "alphabetical", bindings);
+    expect(other).toMatchObject({
+      name: "Other",
+      label: "Other",
       total: 1,
-      topicId: null,
+      workstreamId: null,
       hasSection: false,
-      subgroups: [],
+      workstreams: [],
       sectionIds: [],
     });
-    expect(unfiled.rows.map((row) => row.thread.id)).toEqual(["loose"]);
+    expect(other.rows.map((row) => row.thread.id)).toEqual(["loose"]);
   });
 
   it("focuses, and counts as focused, a whole top-level group", () => {
@@ -332,12 +332,12 @@ describe("arrangeGroups with topics", () => {
       sections,
       {
         now,
-        order: { workstreams: [], threads: {}, prioritized: ["sec_alerts"] },
+        order: { workstreams: [], threads: {}, focused: ["sec_alerts"] },
       },
     );
     const arranged = arrangeGroups(projection, "alphabetical", bindings);
     expect(outline(arranged.pinned)).toEqual([
-      "Beacon: Automations (2)",
+      "Beacon › Automations (2)",
       "  Alert Investigations (1)",
     ]);
     expect(outline(arranged.populated)).toEqual(["Workstreams (1)"]);
@@ -365,7 +365,7 @@ describe("arrangeGroups with topics", () => {
     );
     const arranged = arrangeGroups(projection, "alphabetical", bindings);
     expect(arranged.populated.map((group) => group.label)).toEqual([
-      "Beacon: Automations",
+      "Beacon › Automations",
     ]);
     expect(arranged.dormant.map((group) => group.label)).toEqual([
       "Workstreams",
@@ -385,7 +385,7 @@ describe("arrangeGroups with topics", () => {
       },
     );
     const arranged = arrangeGroups(projection, "alphabetical", bindings);
-    expect(outline(arranged.populated)).toEqual(["Beacon: Automations (1)"]);
+    expect(outline(arranged.populated)).toEqual(["Beacon › Automations (1)"]);
     // Focus still covers the hidden subgroup's section.
     expect([...focusedSections(arranged, new Set(["sec_auto"]))]).toContain(
       "sec_alerts",
@@ -407,18 +407,18 @@ describe("arrangeGroups with topics", () => {
       ],
       { now },
     );
-    const nested = topics({ sec_cli: "cli", sec_alerts: "alerts" }, SPLIT);
+    const nested = tree({ sec_cli: "cli", sec_alerts: "alerts" }, SPLIT);
     expect(
       outline(arrangeGroups(projection, "alphabetical", nested).populated),
     ).toEqual([
-      "Beacon: Automations (2)",
+      "Beacon › Automations (2)",
       "  Alert Investigations (1)",
       "  CLI (1)",
     ]);
     expect(
       outline(arrangeGroups(projection, "manual", nested).populated),
     ).toEqual([
-      "Beacon: Automations (2)",
+      "Beacon › Automations (2)",
       "  CLI (1)",
       "  Alert Investigations (1)",
     ]);
@@ -437,7 +437,7 @@ describe("groupRoots", () => {
         thread("w1", { sectionId: "sec_ws", latestAttentionAt: now }),
       ],
       [
-        { id: "sec_auto", name: "Beacon: Automations" },
+        { id: "sec_auto", name: "Beacon › Automations" },
         {
           id: "sec_alerts",
           name: "Beacon: Automations: Alert Investigations",
@@ -452,15 +452,15 @@ describe("groupRoots", () => {
     const [beacon] = arrangeGroups(
       projection,
       "alphabetical",
-      topics({ sec_auto: "auto", sec_alerts: "alerts", sec_ws: "ws" }),
+      tree({ sec_auto: "auto", sec_alerts: "alerts", sec_ws: "ws" }),
     ).populated;
     expect(beacon!.total).toBe(4);
     expect(groupRoots(beacon!).map((t) => t.id)).toEqual(["a1", "i1", "i2"]);
-    expect(groupRoots(beacon!.subgroups[0]!).map((t) => t.id)).toEqual([
+    expect(groupRoots(beacon!.workstreams[0]!).map((t) => t.id)).toEqual([
       "i1",
       "i2",
     ]);
-    expect(groupRoots(projection.unsorted)).toEqual([]);
+    expect(groupRoots(projection.other)).toEqual([]);
   });
 });
 
@@ -478,12 +478,12 @@ describe("planDrop with nested groups", () => {
         {
           kind: "group",
           groupId: "sec_other",
-          overGroupId: sharedTopicId("auto"),
+          overGroupId: sharedWorkstreamId("auto"),
         },
         projection,
         sections,
         EMPTY_ORDER,
-        topics({ sec_ws: "ws", sec_alerts: "alerts", sec_cli: "cli" }, SPLIT),
+        tree({ sec_ws: "ws", sec_alerts: "alerts", sec_cli: "cli" }, SPLIT),
       ),
     ).toEqual({
       reorder: {
@@ -502,14 +502,14 @@ describe("small groups", () => {
   ): string[] =>
     nodes.flatMap((node) => [
       `${"  ".repeat(depth)}${node.label} (${node.total})${node.inline ? " inline" : ""}`,
-      ...shape(node.subgroups, depth + 1),
+      ...shape(node.workstreams, depth + 1),
     ]);
   const sections = [
     { id: "sec_alerts", name: "Beacon: Automations: Alert Investigations" },
     { id: "sec_cli", name: "Beacon: Automations: CLI" },
     { id: "sec_ws", name: "Workstreams" },
   ];
-  const nested = topics(
+  const nested = tree(
     { sec_alerts: "alerts", sec_cli: "cli", sec_ws: "ws" },
     SPLIT,
   );
@@ -523,12 +523,12 @@ describe("small groups", () => {
     counts: Record<string, number>,
     list = sections,
     bindings = nested,
-    prioritized: string[] = [],
+    focused: string[] = [],
   ) =>
     arrangeGroups(
       projectWorkstreams(threads(counts), list, {
         now,
-        order: { workstreams: [], threads: {}, prioritized },
+        order: { workstreams: [], threads: {}, focused },
       }),
       "alphabetical",
       bindings,
@@ -536,7 +536,7 @@ describe("small groups", () => {
 
   it("keeps headers for subgroups once two show enough threads", () => {
     expect(shape(arrange({ sec_alerts: 3, sec_cli: 3 }).populated)).toEqual([
-      "Beacon: Automations (6)",
+      "Beacon › Automations (6)",
       "  Alert Investigations (3)",
       "  CLI (3)",
     ]);
@@ -544,7 +544,7 @@ describe("small groups", () => {
 
   it("lists every subgroup inline when fewer than two are big enough", () => {
     expect(shape(arrange({ sec_alerts: 4, sec_cli: 2 }).populated)).toEqual([
-      "Beacon: Automations (6)",
+      "Beacon › Automations (6)",
       "  Alert Investigations (4) inline",
       "  CLI (2) inline",
     ]);
@@ -555,7 +555,7 @@ describe("small groups", () => {
       ...sections,
       { id: "sec_review", name: "Beacon: Automations: Review" },
     ];
-    const bindings = topics(
+    const bindings = tree(
       { sec_alerts: "alerts", sec_cli: "cli", sec_review: "review" },
       [
         node(
@@ -576,7 +576,7 @@ describe("small groups", () => {
           .populated,
       ),
     ).toEqual([
-      "Beacon: Automations (7)",
+      "Beacon › Automations (7)",
       "  Alert Investigations (3)",
       "  CLI (1)",
       "  Review (3)",
@@ -593,24 +593,24 @@ describe("small groups", () => {
     );
     expect(
       shape(arrangeGroups(projection, "alphabetical", nested).populated),
-    ).toEqual(["Beacon: Automations (1)", "  Alert Investigations (1) inline"]);
+    ).toEqual(["Beacon › Automations (1)", "  Alert Investigations (1) inline"]);
   });
 
   it("flattens every subgroup when the parent also holds threads", () => {
     const projection = projectWorkstreams(
       threads({ sec_auto: 1, sec_alerts: 3, sec_cli: 3 }),
-      [{ id: "sec_auto", name: "Beacon: Automations" }, ...sections],
+      [{ id: "sec_auto", name: "Beacon › Automations" }, ...sections],
       { now },
     );
     const [group] = arrangeGroups(
       projection,
       "alphabetical",
-      topics({ sec_auto: "auto", sec_alerts: "alerts", sec_cli: "cli" }, [
+      tree({ sec_auto: "auto", sec_alerts: "alerts", sec_cli: "cli" }, [
         { ...SPLIT[0]!, lists: true },
       ]),
     ).populated;
     expect(shape([group!])).toEqual([
-      "Beacon: Automations (7)",
+      "Beacon › Automations (7)",
       "  Alert Investigations (3) inline",
       "  CLI (3) inline",
     ]);
@@ -679,8 +679,8 @@ describe("small groups", () => {
 });
 
 describe("a workstream with no visible thread", () => {
-  const chain: WorkstreamTopics = {
-    entities: [
+  const chain: WorkstreamTree = {
+    workstreams: [
       { id: "product", name: "Product", parentId: null },
       { id: "family", name: "Family", parentId: "product" },
       { id: "child", name: "Child", parentId: "family" },

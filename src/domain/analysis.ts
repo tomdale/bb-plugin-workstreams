@@ -4,11 +4,11 @@
  * whether a stored result is current. Pure, so the server, the app, and the
  * eval runner share one definition.
  *
- * Full analysis runs when a turn ends. After new requests, full mode settles
+ * the turn-end call runs when a turn ends. After new requests, full mode settles
  * the title and thread goal from the user's evolving purpose. The final reply
  * and agent report provide turn context. Status mode carries the title and
  * goal forward. Either mode supplies the turn's status when the agent didn't
- * report one. A turn's end asks these fields together with the topic (see
+ * report one. A turn's end asks these fields together with the workstream (see
  * turnEnd.ts); a thread's start writes its first title (see start.ts).
  *
  * Titles are written as two parts, an -ing verb and its subject, which code
@@ -18,7 +18,8 @@
 import { z } from "zod";
 import type { RecapState } from "./recap.ts";
 import { redact } from "./redact.ts";
-import { takesThreads, topicAncestors } from "./topics.ts";
+import { takesThreads, workstreamAncestors } from "./topics.ts";
+import { pathNames } from "./topic-path.ts";
 
 export { redact };
 
@@ -56,7 +57,7 @@ export const GOAL_MAX = 240;
 /** A safety bound for the accumulated context digest; oversized output is refused. */
 export const DIGEST_MAX = 480;
 
-/** A stored Full analysis result, keyed to the turn it describes. */
+/** A stored turn-end result, keyed to the turn it describes. */
 type ThreadAnalysis = {
   readonly recap: string;
   readonly state: WorkState;
@@ -75,7 +76,7 @@ type ThreadAnalysis = {
    * the one it settled last as its own memory.
    */
   readonly digest?: string | null;
-  readonly topicError?: string;
+  readonly workstreamError?: string;
   /** The thread's `latestAttentionAt` when it was analyzed. */
   readonly revision: number;
   readonly at: number;
@@ -83,7 +84,7 @@ type ThreadAnalysis = {
   /** The thread's agent reported this turn, so its status came from the report. */
   readonly reported?: boolean;
   /**
-   * The requests the title, goal, and topic were last settled from. A turn that adds
+   * The requests the title, goal, and workstream were last settled from. A turn that adds
    * no request carries them forward instead of asking again.
    */
   readonly requestsKey?: string | null;
@@ -180,11 +181,11 @@ export function composeTitle(
 }
 
 /**
- * Where a thread is listed: its workstream's topic path and, for a child
+ * Where a thread is listed: its workstream's path and, for a child
  * thread, its parent's title. Its title is read beside them.
  */
 export type ThreadListing = {
-  readonly group: string | null;
+  readonly workstream: string | null;
   readonly parent: string | null;
 };
 
@@ -219,10 +220,7 @@ function dropListedName(
   listing: ThreadListing | null | undefined,
   minWords: number,
 ): string {
-  const names = (listing?.group ?? "")
-    .split(":")
-    .map((name) => name.trim())
-    .filter(Boolean);
+  const names = pathNames(listing?.workstream ?? "");
   const candidates = [names.join(" "), ...names]
     .filter(Boolean)
     .sort((a, b) => b.length - a.length);
@@ -241,10 +239,12 @@ function dropListedName(
 
 /** The listing as prompt context, or nothing when it says nothing. */
 export function listingBlock(listing: ThreadListing | null | undefined) {
-  if (!listing?.group && !listing?.parent) return "";
+  if (!listing?.workstream && !listing?.parent) return "";
   return [
-    'Where the thread is listed. Its title is read beside these, so leave out their names and products and name what tells this thread apart. Under "Atlas: Billing", "Fixing Atlas invoice export" becomes "Fixing invoice export"; under a parent "Building Orion sync", "Reviewing Orion sync Phase 3" becomes "Reviewing Phase 3". When leaving a name out would leave only generic words, name the subject more specifically instead: under "Orion", "Redesigning Orion" becomes "Redesigning settings page".',
-    listing.group ? tagged("listed_under", redact(listing.group)) : null,
+    'Where the thread is listed. Its title is read beside these, so leave out their names and products and name what tells this thread apart. Under "Atlas › Billing", "Fixing Atlas invoice export" becomes "Fixing invoice export"; under a parent "Building Orion sync", "Reviewing Orion sync Phase 3" becomes "Reviewing Phase 3". When leaving a name out would leave only generic words, name the subject more specifically instead: under "Orion", "Redesigning Orion" becomes "Redesigning settings page".',
+    listing.workstream
+      ? tagged("listed_under", redact(listing.workstream))
+      : null,
     listing.parent
       ? `${tagged("parent_thread", redact(listing.parent))} (it is a child of this thread)`
       : null,
@@ -264,8 +264,8 @@ const PROMPT_TAGS = [
   "conversation",
   "agent_report",
   "project",
-  "current_topic",
-  "topic_tree",
+  "current_workstream",
+  "workstream_tree",
   "title",
   "listed_under",
   "parent_thread",
@@ -275,6 +275,7 @@ const PROMPT_TAGS = [
   "checkout",
   "hint",
   "group",
+  "workstream",
   "threads",
   "decisions",
   "declined",
@@ -325,7 +326,7 @@ export const stripFence = (text: string) =>
     .replace(/^```(?:json)?\s*/, "")
     .replace(/\s*```$/, "");
 
-// Full analysis -----------------------------------------------------------
+// Turn-end description -------------------------------------------------
 
 /** How the thread's agent reported the turn, when it did. */
 export type AgentReport = {
@@ -335,13 +336,13 @@ export type AgentReport = {
 };
 
 /**
- * Who gave the thread its current title, which decides what Full analysis may
+ * Who gave the thread its current title, which decides what the turn-end call may
  * do with it: Workstreams may keep or replace its own title, names a thread
  * BB or an agent titled or that has none, and leaves one you renamed alone.
  */
 export type TitledBy = "workstreams" | "other" | "none" | "you";
 
-export type FullAnalysisInput = {
+export type DescriptionInput = {
   /** The title BB displays: the thread's own, or BB's placeholder. */
   readonly title: string;
   readonly titledBy: TitledBy;
@@ -371,7 +372,7 @@ export type FullAnalysisInput = {
 
 /** Whether the analysis names the thread: only after new requests, and never over your own title. */
 const namesThread = (
-  input: Pick<FullAnalysisInput, "mode" | "titledBy" | "preserveTitle">,
+  input: Pick<DescriptionInput, "mode" | "titledBy" | "preserveTitle">,
 ) => input.mode === "full" && input.titledBy !== "you" && !input.preserveTitle;
 
 const REQUEST_CHARS = 1500;
@@ -383,7 +384,7 @@ const REPORT_CHARS = 2500;
  * the last assistant message when the agent has replied.
  */
 function conversationBlock(
-  input: Pick<FullAnalysisInput, "requests" | "lastAssistantText">,
+  input: Pick<DescriptionInput, "requests" | "lastAssistantText">,
 ): string {
   const cut = (text: string, max: number) => excerpt(redact(text), max);
   const parts = input.requests.map((request) =>
@@ -429,8 +430,8 @@ const TITLE_SECTION: Record<TitledBy, string> = {
   you: "The thread's title, which the user gave it:",
 };
 
-export function fullAnalysisPrompt(input: FullAnalysisInput): string {
-  const { sections, keys, fields } = fullAnalysisParts(input);
+export function descriptionPrompt(input: DescriptionInput): string {
+  const { sections, keys, fields } = descriptionParts(input);
   return `${HEADER}
 
 You describe one agent thread for someone who switches between dozens of them.
@@ -445,7 +446,7 @@ ${fields.join("\n")}`;
  * The prompt's evidence blocks, its `Return {…}` keys, and the rules for each
  * field, so a turn's end can ask for more than this call's fields.
  */
-export function fullAnalysisParts(input: FullAnalysisInput): {
+export function descriptionParts(input: DescriptionInput): {
   sections: string[];
   keys: string[];
   fields: string[];
@@ -474,7 +475,7 @@ export function fullAnalysisParts(input: FullAnalysisInput): {
       `The settled thread outcome:\n${tagged("thread_goal", redact(input.goal ?? "(not yet established)"))}`,
       `The accumulated thread context:\n${tagged("thread_digest", redact(input.digest ?? "(not yet established)"))}`,
     );
-  if (naming && (input.listing?.group || input.listing?.parent))
+  if (naming && (input.listing?.workstream || input.listing?.parent))
     sections.push(listingBlock(input.listing));
   if (input.continuation)
     sections.push(
@@ -497,9 +498,9 @@ export function fullAnalysisParts(input: FullAnalysisInput): {
 }
 
 /** JSON Schema for exactly the fields the prompt asks for. */
-export function fullAnalysisSchema(
+export function descriptionSchema(
   input: Pick<
-    FullAnalysisInput,
+    DescriptionInput,
     "report" | "mode" | "titledBy" | "preserveTitle"
   >,
 ): Record<string, unknown> {
@@ -547,7 +548,7 @@ const fullOutputSchema = z.object({
     .optional(),
 });
 
-export type FullAnalysisOutput = {
+export type DescriptionOutput = {
   /** A new desired outcome, or null to keep the settled goal. */
   goal: string | null;
   /** A new accumulated context digest, or null to keep the settled one. */
@@ -562,26 +563,26 @@ export type FullAnalysisOutput = {
 };
 
 /** Strips an optional Markdown fence, then validates against what was asked. */
-export function parseFullAnalysis(
+export function parseDescription(
   text: string,
   input: Pick<
-    FullAnalysisInput,
+    DescriptionInput,
     "report" | "mode" | "titledBy" | "listing" | "preserveTitle"
   >,
-): FullAnalysisOutput {
-  return parseFullAnalysisFields(JSON.parse(stripFence(text)), input);
+): DescriptionOutput {
+  return parseDescriptionFields(JSON.parse(stripFence(text)), input);
 }
 
 /** Checks an already-decoded answer (see `parseFullAnalysis`). */
-export function parseFullAnalysisFields(
+export function parseDescriptionFields(
   raw: unknown,
   input: Pick<
-    FullAnalysisInput,
+    DescriptionInput,
     "report" | "mode" | "titledBy" | "listing" | "preserveTitle"
   >,
-): FullAnalysisOutput {
+): DescriptionOutput {
   const parsed = fullOutputSchema.parse(raw);
-  let status: FullAnalysisOutput["status"] = null;
+  let status: DescriptionOutput["status"] = null;
   if (!input.report) {
     if (!parsed.recap) throw new Error("The analysis gave no recap.");
     const state = parsed.state ?? "needs-input";

@@ -23,7 +23,11 @@ import { HoverAction, RowActions, RowPressButton } from "./HoverActions.tsx";
 import { SnoozeAction, type SnoozeActionSpec } from "./SnoozeAction.tsx";
 import { rowGeometry } from "./rowGeometry.ts";
 import { FULL_SLOT_PX } from "./statusSlot.ts";
-import { PLACEMENT_TRAITS, STANDALONE_TRAITS, type Placement } from "./rows.ts";
+import {
+  LOCATION_TRAITS,
+  STANDALONE_TRAITS,
+  type RowLocation,
+} from "./rows.ts";
 
 export { MAX_INDENT } from "./rowGeometry.ts";
 
@@ -64,7 +68,7 @@ export function Row({
   active: boolean;
   /**
    * Shown after the title in overlay bands and inline groups: the row's
-   * workstream or subgroup name, or when a snoozed row wakes.
+   * workstream or workstream name, or when a snoozed row wakes.
    */
   context?: string;
   /**
@@ -72,7 +76,7 @@ export function Row({
    * own. Up Next rows, for one, all need Tom, so the title reads at full
    * strength.
    */
-  placement?: Placement;
+  placement?: RowLocation;
   work?: WorkView;
   /**
    * False when no row in this list has a status mark: the slot collapses,
@@ -91,7 +95,7 @@ export function Row({
   categorized?: boolean;
   onNavigate: () => void;
 }) {
-  const traits = placement ? PLACEMENT_TRAITS[placement] : STANDALONE_TRAITS;
+  const traits = placement ? LOCATION_TRAITS[placement] : STANDALONE_TRAITS;
   const timestamps = usePrefsSelector(
     (prefs) => prefs?.sidebar.timestamps ?? "show",
   );

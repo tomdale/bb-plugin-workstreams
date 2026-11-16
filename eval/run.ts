@@ -14,16 +14,16 @@ import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { performance } from "node:perf_hooks";
 import {
-  fullAnalysisPrompt,
-  parseFullAnalysis,
-  type FullAnalysisInput,
+  descriptionPrompt,
+  parseDescription,
+  type DescriptionInput,
   type WorkState,
 } from "../src/domain/analysis.ts";
 import { parseStart, startPrompt } from "../src/domain/start.ts";
 import {
-  parsePlacement,
-  placementPrompt,
-  type PlacementInput,
+  parseWorkstreamChoice,
+  workstreamChoicePrompt,
+  type WorkstreamChoiceInput,
 } from "../src/domain/placement.ts";
 import {
   gatewayComplete,
@@ -84,8 +84,8 @@ const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
 const NO_SUBJECT = new Set(["unclassified", "crossprojectcoordination"]);
 
 /** Splits a fixture excerpt into requests and the last assistant message. */
-export function toInput(c: Case): FullAnalysisInput {
-  const requests: FullAnalysisInput["requests"][number][] = [];
+export function toInput(c: Case): DescriptionInput {
+  const requests: DescriptionInput["requests"][number][] = [];
   let lastAssistantText: string | null = null;
   const sections = c.excerpts.split(
     /\n\n(?=Initial user request|Recent user request|Last assistant report)/,
@@ -279,7 +279,7 @@ type Job = {
   set: string;
   mode: Result["mode"];
   c: Case;
-  input: FullAnalysisInput;
+  input: DescriptionInput;
 };
 const jobs: Job[] = [];
 for (const [set, cases] of sets)
@@ -323,7 +323,7 @@ for (const model of models) {
         const start = {
           request: job.input.requests[0]?.text ?? "",
           project: null,
-          placement: null,
+          choice: null,
         };
         const { text, cost } = await complete(model, startPrompt(start));
         return {
@@ -334,29 +334,29 @@ for (const model of models) {
           cost,
         };
       }
-      const placement: PlacementInput = {
+      const choice: WorkstreamChoiceInput = {
         title: job.input.title,
         requests: job.input.requests.map((r) => r.text),
         project: null,
         checkout: null,
-        entities: [],
+        workstreams: [],
         hints: [],
         current: null,
       };
       const [full, placed] = await Promise.all([
-        complete(model, fullAnalysisPrompt(job.input)),
+        complete(model, descriptionPrompt(job.input)),
         job.mode === "cold"
-          ? complete(model, placementPrompt(placement))
+          ? complete(model, workstreamChoicePrompt(choice))
           : Promise.resolve(null),
       ]);
-      const parsed = parseFullAnalysis(full.text, job.input);
-      const topic = placed ? parsePlacement(placed.text, placement) : null;
+      const parsed = parseDescription(full.text, job.input);
+      const workstream = placed ? parseWorkstreamChoice(placed.text, choice) : null;
       return {
         ...base,
         output: {
           state: parsed.status?.state ?? null,
           title: parsed.title,
-          subject: topic?.proposed?.name ?? null,
+          subject: workstream?.proposed?.name ?? null,
         },
         seconds: (performance.now() - started) / 1000,
         cost: full.cost + (placed?.cost ?? 0),

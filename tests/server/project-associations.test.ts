@@ -3,7 +3,7 @@ import { afterEach, expect, it } from "vitest";
 import { makeThreadResponse } from "@get-bb/plugin-sdk/testing";
 import { setMeta } from "../../src/server/db.ts";
 import { openDatabase } from "../../src/server/db.ts";
-import { TopicStore } from "../../src/server/topics.ts";
+import { WorkstreamStore } from "../../src/server/topics.ts";
 import { Journal } from "../../src/server/journal.ts";
 import { WorkstreamService } from "../../src/server/service.ts";
 import { ProjectAssociations } from "../../src/server/projectAssociations.ts";
@@ -42,7 +42,7 @@ function world() {
     },
   });
   const db = openDatabase(bb);
-  const topics = new TopicStore(db);
+  const workstreamStore = new WorkstreamStore(db);
   const journal = new Journal(db);
   const service = new WorkstreamService(
     () => bb.sdk,
@@ -53,7 +53,7 @@ function world() {
   const deps = {
     db,
     sdk: () => bb.sdk,
-    topics,
+    workstreamStore,
     journal,
     exclusive: <T>(task: () => Promise<T>) => service.exclusive(task),
     onChange: () => {},
@@ -63,7 +63,7 @@ function world() {
     learning.dispose();
     await harness.lifecycle.dispose();
   });
-  const topic = topics.create("Parser");
+  const workstream = workstreamStore.create("Parser");
   function add(
     id: string,
     patch: Partial<ReturnType<typeof makeThreadResponse>> = {},
@@ -76,7 +76,7 @@ function world() {
     });
     threads.push(thread);
     if (!thread.parentThreadId)
-      topics.assign(id, topic.id, { provenance: "manual" });
+      workstreamStore.assign(id, workstream.id, { provenance: "manual" });
     return thread;
   }
   function history() {
@@ -86,10 +86,10 @@ function world() {
   return {
     db,
     listings,
-    topics,
+    workstreamStore,
     journal,
     service,
-    topic,
+    workstream,
     threads,
     projects,
     add,
@@ -106,7 +106,7 @@ function world() {
       learning.dispose();
       learning = new ProjectAssociations(deps);
     },
-    current: () => topics.getById(topic.id)!,
+    current: () => workstreamStore.getById(workstream.id)!,
   };
 }
 
@@ -120,8 +120,8 @@ it("learns from three independent historical roots, including archived work, and
   });
   const entry = w.journal.list()[0]!;
   expect(entry).toMatchObject({
-    action: "project-association",
-    source: "auto",
+    action: "project-learned",
+    source: "workstreams",
   });
   expect(entry.threads).toHaveLength(3);
   await w.learning.reconcile();
@@ -223,21 +223,21 @@ it("keeps declined corrections declined as more evidence arrives and after resta
   await w.learning.reconcile();
   expect(w.learning.state()).toEqual([]);
   expect(w.current().projectId).toBe("p1");
-  expect(w.journal.list()[0]).toMatchObject({ status: "dismissed" });
+  expect(w.journal.list()[0]).toMatchObject({ status: "declined" });
 });
 
 it("remembers manual opt-out and can explicitly return to automatic learning", async () => {
   const w = world();
   w.history();
   await w.learning.reconcile();
-  w.learning.updateMetadata(w.topic.id, { projectId: null });
+  w.learning.updateMetadata(w.workstream.id, { projectId: null });
   w.restart();
   await w.learning.reconcile();
   expect(w.current()).toMatchObject({
     projectId: null,
     projectSource: "disabled",
   });
-  w.learning.updateMetadata(w.topic.id, { projectAutomatic: true });
+  w.learning.updateMetadata(w.workstream.id, { projectAutomatic: true });
   await w.learning.reconcile();
   expect(w.current()).toMatchObject({
     projectId: "p1",
@@ -266,7 +266,7 @@ it("lets a user pin a learned project and refuses stale suggestions and stale un
   w.addIndependent("other", "p2");
   await w.learning.reconcile();
   const suggestion = w.learning.state()[0]!;
-  w.learning.updateMetadata(w.topic.id, { projectId: "p1" });
+  w.learning.updateMetadata(w.workstream.id, { projectId: "p1" });
   await expect(w.learning.decide(suggestion.id, "accept")).rejects.toThrow(
     /out of date/,
   );
@@ -376,7 +376,7 @@ it("stops counting a root whose project moved, and forgets one the sweep no long
   const rows = () =>
     w.db
       .prepare(
-        "SELECT COUNT(*) AS n FROM ws_project_root WHERE thread_id = 'root-3'",
+        "SELECT COUNT(*) AS n FROM ws_project_listing WHERE thread_id = 'root-3'",
       )
       .get() as { n: number };
   await w.learning.reconcile();

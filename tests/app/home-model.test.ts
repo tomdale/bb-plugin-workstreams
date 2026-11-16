@@ -11,7 +11,7 @@ import {
 import {
   descendantCounts,
   planHome,
-  prioritizedSet,
+  focusedSet,
   startsOpen,
   unfoldedRows,
 } from "../../src/app/home/model.ts";
@@ -30,7 +30,7 @@ const sections = [
 const baseOptions = {
   kindOf,
   now,
-  prioritized: new Set<string>(),
+  focused: new Set<string>(),
   groupSort: "alphabetical" as const,
   showUpNext: true,
   showSnoozed: true,
@@ -76,7 +76,7 @@ describe("planHome", () => {
     const plan = planHome(projection, baseOptions);
     expect(plan.pinned).toEqual([]);
     expect(plan.populated.map((group) => group.name)).toEqual(["Alpha"]);
-    expect(plan.unfiled?.name).toBe("Unfiled");
+    expect(plan.other?.name).toBe("Other");
     expect(plan.dormant.map((group) => group.name)).toEqual(["Beta"]);
     expect(plan.populatedCount).toBe(2);
     expect(plan.hasLower).toBe(true);
@@ -89,7 +89,7 @@ describe("planHome", () => {
       baseOptions,
     );
     expect(plan.isEmpty).toBe(true);
-    expect(plan.unfiled).toBeNull();
+    expect(plan.other).toBeNull();
   });
 
   it("is not empty when only a snoozed thread remains, unless the fold is hidden", () => {
@@ -114,12 +114,12 @@ describe("planHome", () => {
       sections,
       {
         now,
-        order: { workstreams: [], threads: {}, prioritized: ["sec_b"] },
+        order: { workstreams: [], threads: {}, focused: ["sec_b"] },
       },
     );
     const plan = planHome(projection, {
       ...baseOptions,
-      prioritized: new Set(["sec_b"]),
+      focused: new Set(["sec_b"]),
     });
     expect(plan.tiered).toBe(true);
     expect(plan.pinned.map((group) => group.name)).toEqual(["Beta"]);
@@ -151,11 +151,11 @@ describe("planHome", () => {
         }),
       ],
       sections,
-      { now, order: { workstreams: [], threads: {}, prioritized: ["sec_a"] } },
+      { now, order: { workstreams: [], threads: {}, focused: ["sec_a"] } },
     );
     const plan = planHome(projection, {
       ...baseOptions,
-      prioritized: new Set(["sec_a"]),
+      focused: new Set(["sec_a"]),
     });
     expect(ids(plan.upNext!.rows)).toEqual(["pinned", "pinned-quiet"]);
     expect(plan.focus).toEqual({ active: true });
@@ -191,11 +191,11 @@ describe("planHome", () => {
         }),
       ],
       sections,
-      { now, order: { workstreams: [], threads: {}, prioritized: ["sec_a"] } },
+      { now, order: { workstreams: [], threads: {}, focused: ["sec_a"] } },
     );
     const plan = planHome(projection, {
       ...baseOptions,
-      prioritized: new Set(["sec_a"]),
+      focused: new Set(["sec_a"]),
       showUpNext: false,
     });
     expect(plan.upNext).toBeNull();
@@ -213,12 +213,12 @@ describe("planHome", () => {
       {
         now,
         snoozedUntil: (t) => (t.id === "snoozed" ? now + DAY_MS : undefined),
-        order: { workstreams: [], threads: {}, prioritized: ["sec_a"] },
+        order: { workstreams: [], threads: {}, focused: ["sec_a"] },
       },
     );
     const plan = planHome(projection, {
       ...baseOptions,
-      prioritized: new Set(["sec_a"]),
+      focused: new Set(["sec_a"]),
     });
     expect(plan.pinned).toEqual([]);
     expect(plan.tiered).toBe(false);
@@ -265,11 +265,11 @@ describe("planHome", () => {
   });
 });
 
-describe("prioritizedSet", () => {
+describe("focusedSet", () => {
   it("drops workstreams that no longer exist", () => {
     expect([
-      ...prioritizedSet(
-        { workstreams: [], threads: {}, prioritized: ["sec_a", "gone"] },
+      ...focusedSet(
+        { workstreams: [], threads: {}, focused: ["sec_a", "gone"] },
         sections,
       ),
     ]).toEqual(["sec_a"]);
@@ -458,7 +458,7 @@ describe("planHome with topics", () => {
   it("nests workstreams and focuses a whole top-level group", () => {
     const nested = [
       { id: "sec_p", name: "Product" },
-      { id: "sec_f", name: "Product: Feature" },
+      { id: "sec_f", name: "Product › Feature" },
       { id: "sec_o", name: "Other" },
     ];
     const projection = projectWorkstreams(
@@ -478,14 +478,14 @@ describe("planHome with topics", () => {
       nested,
       {
         now,
-        order: { workstreams: [], threads: {}, prioritized: ["sec_p"] },
+        order: { workstreams: [], threads: {}, focused: ["sec_p"] },
       },
     );
     const plan = planHome(projection, {
       ...baseOptions,
-      prioritized: new Set(["sec_p"]),
-      topics: {
-        entities: [
+      focused: new Set(["sec_p"]),
+      workstreams: {
+        workstreams: [
           { id: "p", name: "Product", parentId: null },
           { id: "f", name: "Feature", parentId: "p" },
           { id: "o", name: "Other", parentId: null },
@@ -493,14 +493,14 @@ describe("planHome with topics", () => {
         bindings: { sec_p: "p", sec_f: "f", sec_o: "o" },
         layout: [
           {
-            topicId: "p",
+            workstreamId: "p",
             name: "Product",
             prefix: [],
             lists: true,
             total: 2,
             children: [
               {
-                topicId: "f",
+                workstreamId: "f",
                 name: "Feature",
                 prefix: [],
                 lists: true,
@@ -510,7 +510,7 @@ describe("planHome with topics", () => {
             ],
           },
           {
-            topicId: "o",
+            workstreamId: "o",
             name: "Other",
             prefix: [],
             lists: true,
@@ -521,7 +521,7 @@ describe("planHome with topics", () => {
       },
     });
     expect(plan.pinned.map((group) => group.name)).toEqual(["Product"]);
-    expect(plan.pinned[0]!.subgroups.map((group) => group.label)).toEqual([
+    expect(plan.pinned[0]!.workstreams.map((group) => group.label)).toEqual([
       "Feature",
     ]);
     // The subgroup's thread counts as focused; the other workstream's doesn't.

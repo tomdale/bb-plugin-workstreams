@@ -6,9 +6,9 @@ import type { TidyEdit, TidyInput } from "../src/domain/tidy.ts";
  */
 export type EditPattern =
   | { op: "merge"; from: string; into: string }
-  | { op: "reparent"; topic: string; parent: string | null }
-  | { op: "move"; thread: string; topic: string }
-  | { op: "rename"; topic: string };
+  | { op: "move-workstream"; workstream: string; parent: string | null }
+  | { op: "move-thread"; thread: string; workstream: string }
+  | { op: "rename"; workstream: string };
 
 export type TidyCase = {
   id: string;
@@ -25,7 +25,7 @@ export type TidyCase = {
 
 type Row = [id: string, name: string, parent: string | null, about: string];
 
-const topics = (rows: Row[]) =>
+const workstreams = (rows: Row[]) =>
   rows.map(([id, name, parentId, description]) => ({
     id,
     name,
@@ -38,12 +38,12 @@ const topics = (rows: Row[]) =>
 const threads = (lines: string[]) =>
   lines.map((entry, i) => {
     const at = entry.indexOf(":");
-    const topicId = entry.slice(0, at).trim();
+    const workstreamId = entry.slice(0, at).trim();
     return {
-      id: `${topicId}-${i + 1}`,
+      id: `${workstreamId}-${i + 1}`,
       title: entry.slice(at + 1).trim(),
       checkout: null,
-      topicId: topicId === "unfiled" ? null : topicId,
+      workstreamId: workstreamId === "other" ? null : workstreamId,
     };
   });
 
@@ -51,9 +51,9 @@ const input = (rows: Row[], lines: string[]): TidyInput => {
   const list = threads(lines);
   const held: Record<string, number> = {};
   for (const t of list)
-    if (t.topicId) held[t.topicId] = (held[t.topicId] ?? 0) + 1;
+    if (t.workstreamId) held[t.workstreamId] = (held[t.workstreamId] ?? 0) + 1;
   return {
-    topics: topics(rows),
+    workstreams: workstreams(rows),
     held,
     threads: list,
     coordination: [],
@@ -136,7 +136,7 @@ export const cases: TidyCase[] = [
         "review-ship: Roll out review comments to all repos",
       ],
     ),
-    expect: [{ op: "reparent", topic: "review", parent: "beacon" }],
+    expect: [{ op: "move-workstream", workstream: "review", parent: "beacon" }],
     forbid: [
       { op: "merge", from: "review", into: "beacon" },
       { op: "merge", from: "review", into: "auto" },
@@ -166,9 +166,9 @@ export const cases: TidyCase[] = [
         "prompting: Improve first-turn prompts",
       ],
     ),
-    expect: [{ op: "rename", topic: "preview" }],
+    expect: [{ op: "rename", workstream: "preview" }],
     forbid: [
-      { op: "reparent", topic: "preview", parent: null },
+      { op: "move-workstream", workstream: "preview", parent: null },
       { op: "merge", from: "preview", into: "tom" },
     ],
     names: { preview: "Preview Environment" },
@@ -194,8 +194,8 @@ export const cases: TidyCase[] = [
         "search: Improve search",
       ],
     ),
-    expect: [{ op: "rename", topic: "billing" }],
-    forbid: [{ op: "reparent", topic: "billing", parent: null }],
+    expect: [{ op: "rename", workstream: "billing" }],
+    forbid: [{ op: "move-workstream", workstream: "billing", parent: null }],
     names: { billing: "Billing" },
   },
   {
@@ -221,7 +221,7 @@ export const cases: TidyCase[] = [
       ],
     ),
     expect: [],
-    forbid: [{ op: "rename", topic: "lumen-sdk" }],
+    forbid: [{ op: "rename", workstream: "lumen-sdk" }],
   },
   {
     id: "described-part",
@@ -249,7 +249,7 @@ export const cases: TidyCase[] = [
         "search: Cap web search latency",
       ],
     ),
-    expect: [{ op: "reparent", topic: "search", parent: "beacon" }],
+    expect: [{ op: "move-workstream", workstream: "search", parent: "beacon" }],
     forbid: [{ op: "merge", from: "search", into: "evals" }],
   },
   {
@@ -285,7 +285,7 @@ export const cases: TidyCase[] = [
     expect: [
       [
         { op: "merge", from: "streams2", into: "streams" },
-        { op: "reparent", topic: "streams2", parent: "streams" },
+        { op: "move-workstream", workstream: "streams2", parent: "streams" },
       ],
     ],
     forbid: [{ op: "merge", from: "streams", into: "streams2" }],
@@ -330,8 +330,8 @@ export const cases: TidyCase[] = [
     ),
     expect: [],
     forbid: [
-      { op: "reparent", topic: "cron", parent: "auto" },
-      { op: "reparent", topic: "cron", parent: "beacon" },
+      { op: "move-workstream", workstream: "cron", parent: "auto" },
+      { op: "move-workstream", workstream: "cron", parent: "beacon" },
       { op: "merge", from: "cron", into: "auto" },
     ],
   },
@@ -367,8 +367,8 @@ export const cases: TidyCase[] = [
     forbid: [
       { op: "merge", from: "auto", into: "review" },
       { op: "merge", from: "review", into: "auto" },
-      { op: "reparent", topic: "garden", parent: "kit" },
-      { op: "reparent", topic: "kit", parent: null },
+      { op: "move-workstream", workstream: "garden", parent: "kit" },
+      { op: "move-workstream", workstream: "kit", parent: null },
     ],
   },
 ];
@@ -383,19 +383,19 @@ export function matches(edit: TidyEdit, pattern: EditPattern): boolean {
         edit.from === pattern.from &&
         edit.into === pattern.into
       );
-    case "reparent":
+    case "move-workstream":
       return (
-        edit.op === "reparent" &&
-        edit.topic === pattern.topic &&
+        edit.op === "move-workstream" &&
+        edit.workstream === pattern.workstream &&
         edit.parent === pattern.parent
       );
-    case "move":
+    case "move-thread":
       return (
-        edit.op === "move" &&
+        edit.op === "move-thread" &&
         edit.thread === pattern.thread &&
-        edit.topic === pattern.topic
+        edit.workstream === pattern.workstream
       );
     case "rename":
-      return edit.op === "rename" && edit.topic === pattern.topic;
+      return edit.op === "rename" && edit.workstream === pattern.workstream;
   }
 }

@@ -6,7 +6,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { makeMessageDispatchHookContext } from "@get-bb/plugin-sdk/testing";
 import { fakeWorld } from "./fake-bb.ts";
-import { TopicStore } from "../../src/server/topics.ts";
+import { WorkstreamStore } from "../../src/server/topics.ts";
 import { openDatabase } from "../../src/server/db.ts";
 import { ComposedDrafts, draftText } from "../../src/server/composed-drafts.ts";
 
@@ -22,11 +22,11 @@ describe("ComposedDrafts", () => {
   it("hands a reported draft's identity to the dispatch with its text", () => {
     const drafts = new ComposedDrafts();
     drafts.report("d1", "Fix  the parser\n", {
-      entityId: "e1",
+      workstreamId: "e1",
       provenance: "manual",
     });
     expect(drafts.claim("t1", "Fix the parser")).toEqual({
-      identity: { entityId: "e1", provenance: "manual" },
+      identity: { workstreamId: "e1", provenance: "manual" },
     });
     // Claimed once.
     expect(drafts.claim("t2", "Fix the parser")).toBeUndefined();
@@ -79,9 +79,12 @@ describe("message.dispatch for the New thread view", () => {
   async function setup() {
     world = await fakeWorld();
     const w = world;
-    const corpus = new TopicStore(openDatabase(w.bb));
-    const feature = corpus.create("Parser", "Parser feature");
-    corpus.edit(feature.id, { projectId: "proj_1", projectSource: "manual" });
+    const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
+    const feature = workstreamStore.create("Parser", "Parser feature");
+    workstreamStore.edit(feature.id, {
+      projectId: "proj_1",
+      projectSource: "manual",
+    });
     const hook = w.harness.registrations.hooks["message.dispatch"]!;
     const dispatch = async (threadId: string, text: string) => {
       const thread = w.addThread(threadId, { createdAt: Date.now() });
@@ -110,51 +113,78 @@ describe("message.dispatch for the New thread view", () => {
       };
       // Starts only; the organizer's own filing is a separate entry.
       return entries.filter(
-        (e) => e.action === "route" && e.threads.some((t) => t.id === threadId),
+        (e) =>
+          e.action === "thread-started" &&
+          e.threads.some((t) => t.id === threadId),
       );
     };
-    return { w, corpus, feature, hook, dispatch, settle, starts };
+    return {
+      w,
+      workstreamStore: workstreamStore,
+      feature,
+      hook,
+      dispatch,
+      settle,
+      starts,
+    };
   }
 
   it("files a plain Enter with the identity the banner reported", async () => {
-    const { w, corpus, feature, dispatch, settle, starts } = await setup();
+    const {
+      w,
+      workstreamStore: workstreamStore,
+      feature,
+      dispatch,
+      settle,
+      starts,
+    } = await setup();
     await w.harness.behavior.callRpc("draftIdentity", {
       draftKey: "root",
       text: "Fix the parser",
-      identity: { entityId: feature.id, proposal: null, provenance: "manual" },
+      identity: {
+        workstreamId: feature.id,
+        proposal: null,
+        provenance: "manual",
+      },
     });
     await dispatch("t-enter", "Fix the parser");
     await settle();
-    expect(corpus.assignment("t-enter")).toMatchObject({
-      entityId: feature.id,
+    expect(workstreamStore.assignment("t-enter")).toMatchObject({
+      workstreamId: feature.id,
       provenance: "manual",
     });
     expect(await starts("t-enter")).toEqual([
       expect.objectContaining({
-        action: "route",
-        source: "user",
+        action: "thread-started",
+        source: "you",
         rationale: "Started from New thread",
       }),
     ]);
   });
 
   it("files a report that arrives after the dispatch", async () => {
-    const { w, corpus, feature, dispatch, settle } = await setup();
+    const {
+      w,
+      workstreamStore: workstreamStore,
+      feature,
+      dispatch,
+      settle,
+    } = await setup();
     await dispatch("t-late", "Fix the parser");
     await settle();
-    expect(corpus.assignment("t-late").entityId).toBeNull();
+    expect(workstreamStore.assignment("t-late").workstreamId).toBeNull();
     expect(
       await w.harness.behavior.callRpc("draftIdentity", {
         draftKey: "root",
         text: "Fix the parser",
         identity: {
-          entityId: feature.id,
+          workstreamId: feature.id,
           proposal: null,
           provenance: "manual",
         },
       }),
     ).toEqual({ filed: true });
-    expect(corpus.assignment("t-late").entityId).toBe(feature.id);
+    expect(workstreamStore.assignment("t-late").workstreamId).toBe(feature.id);
   });
 
   it("journals a start once across repeated passes", async () => {
@@ -166,24 +196,45 @@ describe("message.dispatch for the New thread view", () => {
   });
 
   it("leaves a thread naming an unknown subject for classification", async () => {
-    const { w, corpus, dispatch, settle, starts } = await setup();
+    const {
+      w,
+      workstreamStore: workstreamStore,
+      dispatch,
+      settle,
+      starts,
+    } = await setup();
     await w.harness.behavior.callRpc("draftIdentity", {
       draftKey: "root",
       text: "Stale pick",
-      identity: { entityId: "ent_gone", proposal: null, provenance: "manual" },
+      identity: {
+        workstreamId: "ent_gone",
+        proposal: null,
+        provenance: "manual",
+      },
     });
     await dispatch("t-stale", "Stale pick");
     await settle();
-    expect(corpus.assignment("t-stale").entityId).toBeNull();
+    expect(workstreamStore.assignment("t-stale").workstreamId).toBeNull();
     expect(await starts("t-stale")).toHaveLength(1);
   });
 
   it("files and journals nothing for an agent-started thread", async () => {
-    const { w, corpus, feature, hook, settle, starts } = await setup();
+    const {
+      w,
+      workstreamStore: workstreamStore,
+      feature,
+      hook,
+      settle,
+      starts,
+    } = await setup();
     await w.harness.behavior.callRpc("draftIdentity", {
       draftKey: "root",
       text: "Delegated",
-      identity: { entityId: feature.id, proposal: null, provenance: "manual" },
+      identity: {
+        workstreamId: feature.id,
+        proposal: null,
+        provenance: "manual",
+      },
     });
     const thread = w.addThread("t-agent", { createdAt: Date.now() });
     await hook(
@@ -197,7 +248,7 @@ describe("message.dispatch for the New thread view", () => {
       }),
     );
     await settle();
-    expect(corpus.assignment("t-agent").entityId).toBeNull();
+    expect(workstreamStore.assignment("t-agent").workstreamId).toBeNull();
     expect(await starts("t-agent")).toEqual([]);
   });
 });

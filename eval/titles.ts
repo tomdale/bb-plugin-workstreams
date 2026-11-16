@@ -1,15 +1,15 @@
 import { writeFile } from "node:fs/promises";
 import {
-  fullAnalysisPrompt,
-  fullAnalysisSchema,
-  parseFullAnalysis,
-  type FullAnalysisInput,
+  descriptionPrompt,
+  descriptionSchema,
+  parseDescription,
+  type DescriptionInput,
 } from "../src/domain/analysis.ts";
 import {
   gatewayComplete,
   gatewayKey,
 } from "../src/server/inference/gateway.ts";
-import type { PlacementInput } from "../src/domain/placement.ts";
+import type { WorkstreamChoiceInput } from "../src/domain/placement.ts";
 import {
   parseStart,
   startPrompt,
@@ -23,6 +23,7 @@ import {
   type TurnEndInput,
 } from "../src/domain/turnEnd.ts";
 import { VAGUE_VERBS, followUpCases, titleCases } from "./title-cases.ts";
+import { pathNames } from "../src/domain/topic-path.ts";
 
 /**
  * Paid evaluation of the titles Workstreams writes, through the production
@@ -91,14 +92,14 @@ function newTitleProblems(
 }
 
 /**
- * A topic tree holding a case's listed group ("Atlas: Billing" is a product
+ * A topic tree holding a case's listed group ("Atlas › Billing" is a product
  * and its capability), with the leaf as the topic to choose.
  */
 function placementFor(
   group: string | null,
-): Omit<PlacementInput, "requests" | "title"> {
-  const names = (group ?? "").split(":").map((name) => name.trim());
-  const entities = names.filter(Boolean).map((name, i) => ({
+): Omit<WorkstreamChoiceInput, "requests" | "title"> {
+  const names = pathNames(group ?? "");
+  const workstreams = names.filter(Boolean).map((name, i) => ({
     id: `t${i}`,
     name,
     description: null,
@@ -106,7 +107,7 @@ function placementFor(
     aliases: [],
   }));
   return {
-    entities,
+    workstreams,
     project: null,
     checkout: null,
     hints: [],
@@ -117,7 +118,7 @@ function placementFor(
 const jobs: Job[] = [];
 if (kind === "follow" || kind === "turn-end-follow")
   for (const test of followUpCases) {
-    const input: FullAnalysisInput = {
+    const input: DescriptionInput = {
       title: test.title,
       titledBy: "workstreams",
       requests: test.requests.map((text, i) => ({ text, initial: i === 0 })),
@@ -127,15 +128,15 @@ if (kind === "follow" || kind === "turn-end-follow")
     };
     const turnEnd: TurnEndInput = {
       ...input,
-      placement: { ...placementFor(null), title: null, requests: [] },
+      choice: { ...placementFor(null), title: null, requests: [] },
     };
     jobs.push({
       id: test.id,
       ...(kind === "follow"
         ? {
-            prompt: fullAnalysisPrompt(input),
-            schema: fullAnalysisSchema(input),
-            parse: (text: string) => parseFullAnalysis(text, input).title,
+            prompt: descriptionPrompt(input),
+            schema: descriptionSchema(input),
+            parse: (text: string) => parseDescription(text, input).title,
           }
         : {
             prompt: turnEndPrompt(turnEnd),
@@ -154,14 +155,14 @@ if (kind === "follow" || kind === "turn-end-follow")
   }
 else
   for (const test of titleCases) {
-    const listing = { group: test.group ?? null, parent: test.parent ?? null };
+    const listing = { workstream: test.group ?? null, parent: test.parent ?? null };
     // A child thread is only named; a root chooses its listed group.
-    const placement = test.parent ? null : placementFor(test.group ?? null);
+    const choice = test.parent ? null : placementFor(test.group ?? null);
     if (kind === "start") {
       const input: StartInput = {
         request: test.request,
         project: null,
-        placement: placement && { ...placement, current: null },
+        choice: choice && { ...choice, current: null },
         listing,
       };
       jobs.push({
@@ -179,8 +180,8 @@ else
         lastAssistantText: null,
         mode: "full",
         listing,
-        placement: placement && {
-          ...placement,
+        choice: choice && {
+          ...choice,
           title: null,
           requests: [test.request],
         },
@@ -193,7 +194,7 @@ else
         check: (title) => newTitleProblems(title, test),
       });
     } else {
-      const input: FullAnalysisInput = {
+      const input: DescriptionInput = {
         title: test.request.slice(0, 60),
         titledBy: "none",
         requests: [{ text: test.request, initial: true }],
@@ -203,9 +204,9 @@ else
       };
       jobs.push({
         id: test.id,
-        prompt: fullAnalysisPrompt(input),
-        schema: fullAnalysisSchema(input),
-        parse: (text) => parseFullAnalysis(text, input).title,
+        prompt: descriptionPrompt(input),
+        schema: descriptionSchema(input),
+        parse: (text) => parseDescription(text, input).title,
         check: (title) => newTitleProblems(title, test),
       });
     }

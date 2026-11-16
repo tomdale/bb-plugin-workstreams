@@ -11,7 +11,7 @@ import { thread } from "./fixtures.ts";
 
 const sections = [
   { id: "ws", name: "Workstream" },
-  { id: "other", name: "Other" },
+  { id: "elsewhere", name: "Elsewhere" },
 ];
 const kindOf = (thread: { hasPendingInteraction: boolean }) =>
   thread.hasPendingInteraction ? ("question" as const) : ("other" as const);
@@ -26,12 +26,12 @@ const asking = (latestAttentionAt: number, sectionId = "ws") => ({
 /** Up Next ranks first, second, third; quiet and the delegate are not in it. */
 const listing = [
   thread("first", asking(300)),
-  thread("delegate", { ...asking(400), parentThreadId: "first" }),
+  thread("child", { ...asking(400), parentThreadId: "first" }),
   thread("second", asking(200)),
-  thread("third", asking(100, "other")),
+  thread("third", asking(100, "elsewhere")),
 ];
 const projection = projectWorkstreams(listing, sections, { now: 0 });
-const order = upNextOrder(projection, options, { prioritized: [] });
+const order = upNextOrder(projection, options, { focused: [] });
 
 describe("nextUpNextThread", () => {
   it("takes the row after the thread in view, wrapping to the top", () => {
@@ -48,7 +48,7 @@ describe("nextUpNextThread", () => {
   });
 
   it("places a delegate on its root's row", () => {
-    expect(nextUpNextThread(projection, order, "delegate")).toBe("second");
+    expect(nextUpNextThread(projection, order, "child")).toBe("second");
   });
 
   it("follows the order it is given, such as the sidebar's held one", () => {
@@ -66,7 +66,7 @@ describe("nextUpNextThread", () => {
 
 describe("nextThreadAfterLeaving", () => {
   it("opens the thread the next Up Next command would", () => {
-    for (const id of [...order, "delegate"])
+    for (const id of [...order, "child"])
       expect(nextThreadAfterLeaving(projection, order, id, new Set())).toBe(
         nextUpNextThread(projection, order, id),
       );
@@ -78,7 +78,7 @@ describe("nextThreadAfterLeaving", () => {
         thread("root", { sectionId: "ws", latestAttentionAt: 300 }),
         thread("child", { sectionId: "ws", parentThreadId: "root" }),
         thread("sibling", { sectionId: "ws", latestAttentionAt: 100 }),
-        thread("recent", { sectionId: "other", latestAttentionAt: 200 }),
+        thread("recent", { sectionId: "elsewhere", latestAttentionAt: 200 }),
       ],
       sections,
       { now: 0 },
@@ -124,24 +124,24 @@ describe("nextThreadAfterLeaving", () => {
 
 describe("upNextFocus", () => {
   const nested = [
-    { id: "sec_alerts", name: "Beacon: Alerts" },
-    { id: "sec_cli", name: "Beacon: CLI" },
+    { id: "sec_alerts", name: "Beacon › Alerts" },
+    { id: "sec_cli", name: "Beacon › CLI" },
     { id: "sec_else", name: "Else" },
   ];
   const layoutNode = (
-    topicId: string,
+    workstreamId: string,
     name: string,
     children: LayoutNode[] = [],
   ): LayoutNode => ({
-    topicId,
+    workstreamId,
     name,
     prefix: [],
     lists: children.length === 0,
     total: 0,
     children,
   });
-  const topics = {
-    entities: [
+  const workstreams = {
+    workstreams: [
       { id: "beacon", name: "Beacon", parentId: null },
       { id: "alerts", name: "Alerts", parentId: "beacon" },
       { id: "cli", name: "CLI", parentId: "beacon" },
@@ -167,16 +167,16 @@ describe("upNextFocus", () => {
   );
 
   it("covers every section of the focused top-level workstream", () => {
-    expect([...upNextFocus(focusing, ["sec_alerts"], topics)].sort()).toEqual([
+    expect([...upNextFocus(focusing, ["sec_alerts"], workstreams)].sort()).toEqual([
       "sec_alerts",
       "sec_cli",
     ]);
-    expect(upNextFocus(focusing, [], topics).size).toBe(0);
+    expect(upNextFocus(focusing, [], workstreams).size).toBe(0);
   });
 
   it("ranks Up Next under that focus", () => {
     expect(
-      upNextOrder(focusing, options, { prioritized: ["sec_alerts"], topics }),
+      upNextOrder(focusing, options, { focused: ["sec_alerts"], workstreams }),
     ).toEqual(["cli", "alert"]);
   });
 });

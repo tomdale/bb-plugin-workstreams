@@ -4,7 +4,7 @@
  * command.
  *
  * New-work UI ONLY exposes Product/Feature identity selection, auto
- * preview, and No topic. The topic decides the thread's workstream, so
+ * preview, and No workstream. The workstream decides the thread's workstream, so
  * the composer never asks for one.
  */
 import { memo, useState, useSyncExternalStore } from "react";
@@ -22,7 +22,7 @@ import {
   ChipLabel,
   IdentityOptions,
   identityValue,
-  useCatalogEntities,
+  useTreeWorkstreams,
 } from "./picker-options.tsx";
 import "./route-picker.css";
 
@@ -34,7 +34,7 @@ function IdentityControl({ newWork }: { newWork: NewWork }) {
   const display = identityDisplay(state);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const entities = useCatalogEntities(open);
+  const workstreams = useTreeWorkstreams(open);
 
   const openChange = (next: boolean) => {
     setOpen(next);
@@ -49,7 +49,7 @@ function IdentityControl({ newWork }: { newWork: NewWork }) {
         type="button"
         variant="ghost"
         size="sm"
-        aria-label={`Topic: ${label}`}
+        aria-label={`Workstream: ${label}`}
         data-ws-identity-control=""
         data-ws-auto={display.auto || undefined}
         className={CHIP_CLASS}
@@ -78,13 +78,13 @@ function IdentityControl({ newWork }: { newWork: NewWork }) {
       {trigger}
       <PopoverContent
         align="start"
-        aria-label="Topic"
-        mobileTitle="Topic"
+        aria-label="Workstream"
+        mobileTitle="Workstream"
         className="flex max-h-[min(var(--radix-popover-content-available-height),calc(100dvh-0.5rem))] w-64 flex-col overflow-hidden p-0 max-md:min-h-0 max-md:flex-1"
       >
         <IdentityOptions
           newWork={newWork}
-          entities={entities}
+          workstreams={workstreams}
           query={query}
           onQueryChange={setQuery}
           onDone={() => openChange(false)}

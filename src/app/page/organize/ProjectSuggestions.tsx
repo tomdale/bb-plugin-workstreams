@@ -103,7 +103,7 @@ export function ProjectSuggestions({
         >
           <div className="flex flex-wrap items-center gap-2 text-xs">
             <span className="min-w-24 basis-full truncate font-medium sm:basis-0 sm:flex-1">
-              {suggestion.topic}
+              {suggestion.workstream}
             </span>
             <span className="min-w-0 max-w-full break-words text-muted-foreground">
               {suggestion.fromProject} → {suggestion.toProject ?? "No project"}

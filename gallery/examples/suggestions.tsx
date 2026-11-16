@@ -24,7 +24,7 @@ import type { GalleryExample } from "../examples";
  * The sidebar the specimens draw: topics, their threads, and one color each.
  * The product, its areas and thread titles are invented for the gallery.
  */
-const topics = [
+const rows = [
   ["billing", "Billing", null],
   ["invoices", "Invoices", "billing"],
   ["payments", "Payments", "billing"],
@@ -152,10 +152,10 @@ const colors: Record<string, { hue: number; level: -1 | 0 | 1 }> = {
 };
 
 const NOW = Date.UTC(2026, 0, 15);
-const threadList = Object.entries(titles).flatMap(([topic, names], at) =>
+const threadList = Object.entries(titles).flatMap(([workstream, names], at) =>
   names.map((title, index) => ({
-    id: `${topic}-${index}`,
-    topic,
+    id: `${workstream}-${index}`,
+    workstream,
     title,
     activeAt: NOW - (at * 7 + index) * 3_600_000,
   })),
@@ -163,20 +163,20 @@ const threadList = Object.entries(titles).flatMap(([topic, names], at) =>
 const archivedFiling = Object.fromEntries(ARCHIVED.map((id) => [id, "legacy"]));
 /** A thread the sidebar does not list because it is snoozed. */
 const SNOOZED = new Set(["mobile-3"]);
-const entities = topics.map(([id, name, parentId]) => ({
+const workstreams = rows.map(([id, name, parentId]) => ({
   id,
   name,
   parentId,
 }));
 const filing = {
-  ...Object.fromEntries(threadList.map((t) => [t.id, t.topic])),
+  ...Object.fromEntries(threadList.map((t) => [t.id, t.workstream])),
   ...archivedFiling,
 };
 
 const sidebar: SidebarView = (() => {
-  const sections = Object.keys(titles).map((topic) => ({
-    id: `sec_${topic}`,
-    name: entities.find((e) => e.id === topic)!.name,
+  const sections = Object.keys(titles).map((workstream) => ({
+    id: `sec_${workstream}`,
+    name: workstreams.find((e) => e.id === workstream)!.name,
   }));
   const projection = projectWorkstreams(
     threadList
@@ -185,7 +185,7 @@ const sidebar: SidebarView = (() => {
         id: t.id,
         title: t.title,
         parentThreadId: null,
-        sectionId: `sec_${t.topic}`,
+        sectionId: `sec_${t.workstream}`,
         isHidden: false,
         isArchived: false,
         isPinned: false,
@@ -198,13 +198,13 @@ const sidebar: SidebarView = (() => {
   );
   return {
     projection,
-    catalog: {
-      entities,
+    tree: {
+      workstreams,
       groups: Object.fromEntries(
-        Object.keys(titles).map((topic) => [`sec_${topic}`, topic]),
+        Object.keys(titles).map((workstream) => [`sec_${workstream}`, workstream]),
       ),
       assignments: Object.fromEntries(
-        threadList.map((t) => [t.id, { entityId: t.topic }]),
+        threadList.map((t) => [t.id, { workstreamId: t.workstream }]),
       ),
       colors,
     },
@@ -216,8 +216,8 @@ const sidebar: SidebarView = (() => {
 })();
 
 const context: ChangeContext = {
-  topics: entities,
-  threadTopic: filing,
+  workstreams: workstreams,
+  threadWorkstream: filing,
   title: (id) => threadList.find((t) => t.id === id)?.title ?? id,
   visible: (id) => !ARCHIVED.includes(id),
 };
@@ -227,7 +227,7 @@ function suggest(id: string, body: TidyEdit | Split): Suggestion {
   const change = suggestionChange(body, context)!;
   return {
     id,
-    kind: "subgroups" in body ? "split" : "edit",
+    kind: "workstreams" in body ? "split" : "edit",
     summary: changeHeadline(change),
     reason: "",
     status: "pending",
@@ -244,12 +244,12 @@ function suggest(id: string, body: TidyEdit | Split): Suggestion {
 
 const supportThreads = (from: number, to: number) =>
   threadList
-    .filter((t) => t.topic === "support")
+    .filter((t) => t.workstream === "support")
     .slice(from, to)
     .map((t) => t.id);
 const split = suggest("split", {
-  topicId: "support",
-  subgroups: [
+  workstreamId: "support",
+  workstreams: [
     { name: "Triage", description: "", threadIds: supportThreads(0, 6) },
     { name: "Macros", description: "", threadIds: supportThreads(6, 10) },
     {
@@ -269,39 +269,39 @@ const split = suggest("split", {
     },
   ],
 });
-const refile = suggest("refile", {
-  op: "move",
+const refile = suggest("move-thread", {
+  op: "move-thread",
   thread: "infra-0",
-  topic: "tools",
+  workstream: "tools",
 });
 const merge = suggest("merge", { op: "merge", from: "notes", into: "docs" });
 const signIn = suggest("sign-in", {
-  op: "move",
+  op: "move-thread",
   thread: "onboarding-0",
-  topic: "partners",
+  workstream: "partners",
 });
 const rename = suggest("rename", {
   op: "rename",
-  topic: "research",
+  workstream: "research",
   name: "Customer Research",
 });
-const reparent = suggest("reparent", {
-  op: "reparent",
-  topic: "tools",
+const reparent = suggest("move-workstream", {
+  op: "move-workstream",
+  workstream: "tools",
   parent: "dx",
 });
 const mobile = suggest("mobile", {
   op: "rename",
-  topic: "mobile",
+  workstream: "mobile",
   name: "Mobile",
 });
 const retire = suggest("retire", {
   op: "rename",
-  topic: "legacy",
+  workstream: "legacy",
   name: "Retired Tools",
 });
 const group = suggest("group", {
-  op: "create",
+  op: "group",
   name: "Reliability",
   description: "",
   parent: null,
@@ -392,7 +392,7 @@ function Frame({
             sidebar={sidebar}
             focusInitial={{ current: () => {} }}
             onClose={() => {}}
-            onOpenTopics={() => {}}
+            onOpenOrganize={() => {}}
           />
         </div>
         {children}

@@ -4,7 +4,7 @@
  * On a wide screen our chip is inserted into BB's picker row beside BB's own,
  * so it stays shrinkable and lets its label ellipsize before neighboring chips
  * are forced to spill. On a phone that row is already full with BB's chips, so
- * the topic chip gets a line of its own above the prompt box (`.ws-route-strip`).
+ * the workstream chip gets a line of its own above the prompt box (`.ws-route-strip`).
  */
 
 /* The picker row cluster shrinks before BB's own chips do. */
@@ -33,7 +33,7 @@
   visibility: hidden;
 }
 
-/* "Analyzing…" can shrink too; on a phone it is sr-only instead. */
+/* "Organizing…" can shrink too; on a phone it is sr-only instead. */
 .ws-picker-status {
   flex: 0 1 auto;
   min-width: 0;

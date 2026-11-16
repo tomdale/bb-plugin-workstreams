@@ -1,7 +1,7 @@
 import { workstreamHue } from "./workstreamHue.ts";
 
-/** A persisted topic color: hue plus one of the prototype's lightness steps. */
-export type TopicColor = { hue: number; level: -1 | 0 | 1 };
+/** A persisted workstream color: hue plus one of the prototype's lightness steps. */
+export type WorkstreamColor = { hue: number; level: -1 | 0 | 1 };
 type Sample = {
   lightness: number;
   chroma: number;
@@ -49,7 +49,7 @@ function sample(lightness: number, targetChroma: number, hue: number): Sample {
   };
 }
 const cache = new Map<string, { dark: Sample; light: Sample; dot: Sample }>();
-function samples(color: TopicColor) {
+function samples(color: WorkstreamColor) {
   const key = `${color.hue}:${color.level}`;
   let result = cache.get(key);
   if (!result) {
@@ -72,21 +72,24 @@ function contrast(a: number, b: number) {
 }
 const darkSurface = ((10 / 255 + 0.055) / 1.055) ** 2.4;
 const lightSurface = ((250 / 255 + 0.055) / 1.055) ** 2.4;
-function readable(color: TopicColor): boolean {
+function readable(color: WorkstreamColor): boolean {
   const { dark, light } = samples(color);
   return (
     contrast(luminance(dark.rgb), darkSurface) >= 4.5 &&
     contrast(luminance(light.rgb), lightSurface) >= 4.5
   );
 }
-function distance(a: TopicColor, b: TopicColor): number {
+function distance(a: WorkstreamColor, b: WorkstreamColor): number {
   const aa = samples(a),
     bb = samples(b);
   const one = (left: Sample, right: Sample) =>
     Math.hypot(...left.lab.map((v, i) => v - right.lab[i]!));
   return Math.min(one(aa.dark, bb.dark), one(aa.light, bb.light));
 }
-function nearest(color: TopicColor, others: readonly TopicColor[]): number {
+function nearest(
+  color: WorkstreamColor,
+  others: readonly WorkstreamColor[],
+): number {
   return others.length
     ? Math.min(...others.map((other) => distance(color, other)))
     : Infinity;
@@ -94,13 +97,13 @@ function nearest(color: TopicColor, others: readonly TopicColor[]): number {
 
 /** Choose the next family's anchor without changing any existing color. */
 export function allocateFamilyColor(
-  existing: readonly TopicColor[],
-): TopicColor {
+  existing: readonly WorkstreamColor[],
+): WorkstreamColor {
   if (!existing.length) return { hue: 47, level: 0 };
-  let best: TopicColor = { hue: 0, level: 0 },
+  let best: WorkstreamColor = { hue: 0, level: 0 },
     score = -1;
   for (let hue = 0; hue < 360; hue += 5) {
-    const color: TopicColor = { hue, level: 0 };
+    const color: WorkstreamColor = { hue, level: 0 };
     if (!readable(color)) continue;
     const next = nearest(color, existing);
     if (next > score + 1e-9) {
@@ -113,20 +116,20 @@ export function allocateFamilyColor(
 
 /** Choose a related child variant. Once the finite set is exhausted, reuse the best candidate. */
 export function allocateChildColor(
-  parent: TopicColor,
-  siblings: readonly TopicColor[],
-  existing: readonly TopicColor[],
+  parent: WorkstreamColor,
+  siblings: readonly WorkstreamColor[],
+  existing: readonly WorkstreamColor[],
   reparented = false,
-): TopicColor {
+): WorkstreamColor {
   if (!siblings.length && !reparented)
     return { hue: parent.hue, level: parent.level };
   const used = new Set(siblings.map((color) => `${color.hue}:${color.level}`));
-  let best: TopicColor | null = null,
+  let best: WorkstreamColor | null = null,
     score = -1;
   for (const allowReuse of [false, true]) {
     for (const level of LEVELS)
       for (const offset of OFFSETS) {
-        const color: TopicColor = {
+        const color: WorkstreamColor = {
           hue: normalizeHue(parent.hue + offset),
           level,
         };
@@ -146,18 +149,18 @@ export function allocateChildColor(
   return { hue: parent.hue, level: parent.level };
 }
 
-/** Resolve a section through its topic. Unbound sections keep their own fallback hue. */
+/** Resolve a section through its workstream. Unbound sections keep their own fallback hue. */
 export function colorForWorkstream(
   sectionId: string,
-  catalog?: {
+  tree?: {
     groups: Readonly<Record<string, string>>;
-    colors?: Readonly<Record<string, TopicColor>>;
+    colors?: Readonly<Record<string, WorkstreamColor>>;
   },
-  topicId?: string | null,
-): TopicColor {
-  const topic = topicId ?? catalog?.groups[sectionId];
+  workstreamId?: string | null,
+): WorkstreamColor {
+  const workstream = workstreamId ?? tree?.groups[sectionId];
   return (
-    (topic && catalog?.colors?.[topic]) || {
+    (workstream && tree?.colors?.[workstream]) || {
       hue: workstreamHue(sectionId),
       level: 0,
     }
@@ -168,7 +171,7 @@ export function colorForWorkstream(
  * The color's dark-surface text step (`--ws-color-dark`) as `#rrggbb`, for
  * surfaces outside BB that can't read its CSS, such as Stream Deck keys.
  */
-export function workstreamColorHex(color: TopicColor): string {
+export function workstreamColorHex(color: WorkstreamColor): string {
   const encode = (linear: number) => {
     const c = Math.min(1, Math.max(0, linear));
     const srgb = c <= 0.0031308 ? 12.92 * c : 1.055 * c ** (1 / 2.4) - 0.055;
@@ -181,7 +184,7 @@ export function workstreamColorHex(color: TopicColor): string {
 
 /** Theme-specific CSS values shared by all workstream surfaces. */
 export function workstreamColorStyle(
-  color: TopicColor,
+  color: WorkstreamColor,
 ): Record<string, string> {
   const { dark, light, dot } = samples(color);
   const css = (s: Sample) =>

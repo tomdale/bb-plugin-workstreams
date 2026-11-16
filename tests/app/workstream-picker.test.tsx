@@ -45,7 +45,7 @@ vi.mock("../../src/app/composer/picker-options.tsx", async (importOriginal) => {
         Use no topic
       </button>
     ),
-    useCatalogEntities: () => [],
+    useTreeWorkstreams: () => [],
   };
 });
 
@@ -75,7 +75,7 @@ it("skips native parent and draft-text renders without blocking view updates or 
     <SourceBanner nativeText="Native draft" newWork={newWork} />,
   );
   expect(chipRenders).toHaveBeenCalledTimes(1);
-  expect(view.getByRole("button", { name: "Topic: Automatic" })).toBeTruthy();
+  expect(view.getByRole("button", { name: "Workstream: Automatic" })).toBeTruthy();
 
   view.rerender(
     <SourceBanner nativeText="Native parent update" newWork={newWork} />,
@@ -86,19 +86,19 @@ it("skips native parent and draft-text renders without blocking view updates or 
   expect(chipRenders).toHaveBeenCalledTimes(1);
 
   act(() =>
-    newWork.selectIdentity({ entityId: "ent_billing", label: "Billing" }),
+    newWork.selectIdentity({ workstreamId: "ent_billing", label: "Billing" }),
   );
   expect(chipRenders).toHaveBeenCalledTimes(2);
-  expect(view.getByRole("button", { name: "Topic: Billing" })).toBeTruthy();
+  expect(view.getByRole("button", { name: "Workstream: Billing" })).toBeTruthy();
 
-  fireEvent.click(view.getByRole("button", { name: "Topic: Billing" }));
+  fireEvent.click(view.getByRole("button", { name: "Workstream: Billing" }));
   fireEvent.click(view.getByRole("button", { name: "Use no topic" }));
   expect(newWork.snapshot().identity).toMatchObject({
-    entityId: null,
-    label: "No topic",
+    workstreamId: null,
+    label: "No workstream",
     provenance: "manual",
   });
   expect(view.queryByRole("button", { name: "Use no topic" })).toBeNull();
-  expect(view.getByRole("button", { name: "Topic: No topic" })).toBeTruthy();
+  expect(view.getByRole("button", { name: "Workstream: No workstream" })).toBeTruthy();
   newWork.dispose();
 });

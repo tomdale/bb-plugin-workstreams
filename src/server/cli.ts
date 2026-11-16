@@ -15,7 +15,11 @@ import {
   type Group,
   type Section,
 } from "../domain/project.ts";
-import { relativeAge, workStateLabel } from "../domain/presentation.ts";
+import {
+  needYouLabel,
+  relativeAge,
+  workStateLabel,
+} from "../domain/presentation.ts";
 import { changeLines } from "../domain/suggestion-change.ts";
 import { isCurrent } from "../domain/analysis.ts";
 import { needsYou, workView } from "../domain/status.ts";
@@ -37,12 +41,16 @@ import {
 } from "../domain/trace.ts";
 import type { TraceStore } from "./trace.ts";
 import type { StoredOrder } from "./order.ts";
-import type { TopicStore } from "./topics.ts";
-import type { TopicMigration } from "./topicMigration.ts";
-import type { Reclassification } from "./reclassification.ts";
+import type { WorkstreamStore } from "./topics.ts";
+import type { WorkstreamMigration } from "./topicMigration.ts";
+import type { Repair } from "./reclassification.ts";
 import { buildForest } from "../domain/tree.ts";
-import type { Topic, TopicAssignment } from "../domain/topics.ts";
-import { topicPath } from "../domain/topic-path.ts";
+import {
+  takesThreads,
+  type Workstream,
+  type WorkstreamAssignment,
+} from "../domain/topics.ts";
+import { workstreamPath } from "../domain/topic-path.ts";
 import { activeHome } from "../domain/regroup.ts";
 import type { Prefs } from "../domain/prefs.ts";
 import {
@@ -50,6 +58,7 @@ import {
   parseReplyTarget,
   type ReplyIssue,
 } from "../domain/replyDiagnosis.ts";
+import { ACTION_LABEL, SOURCE_LABEL } from "../app/page/activityLabels.ts";
 
 const terminalLine = (text: string) =>
   text
@@ -65,14 +74,10 @@ const SHOW_LIMIT = 200;
 const clip = (text: string) =>
   text.length <= TITLE_MAX ? text : `${text.slice(0, TITLE_MAX - 1)}…`;
 
-/**
- * Whether a workstream argument names the Unfiled group. `unsorted`, its
- * former name, still works in scripts.
- */
-const isUnfiled = (arg: string) =>
-  ["unfiled", "unsorted"].includes(arg.trim().toLowerCase());
+/** Whether a workstream argument names Other, the threads in no workstream. */
+const namesOther = (arg: string) => arg.trim().toLowerCase() === "other";
 
-function resolveWorkstream(sections: Section[], arg: string): Section | null {
+function resolveSection(sections: Section[], arg: string): Section | null {
   const lowered = arg.trim().toLowerCase();
   return (
     sections.find((s) => s.id === arg) ??
@@ -81,29 +86,32 @@ function resolveWorkstream(sections: Section[], arg: string): Section | null {
   );
 }
 
-/** How `thread show` names where a root thread's topic came from. */
-const TOPIC_SOURCE_LABEL = {
-  manual: "set by you",
+/** How `thread show` names where a thread's workstream came from. */
+const WORKSTREAM_SOURCE_LABEL = {
+  manual: "moved there by you",
   inherited: "inherited from where the thread started",
-  full: "chosen automatically from its requests",
-  quick: "shown by the composer for an earlier draft",
+  automatic: "chosen automatically from its requests",
+  composer: "shown by the composer for an earlier draft",
   none: "none yet",
 } as const;
 
-function topicSourceLines(assignment: TopicAssignment): string[] {
-  const source = TOPIC_SOURCE_LABEL[assignment.provenance ?? "none"];
+function workstreamSourceLines(assignment: WorkstreamAssignment): string[] {
+  const source = WORKSTREAM_SOURCE_LABEL[assignment.provenance ?? "none"];
   if (!assignment.inheritedFrom) return [`Source:          ${source}`];
   return [
-    "Source:          follows parent thread's topic",
+    "Source:          follows its parent thread's workstream",
     `Parent source:   ${source}`,
     `Follows parent:  @thread:${assignment.inheritedFrom}`,
   ];
 }
 
-function resolveTopic(topics: TopicStore, arg: string): Topic {
-  const direct = topics.getById(arg);
+function resolveWorkstream(
+  workstreamStore: WorkstreamStore,
+  arg: string,
+): Workstream {
+  const direct = workstreamStore.getById(arg);
   if (direct) return direct;
-  const list = topics.list();
+  const list = workstreamStore.list();
   const lowered = arg.trim().toLowerCase();
   const byName = list.find((e) => e.name.toLowerCase() === lowered);
   if (byName) return byName;
@@ -111,8 +119,9 @@ function resolveTopic(topics: TopicStore, arg: string): Topic {
     e.aliases.some((a) => a.toLowerCase() === lowered),
   );
   if (byAlias) return byAlias;
-  throw new PluginCliError(`Unknown topic: "${arg}"`, {
-    code: "catalog_entity_not_found",
+  throw new PluginCliError(`Unknown workstream or group: "${arg}"`, {
+    code: "workstream_not_found",
+    hint: "Run `bb workstreams tree` to see workstream and group names.",
   });
 }
 
@@ -140,7 +149,7 @@ function groupJson(group: Group<InventoryThread>, now: number) {
     lastActive: group.lastActiveAt
       ? relativeAge(group.lastActiveAt, now)
       : null,
-    prioritized: group.prioritized,
+    focused: group.focused,
   };
 }
 
@@ -191,7 +200,7 @@ function formatReplyIssue(issue: ReplyIssue): string {
 function entryLine(entry: JournalEntry): string {
   const when = localMinute(entry.at);
   const status = entry.status === "applied" ? "" : ` [${entry.status}]`;
-  return `${when}  ${entry.action.padEnd(17)} ${entry.source.padEnd(8)} ${entry.rationale}${status}  (${entry.id})`;
+  return `${when}  ${ACTION_LABEL[entry.action].padEnd(20)} ${SOURCE_LABEL[entry.source].padEnd(19)} ${entry.rationale}${status}  (${entry.id})`;
 }
 
 function analysisLine(
@@ -199,7 +208,7 @@ function analysisLine(
   analysis: StoredAnalysis | undefined,
 ): string {
   if (!analysis) return "not analyzed yet";
-  const where = `${analysis.state.replace("_", " ")} — ${analysis.recap}`;
+  const where = `${workStateLabel(analysis.state)} — ${analysis.recap}`;
   return isCurrent(analysis, thread) ? where : `pending (was: ${where})`;
 }
 
@@ -250,16 +259,16 @@ export function registerCli(
     organizer,
     traces,
     arrangement,
-    topics,
+    workstreamStore,
     currentPrefs,
     snoozes,
     notify,
-    reclassifyTask,
-    reclassification,
+    chooseAutomatically,
+    repair,
     suggestions,
-    topicMigration,
+    workstreamMigration,
   }: {
-    /** The sidebar's stored order and prioritized workstreams. */
+    /** The sidebar's stored order and focused workstreams. */
     arrangement: {
       load(): StoredOrder;
     };
@@ -268,17 +277,17 @@ export function registerCli(
     analyzer: Analyzer;
     recaps: AgentRecaps;
     organizer: Organizer;
-    reclassification?: Reclassification;
+    repair?: Repair;
     traces: TraceStore;
-    topics: TopicStore;
-    topicMigration?: TopicMigration;
+    workstreamStore: WorkstreamStore;
+    workstreamMigration?: WorkstreamMigration;
     currentPrefs?: () => Prefs;
     /** Every thread's snooze, so snoozed threads leave groups and counts. */
     snoozes?: () => Readonly<Record<string, ThreadSnooze>>;
     notify?: () => void;
-    reclassifyTask?: (input: {
+    chooseAutomatically?: (input: {
       threadId: string;
-    }) => Promise<{ assignment: TopicAssignment }>;
+    }) => Promise<{ assignment: WorkstreamAssignment }>;
     suggestions?: Suggestions;
     /** Renames the threads Workstreams titled in an earlier title form. */
   },
@@ -387,32 +396,32 @@ export function registerCli(
     defineCli({
       name: "workstreams",
       summary:
-        "List workstreams and their threads, manage topics, and read the activity log",
+        "List workstreams and their threads, organize workstreams and groups, and read the activity log",
       commands: {
         list: cliCommand({
-          summary: "List workstreams (native BB sections) with thread counts",
+          summary: "List the workstreams in the sidebar with thread counts",
           options: {
             json: { type: "boolean", description: "Print JSON" },
           },
           async run({ options }) {
             const { now, projection } = await load();
             const active = projection.groups.map((g) => groupJson(g, now));
-            const unsorted = groupJson(projection.unsorted, now);
+            const other = groupJson(projection.other, now);
             const dormant = projection.dormant.map((g) => groupJson(g, now));
             if (options.json)
               return {
                 exitCode: 0,
                 stdout: JSON.stringify(
-                  { workstreams: active, unsorted, dormant },
+                  { workstreams: active, other, dormant },
                   null,
                   2,
                 ),
               };
             const line = (g: ReturnType<typeof groupJson>) =>
-              `${g.name.padEnd(36)} ${plural(g.threads, "thread").padStart(11)}${g.needsYou ? ` · ${g.needsYou} up next` : ""}${g.lastActive ? ` · ${g.lastActive}` : ""}${g.prioritized ? " · focused" : ""}  (${g.id})`;
+              `${g.name.padEnd(36)} ${plural(g.threads, "thread").padStart(11)}${g.needsYou ? ` · ${needYouLabel(g.needsYou)}` : ""}${g.lastActive ? ` · ${g.lastActive}` : ""}${g.focused ? " · focused" : ""}  (${g.id})`;
             const lines = [
               ...active.map(line),
-              line(unsorted),
+              line(other),
               ...(dormant.length
                 ? ["", `Dormant: ${dormant.map((g) => g.name).join(", ")}`]
                 : []),
@@ -421,12 +430,13 @@ export function registerCli(
           },
         }),
         show: cliCommand({
-          summary: "Show the threads in one workstream, nested by parent",
+          summary:
+            "Show the threads in one workstream, child threads under their parents",
           positionals: [
             {
               name: "workstream",
               description:
-                "Workstream name or section id; `unfiled` for threads in no workstream",
+                "Workstream name or section id; `other` for threads in no workstream",
               required: true,
             },
           ],
@@ -434,10 +444,10 @@ export function registerCli(
           async run({ positionals, options }) {
             const { now, sections, projection, analysis } = await load();
             const arg = positionals.workstream;
-            const group = isUnfiled(arg)
-              ? projection.unsorted
+            const group = namesOther(arg)
+              ? projection.other
               : (() => {
-                  const section = resolveWorkstream(sections, arg);
+                  const section = resolveSection(sections, arg);
                   if (!section)
                     throw new PluginCliError(`No workstream named "${arg}".`, {
                       code: "workstream_not_found",
@@ -508,7 +518,7 @@ export function registerCli(
               defaultUnit: "h",
               description: "Only entries newer than this (e.g. 90m, 7d)",
             },
-            external: {
+            outside: {
               type: "boolean",
               description: "Include changes made outside Workstreams",
             },
@@ -518,7 +528,7 @@ export function registerCli(
             const cutoff = options.since ? Date.now() - options.since : 0;
             const { entries, hasMore, limit } = journal.window({
               limit: options.limit,
-              external: options.external,
+              external: options.outside,
               since: cutoff || undefined,
             });
             return {
@@ -578,7 +588,7 @@ export function registerCli(
                       result.recap,
                       ...(result.title ? [`Title: ${result.title}`] : []),
                       ...(result.goal ? [`Goal: ${result.goal}`] : []),
-                      `Topic: ${topics.assignment(positionals.thread).label ?? "none"}`,
+                      `Workstream: ${workstreamStore.assignment(positionals.thread).label ?? "none"}`,
                       ...(result.ask ? [`Asks: ${result.ask}`] : []),
                     ].join("\n"),
               };
@@ -602,9 +612,9 @@ export function registerCli(
             };
           },
         }),
-        organization: cliCommand({
+        organize: cliCommand({
           summary:
-            "Show how threads are organized into workstreams, or organize them again now",
+            "Show how threads are listed in workstreams, or organize them again now",
           options: {
             rebuild: {
               type: "boolean",
@@ -626,11 +636,11 @@ export function registerCli(
             const lines = [
               `Status: ${state.status}${state.error ? ` (${state.error})` : ""}`,
               `Workstreams: ${state.groups.length}`,
-              `Active threads: ${state.counts.activeRoots}, done: ${state.counts.completedRoots}, no topic: ${state.counts.unresolvedRoots}`,
+              `Active threads: ${state.counts.activeThreads}, complete: ${state.counts.completedThreads}, no workstream: ${state.counts.noWorkstreamThreads}`,
               `Agent reports: ${coverage.reported} of ${coverage.analyzed} analyzed latest turns`,
               ...state.groups.map(
                 (g) =>
-                  `  ${g.name} (${plural(g.totalCount, "thread")}: ${g.activeCount} active, ${g.completedCount} done)`,
+                  `  ${g.name} (${plural(g.totalCount, "thread")}: ${g.activeCount} active, ${g.completedCount} complete)`,
               ),
             ];
             return {
@@ -640,8 +650,7 @@ export function registerCli(
           },
         }),
         suggestions: cliCommand({
-          summary:
-            "List organizing suggestions: splits and tidy edits waiting for your decision",
+          summary: "List organizing suggestions waiting for your decision",
           options: {
             all: {
               type: "boolean",
@@ -656,7 +665,7 @@ export function registerCli(
           },
         }),
         "suggestions run": cliCommand({
-          summary: "Ask for splits and a tidy pass now, whatever is due",
+          summary: "Suggest changes now, whatever is due",
           options: { json: { type: "boolean", description: "Print JSON" } },
           async run({ options }) {
             if (!suggestions)
@@ -922,54 +931,52 @@ export function registerCli(
             };
           },
         }),
-        "topics preview": cliCommand({
+        preview: cliCommand({
           summary:
-            "Preview automatic topic repairs without changing assignments",
+            "Preview where Workstreams would move threads now, without moving any",
           positionals: [
             {
               name: "thread",
               description:
-                "Root thread id; omit for up to 100 visible roots. For larger sets, preview individual roots",
+                "Thread id; omit for up to 100 visible threads. For larger sets, preview threads one at a time",
             },
           ],
           options: { json: { type: "boolean", description: "Print JSON" } },
           async run({ positionals, options }) {
-            if (!reclassification)
-              throw new Error("Topic repair is unavailable.");
+            if (!repair) throw new Error("Previews are unavailable.");
             const ids = positionals.thread
               ? [positionals.thread]
               : buildForest(await listActiveThreads(bb.sdk)).roots.map(
                   (r) => r.thread.id,
                 );
-            const plan = await reclassification.preview(ids);
+            const plan = await repair.preview(ids);
             return {
               exitCode: 0,
               stdout: options.json
                 ? JSON.stringify(plan, null, 2)
                 : [
-                    `Preview ${plan.id}; no assignments changed; ${plan.excludedManual} manual choices excluded`,
+                    `Preview ${plan.id}; no threads moved; ${plan.excludedManual} threads you moved left out`,
                     ...plan.rows.map(
                       (r) =>
-                        `${terminalLine(r.title)}: ${terminalLine(r.from ?? "Unfiled")} → ${terminalLine(r.to ?? "Unfiled")}${r.error ? ` (${terminalLine(r.error)})` : ""}`,
+                        `${terminalLine(r.title)}: ${terminalLine(r.from ?? "No workstream")} → ${terminalLine(r.to ?? "No workstream")}${r.error ? ` (${terminalLine(r.error)})` : ""}`,
                     ),
                     plan.rows.some((row) => !row.error && row.answer)
-                      ? `Apply with bb workstreams topics apply ${plan.id}`
-                      : "No automatic topic repairs are available to apply",
+                      ? `Apply with bb workstreams apply ${plan.id}`
+                      : "Workstreams would move no threads, so there is nothing to apply",
                   ].join("\n"),
             };
           },
         }),
-        "topics apply": cliCommand({
+        apply: cliCommand({
           summary:
-            "Apply a fresh topic-repair preview while preserving corrections",
+            "Apply a fresh preview, leaving threads you moved where they are",
           positionals: [
-            { name: "plan", description: "Preview id", required: true },
+            { name: "preview", description: "Preview ID", required: true },
           ],
           options: { json: { type: "boolean", description: "Print JSON" } },
           async run({ positionals, options }) {
-            if (!reclassification)
-              throw new Error("Topic repair is unavailable.");
-            const result = await reclassification.apply(positionals.plan!);
+            if (!repair) throw new Error("Previews are unavailable.");
+            const result = await repair.apply(positionals.preview!);
             return {
               exitCode: 0,
               stdout: options.json
@@ -978,24 +985,24 @@ export function registerCli(
             };
           },
         }),
-        "topics migration preview": cliCommand({
+        "migration preview": cliCommand({
           summary:
-            "Preview a two-level topic migration without changing assignments",
+            "Preview folding deeper workstreams into two levels, without moving any threads",
           options: {
             mapping: {
               type: "string",
               description:
-                "JSON choices, newTopics, and explicit resetThreadIds for reviewed filing",
+                "JSON choices, newWorkstreams, and explicit resetThreadIds for where each thread goes",
             },
             json: {
               type: "boolean",
-              description: "Print the complete review plan",
+              description: "Print the complete preview",
             },
           },
           async run({ options }) {
-            if (!topicMigration)
-              throw new PluginCliError("Topic migration is unavailable.");
-            const plan = topicMigration.preview(
+            if (!workstreamMigration)
+              throw new PluginCliError("Migration is unavailable.");
+            const plan = workstreamMigration.preview(
               options.mapping ? JSON.parse(options.mapping) : {},
             );
             return {
@@ -1003,35 +1010,34 @@ export function registerCli(
               stdout: options.json
                 ? JSON.stringify(plan, null, 2)
                 : [
-                    `Plan: ${plan.id}`,
-                    `${plan.removed.length} deeper topics; ${plan.changes.length} refiled; ${plan.resets.length} reset; ${plan.blockers.length} blockers`,
+                    `Preview: ${plan.id}`,
+                    `${plan.removed.length} deeper workstreams; ${plan.changes.length} moved; ${plan.resets.length} reset; ${plan.blockers.length} blockers`,
                     ...plan.blockers
                       .slice(0, SHOW_LIMIT)
                       .map(
                         (blocker) =>
-                          `${blocker.threadId ?? blocker.topicId}: ${blocker.reason}`,
+                          `${blocker.threadId ?? blocker.workstreamId}: ${blocker.reason}`,
                       ),
-                    "Inspect the complete plan with --json before applying it.",
+                    "Inspect the complete preview with --json before applying it.",
                   ].join("\n"),
             };
           },
         }),
-        "topics migration apply": cliCommand({
-          summary:
-            "Apply a reviewed topic migration while its facts still match",
+        "migration apply": cliCommand({
+          summary: "Apply a migration preview while its facts still match",
           positionals: [
             {
-              name: "plan",
-              description: "Reviewed migration plan ID",
+              name: "preview",
+              description: "Migration preview ID",
               required: true,
             },
           ],
           options: { json: { type: "boolean", description: "Print JSON" } },
           async run({ positionals, options }) {
-            if (!topicMigration)
-              throw new PluginCliError("Topic migration is unavailable.");
+            if (!workstreamMigration)
+              throw new PluginCliError("Migration is unavailable.");
             const result = await service.exclusive(async () =>
-              topicMigration.apply(positionals.plan),
+              workstreamMigration.apply(positionals.preview),
             );
             organizer.trigger(0);
             notify?.();
@@ -1039,63 +1045,64 @@ export function registerCli(
               exitCode: 0,
               stdout: options.json
                 ? JSON.stringify(result, null, 2)
-                : `Updated ${result.changed} assignments; reset ${result.reset} classifications; recovery snapshot ${result.backupId}`,
+                : `Moved ${result.changed} threads; reset ${result.reset} automatic choices; backup ${result.backupId}`,
             };
           },
         }),
-        "topics migration backup": cliCommand({
-          summary: "Read the recovery snapshot of an applied topic migration",
+        "migration backup": cliCommand({
+          summary: "Read the backup an applied migration saved",
           positionals: [
             {
               name: "backup",
-              description: "Recovery snapshot ID",
+              description: "Backup ID",
               required: true,
             },
           ],
           async run({ positionals }) {
-            if (!topicMigration)
-              throw new PluginCliError("Topic migration is unavailable.");
+            if (!workstreamMigration)
+              throw new PluginCliError("Migration is unavailable.");
             return {
               exitCode: 0,
               stdout: JSON.stringify(
-                topicMigration.backup(positionals.backup),
+                workstreamMigration.backup(positionals.backup),
                 null,
                 2,
               ),
             };
           },
         }),
-        "topics list": cliCommand({
-          summary: "List all topics",
+        tree: cliCommand({
+          summary:
+            "List every workstream and group, including ones with no open threads",
           options: {
             json: { type: "boolean", description: "Print JSON" },
           },
           async run({ options }) {
-            const entities = topics.list();
+            const workstreams = workstreamStore.list();
             if (options.json) {
-              const items = entities.map((e) => ({
+              const items = workstreams.map((e) => ({
                 id: e.id,
                 name: e.name,
                 description: e.description,
                 parentId: e.parentId,
                 aliases: e.aliases,
-                path: topicPath(e.id, entities),
+                path: workstreamPath(e.id, workstreams),
               }));
               return {
                 exitCode: 0,
-                stdout: JSON.stringify({ entities: items }, null, 2),
+                stdout: JSON.stringify({ workstreams: items }, null, 2),
               };
             }
-            if (entities.length === 0) {
-              return { exitCode: 0, stdout: "No topics yet." };
+            if (workstreams.length === 0) {
+              return { exitCode: 0, stdout: "No workstreams yet." };
             }
-            const sorted = [...entities].sort((a, b) =>
-              topicPath(a.id, entities).localeCompare(
-                topicPath(b.id, entities),
+            const sorted = [...workstreams].sort((a, b) =>
+              workstreamPath(a.id, workstreams).localeCompare(
+                workstreamPath(b.id, workstreams),
               ),
             );
             const lines = sorted.map((e) => {
-              const label = topicPath(e.id, entities);
+              const label = workstreamPath(e.id, workstreams);
               const aliases =
                 e.aliases.length > 0
                   ? ` [aliases: ${e.aliases.join(", ")}]`
@@ -1105,12 +1112,12 @@ export function registerCli(
             return { exitCode: 0, stdout: lines.join("\n") };
           },
         }),
-        "topics show": cliCommand({
-          summary: "Show a topic's details",
+        describe: cliCommand({
+          summary: "Show a workstream's or group's details",
           positionals: [
             {
-              name: "topic",
-              description: "Topic name or ID",
+              name: "workstream",
+              description: "Workstream or group name or ID",
               required: true,
             },
           ],
@@ -1118,47 +1125,57 @@ export function registerCli(
             json: { type: "boolean", description: "Print JSON" },
           },
           async run({ positionals, options }) {
-            const entity = resolveTopic(topics, positionals.topic);
-            const entities = topics.list();
-            const label = topicPath(entity.id, entities);
-            const groups = topics.groups();
-            const home = activeHome(entity.id, [...groups.values()], entities);
-            const assignments = topics.assignments();
+            const workstream = resolveWorkstream(
+              workstreamStore,
+              positionals.workstream,
+            );
+            const workstreams = workstreamStore.list();
+            const label = workstreamPath(workstream.id, workstreams);
+            const groups = workstreamStore.groups();
+            const home = activeHome(
+              workstream.id,
+              [...groups.values()],
+              workstreams,
+            );
+            const assignments = workstreamStore.assignments();
             const assignedThreads = (
-              Object.values(assignments) as TopicAssignment[]
-            ).filter((a) => a.entityId === entity.id);
+              Object.values(assignments) as WorkstreamAssignment[]
+            ).filter((a) => a.workstreamId === workstream.id);
             if (options.json) {
               return {
                 exitCode: 0,
                 stdout: JSON.stringify(
                   {
-                    entity,
+                    workstream,
                     path: label,
-                    homeEntityId: home,
-                    assignedThreads: assignedThreads.map((a) => a.threadId),
+                    listedInWorkstreamId: home,
+                    threads: assignedThreads.map((a) => a.threadId),
                   },
                   null,
                   2,
                 ),
               };
             }
+            const group = workstream.parentId
+              ? workstreamStore.getById(workstream.parentId)
+              : null;
             const lines = [
-              `Topic: ${label}`,
-              `ID:              ${entity.id}`,
-              `Description:     ${entity.description || "(none)"}`,
-              `Parent:          ${entity.parentId ?? "(root)"}`,
-              `Aliases:         ${entity.aliases.length ? entity.aliases.join(", ") : "(none)"}`,
-              `Assigned threads:${assignedThreads.length.toString().padStart(3)}`,
+              `${takesThreads(workstream.id, workstreams) ? "Workstream" : "Group"}: ${label}`,
+              `ID:              ${workstream.id}`,
+              `Description:     ${workstream.description || "(none)"}`,
+              `Group:           ${group ? group.name : "(none)"}`,
+              `Aliases:         ${workstream.aliases.length ? workstream.aliases.join(", ") : "(none)"}`,
+              `Threads:         ${assignedThreads.length}`,
             ];
             return { exitCode: 0, stdout: lines.join("\n") };
           },
         }),
-        "topics create": cliCommand({
-          summary: "Create a topic",
+        create: cliCommand({
+          summary: "Create a workstream",
           positionals: [
             {
               name: "name",
-              description: "Topic name",
+              description: "Workstream name",
               required: true,
             },
           ],
@@ -1167,9 +1184,10 @@ export function registerCli(
               type: "string",
               description: "Description of scope",
             },
-            parent: {
+            group: {
               type: "string",
-              description: "Parent topic name or ID",
+              description:
+                "Group (or top-level workstream) name or ID to create it in",
             },
             aliases: {
               type: "string",
@@ -1179,8 +1197,8 @@ export function registerCli(
           },
           async run({ positionals, options }) {
             let parentId: string | null = null;
-            if (options.parent) {
-              const parent = resolveTopic(topics, options.parent);
+            if (options.group) {
+              const parent = resolveWorkstream(workstreamStore, options.group);
               parentId = parent.id;
             }
             const aliases = options.aliases
@@ -1190,7 +1208,7 @@ export function registerCli(
                   .filter(Boolean)
               : [];
             try {
-              const entity = topics.create(
+              const workstream = workstreamStore.create(
                 positionals.name,
                 options.description ?? "",
                 parentId,
@@ -1201,27 +1219,28 @@ export function registerCli(
               if (options.json) {
                 return {
                   exitCode: 0,
-                  stdout: JSON.stringify({ entity }, null, 2),
+                  stdout: JSON.stringify({ workstream }, null, 2),
                 };
               }
               return {
                 exitCode: 0,
-                stdout: `Created topic "${entity.name}" (${entity.id}).`,
+                stdout: `Created workstream "${workstream.name}" (${workstream.id}).`,
               };
             } catch (err) {
               throw new PluginCliError(
                 err instanceof Error ? err.message : String(err),
-                { code: "catalog_create_failed" },
+                { code: "workstream_create_failed" },
               );
             }
           },
         }),
-        "topics edit": cliCommand({
-          summary: "Edit a topic's name, description, or aliases",
+        edit: cliCommand({
+          summary:
+            "Rename a workstream or group, or change its description or aliases",
           positionals: [
             {
-              name: "topic",
-              description: "Topic name or ID to edit",
+              name: "workstream",
+              description: "Workstream or group name or ID to edit",
               required: true,
             },
           ],
@@ -1235,9 +1254,12 @@ export function registerCli(
             json: { type: "boolean", description: "Print JSON" },
           },
           async run({ positionals, options }) {
-            const entity = resolveTopic(topics, positionals.topic);
+            const workstream = resolveWorkstream(
+              workstreamStore,
+              positionals.workstream,
+            );
             try {
-              const updated = topics.edit(entity.id, {
+              const updated = workstreamStore.edit(workstream.id, {
                 name: options.name,
                 description: options.description,
                 aliases:
@@ -1253,27 +1275,28 @@ export function registerCli(
               if (options.json) {
                 return {
                   exitCode: 0,
-                  stdout: JSON.stringify({ entity: updated }, null, 2),
+                  stdout: JSON.stringify({ workstream: updated }, null, 2),
                 };
               }
               return {
                 exitCode: 0,
-                stdout: `Updated topic "${updated.name}" (${updated.id}).`,
+                stdout: `Updated "${updated.name}" (${updated.id}).`,
               };
             } catch (err) {
               throw new PluginCliError(
                 err instanceof Error ? err.message : String(err),
-                { code: "catalog_edit_failed" },
+                { code: "workstream_edit_failed" },
               );
             }
           },
         }),
-        "topics reparent": cliCommand({
-          summary: "Move a topic under a different parent",
+        move: cliCommand({
+          summary:
+            "Move a workstream into a group, between groups, or out of its group",
           positionals: [
             {
-              name: "topic",
-              description: "Topic name or ID to move",
+              name: "workstream",
+              description: "Workstream name or ID to move",
               required: true,
             },
           ],
@@ -1281,54 +1304,59 @@ export function registerCli(
             to: {
               type: "string",
               description:
-                'New parent topic name or ID, or "root" for top-level',
+                'Group name or ID to move it into, or "top" to take it out of its group',
             },
             json: { type: "boolean", description: "Print JSON" },
           },
           async run({ positionals, options }) {
-            const entity = resolveTopic(topics, positionals.topic);
+            const workstream = resolveWorkstream(
+              workstreamStore,
+              positionals.workstream,
+            );
             let newParentId: string | null = null;
-            if (options.to && options.to.toLowerCase() !== "root") {
-              const parent = resolveTopic(topics, options.to);
+            if (options.to && options.to.toLowerCase() !== "top") {
+              const parent = resolveWorkstream(workstreamStore, options.to);
               newParentId = parent.id;
             }
             try {
-              const updated = topics.reparent(entity.id, newParentId);
+              const updated = workstreamStore.move(workstream.id, newParentId);
               notify?.();
               organizer.trigger();
               if (options.json) {
                 return {
                   exitCode: 0,
-                  stdout: JSON.stringify({ entity: updated }, null, 2),
+                  stdout: JSON.stringify({ workstream: updated }, null, 2),
                 };
               }
               const targetName = newParentId
-                ? (topics.getById(newParentId)?.name ?? newParentId)
-                : "root";
+                ? (workstreamStore.getById(newParentId)?.name ?? newParentId)
+                : null;
               return {
                 exitCode: 0,
-                stdout: `Reparented "${updated.name}" to ${targetName} (${updated.id}).`,
+                stdout: targetName
+                  ? `Moved "${updated.name}" into ${targetName} (${updated.id}).`
+                  : `Moved "${updated.name}" out of its group (${updated.id}).`,
               };
             } catch (err) {
               throw new PluginCliError(
                 err instanceof Error ? err.message : String(err),
-                { code: "catalog_reparent_failed" },
+                { code: "workstream_move_failed" },
               );
             }
           },
         }),
-        "topics merge": cliCommand({
+        merge: cliCommand({
           summary:
-            "Merge a topic into another, moving its threads and subtopics",
+            "Merge a workstream or group into another, moving its threads and workstreams",
           positionals: [
             {
               name: "source",
-              description: "Topic name or ID to merge",
+              description: "Workstream or group name or ID to merge",
               required: true,
             },
             {
               name: "target",
-              description: "Topic name or ID to merge into",
+              description: "Workstream or group name or ID to merge into",
               required: true,
             },
           ],
@@ -1336,16 +1364,22 @@ export function registerCli(
             json: { type: "boolean", description: "Print JSON" },
           },
           async run({ positionals, options }) {
-            const source = resolveTopic(topics, positionals.source);
-            const target = resolveTopic(topics, positionals.target);
+            const source = resolveWorkstream(
+              workstreamStore,
+              positionals.source,
+            );
+            const target = resolveWorkstream(
+              workstreamStore,
+              positionals.target,
+            );
             try {
-              const merged = topics.merge(source.id, target.id);
+              const merged = workstreamStore.merge(source.id, target.id);
               notify?.();
               organizer.trigger();
               if (options.json) {
                 return {
                   exitCode: 0,
-                  stdout: JSON.stringify({ entity: merged }, null, 2),
+                  stdout: JSON.stringify({ workstream: merged }, null, 2),
                 };
               }
               return {
@@ -1355,14 +1389,14 @@ export function registerCli(
             } catch (err) {
               throw new PluginCliError(
                 err instanceof Error ? err.message : String(err),
-                { code: "catalog_merge_failed" },
+                { code: "workstream_merge_failed" },
               );
             }
           },
         }),
         "thread show": cliCommand({
           summary:
-            "Show a thread's topic, where it came from, and its workstream",
+            "Show a thread's workstream, where that came from, and where the sidebar lists it",
           positionals: [
             {
               name: "thread",
@@ -1376,17 +1410,19 @@ export function registerCli(
           async run({ positionals, options }) {
             await service.reconcile();
             const thread = resolveThread(service, positionals.thread);
-            const assignment = topics.assignment(thread.id);
-            const rootId = topics.findRootThread(thread.id);
-            const rootThread =
-              rootId !== thread.id
-                ? service.threads().find((t) => t.id === rootId)
+            const assignment = workstreamStore.assignment(thread.id);
+            const parentmostId = workstreamStore.findParentmostThread(
+              thread.id,
+            );
+            const parentmost =
+              parentmostId !== thread.id
+                ? service.threads().find((t) => t.id === parentmostId)
                 : thread;
             const effectiveSectionId =
-              rootThread?.sectionId ?? thread.sectionId;
+              parentmost?.sectionId ?? thread.sectionId;
             const sectionName = effectiveSectionId
               ? (service.sectionName(effectiveSectionId) ?? effectiveSectionId)
-              : "Unfiled";
+              : "Other";
             if (options.json) {
               return {
                 exitCode: 0,
@@ -1395,7 +1431,7 @@ export function registerCli(
                     threadId: thread.id,
                     title: thread.title,
                     sectionId: thread.sectionId,
-                    workstream: sectionName,
+                    listedIn: sectionName,
                     assignment,
                   },
                   null,
@@ -1405,16 +1441,16 @@ export function registerCli(
             }
             const lines = [
               `Thread:          ${clip(thread.title)} (@thread:${thread.id})`,
-              `Workstream:      ${sectionName}`,
-              `Topic:           ${assignment.label ?? "none"}`,
-              ...topicSourceLines(assignment),
+              `Listed in:       ${sectionName}`,
+              `Workstream:      ${assignment.label ?? "none"}`,
+              ...workstreamSourceLines(assignment),
             ];
             return { exitCode: 0, stdout: lines.join("\n") };
           },
         }),
-        "thread assign": cliCommand({
+        "thread move": cliCommand({
           summary:
-            "Set a thread's topic yourself; Workstreams then leaves it alone",
+            "Move a thread to a workstream yourself; Workstreams then leaves it there",
           positionals: [
             {
               name: "thread",
@@ -1422,8 +1458,9 @@ export function registerCli(
               required: true,
             },
             {
-              name: "topic",
-              description: "Topic name or ID",
+              name: "workstream",
+              description:
+                "Workstream name or ID, or `none` to move it to No workstream",
               required: true,
             },
           ],
@@ -1433,10 +1470,15 @@ export function registerCli(
           async run({ positionals, options }) {
             await service.reconcile();
             const thread = resolveThread(service, positionals.thread);
-            const entity = resolveTopic(topics, positionals.topic);
-            const assignment = topics.assign(thread.id, entity.id, {
-              provenance: "manual",
-            });
+            const workstream =
+              positionals.workstream.trim().toLowerCase() === "none"
+                ? null
+                : resolveWorkstream(workstreamStore, positionals.workstream);
+            const assignment = workstreamStore.assign(
+              thread.id,
+              workstream?.id ?? null,
+              { provenance: "manual" },
+            );
             notify?.();
             organizer.trigger();
             if (options.json) {
@@ -1447,13 +1489,15 @@ export function registerCli(
             }
             return {
               exitCode: 0,
-              stdout: `Assigned @thread:${thread.id} to "${entity.name}" (${assignment.label}).`,
+              stdout: workstream
+                ? `Moved @thread:${thread.id} to "${workstream.name}" (${assignment.label}).`
+                : `Moved @thread:${thread.id} to No workstream; it stays under Other.`,
             };
           },
         }),
-        "thread clear": cliCommand({
+        "thread automatic": cliCommand({
           summary:
-            "Set a thread to have no topic yourself, so it stays Unfiled",
+            "Let Workstreams choose a thread's workstream again, now and from then on",
           positionals: [
             {
               name: "thread",
@@ -1467,51 +1511,18 @@ export function registerCli(
           async run({ positionals, options }) {
             await service.reconcile();
             const thread = resolveThread(service, positionals.thread);
-            const assignment = topics.assign(thread.id, null, {
-              provenance: "manual",
-            });
-            notify?.();
-            organizer.trigger();
-            if (options.json) {
-              return {
-                exitCode: 0,
-                stdout: JSON.stringify({ assignment }, null, 2),
-              };
-            }
-            return {
-              exitCode: 0,
-              stdout: `@thread:${thread.id} has no topic now, and stays Unfiled.`,
-            };
-          },
-        }),
-        "thread reclassify": cliCommand({
-          summary:
-            "Hand a thread's topic back to Workstreams and choose it again now",
-          positionals: [
-            {
-              name: "thread",
-              description: "Thread ID",
-              required: true,
-            },
-          ],
-          options: {
-            json: { type: "boolean", description: "Print JSON" },
-          },
-          async run({ positionals, options }) {
-            await service.reconcile();
-            const thread = resolveThread(service, positionals.thread);
-            if (!reclassifyTask) {
+            if (!chooseAutomatically) {
               throw new PluginCliError(
-                "Inference is unavailable for reclassification.",
+                "Inference is unavailable to choose a workstream.",
                 { code: "inference_unavailable" },
               );
             }
-            const { assignment } = await reclassifyTask({
+            const { assignment } = await chooseAutomatically({
               threadId: thread.id,
             }).catch((error: unknown) => {
               throw new PluginCliError(
                 error instanceof Error ? error.message : String(error),
-                { code: "reclassify_failed" },
+                { code: "automatic_failed" },
               );
             });
             if (options.json) {
@@ -1522,7 +1533,7 @@ export function registerCli(
             }
             return {
               exitCode: 0,
-              stdout: `@thread:${thread.id}'s topic is now ${assignment.label ?? "none"}.`,
+              stdout: `@thread:${thread.id} is now in ${assignment.label ?? "No workstream"}.`,
             };
           },
         }),

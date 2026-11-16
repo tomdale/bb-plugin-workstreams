@@ -15,7 +15,7 @@ import {
 } from "../../src/app/useWorkstreams.ts";
 import { projectWorkstreams } from "../../src/domain/project.ts";
 import { parsePrefs } from "../../src/domain/prefs.ts";
-import { topicIndex } from "../../src/domain/topic-path.ts";
+import { workstreamIndex } from "../../src/domain/topic-path.ts";
 import { parseSpinner, type SpinnerStyle } from "../../src/domain/spinner.ts";
 import { DEFAULT_SNOOZE_PREFS } from "../../src/domain/snooze.ts";
 import { Row } from "../../src/app/sidebar/Row.tsx";
@@ -101,10 +101,10 @@ function state(): ServerState {
     analysis: {},
     recaps: {},
     dismissedRecaps: [],
-    order: { workstreams: [], threads: {}, prioritized: [] },
+    order: { workstreams: [], threads: {}, focused: [] },
     snoozes: {},
     snoozePrefs: DEFAULT_SNOOZE_PREFS,
-    catalog: { entities: [], groups: {}, assignments: {}, revision: 1 },
+    tree: { workstreams: [], groups: {}, assignments: {}, revision: 1 },
     pendingSuggestions: 1,
   };
 }
@@ -862,7 +862,7 @@ it("rejects preference and spinner reads crossing a reader-free interval", async
 });
 
 it("reuses catalog paths, leaf ordering, and search fields per snapshot", () => {
-  const entities = [
+  const workstreams = [
     {
       id: "area",
       name: "Area",
@@ -885,20 +885,20 @@ it("reuses catalog paths, leaf ordering, and search fields per snapshot", () => 
       aliases: [],
     },
   ];
-  const index = topicIndex(entities);
-  expect(topicIndex(entities)).toBe(index);
+  const index = workstreamIndex(workstreams);
+  expect(workstreamIndex(workstreams)).toBe(index);
   expect(index.byId.get("area")?.name).toBe("Area");
-  expect(index.path("shipping")).toBe("Area: Shipping");
-  expect(index.leafTopics.map((topic) => topic.path)).toEqual([
-    "Area: Shipping",
+  expect(index.path("shipping")).toBe("Area › Shipping");
+  expect(index.leafWorkstreams.map((workstream) => workstream.path)).toEqual([
+    "Area › Shipping",
     "Loose ends",
   ]);
-  const shipping = index.leafTopics[0]!;
+  const shipping = index.leafWorkstreams[0]!;
   for (const query of ["shipping", "exports", "delivery", "area", "realm"])
     expect(shipping.searchText.some((text) => text.includes(query))).toBe(true);
   expect(index.hasExactName("area")).toBe(true);
   expect(index.hasExactName("realm")).toBe(false);
-  expect(topicIndex(entities.map((entity) => ({ ...entity })))).not.toBe(index);
+  expect(workstreamIndex(workstreams.map((workstream) => ({ ...workstream })))).not.toBe(index);
 });
 
 it("reuses equal JSON trees and unchanged branches of a nested update", () => {
@@ -919,5 +919,5 @@ it("reuses equal JSON trees and unchanged branches of a nested update", () => {
   expect(shared.snoozes.b!.until).toBe(20);
   expect(shared.order).toBe(previous.order);
   expect(shared.snoozePrefs).toBe(previous.snoozePrefs);
-  expect(shared.catalog).toBe(previous.catalog);
+  expect(shared.tree).toBe(previous.tree);
 });

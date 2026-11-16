@@ -3,17 +3,17 @@ import {
   TITLE_MAX,
   composeTitle,
   dropListedPrefix,
-  fullAnalysisPrompt,
+  descriptionPrompt,
 } from "../../src/domain/analysis.ts";
 import { parseStart, startPrompt } from "../../src/domain/start.ts";
 
-const listing = { group: "Streams Plugin: Recap Cards", parent: null };
+const listing = { workstream: "Streams Plugin › Recap Cards", parent: null };
 
 describe("dropListedPrefix", () => {
   it("drops a leading name the listing already shows", () => {
     expect(
       dropListedPrefix("Inside Harbor book rewrite", {
-        group: "Inside Harbor",
+        workstream: "Inside Harbor",
         parent: null,
       }),
     ).toBe("Book rewrite");
@@ -32,7 +32,7 @@ describe("dropListedPrefix", () => {
   it("drops a listed name right after the verb", () => {
     expect(
       dropListedPrefix("Fixing Atlas invoice export", {
-        group: "Atlas: Billing",
+        workstream: "Atlas › Billing",
         parent: null,
       }),
     ).toBe("Fixing invoice export");
@@ -46,7 +46,7 @@ describe("dropListedPrefix", () => {
     // Acronyms keep their case.
     expect(
       dropListedPrefix("Reviewing Atlas API docs", {
-        group: "Atlas",
+        workstream: "Atlas",
         parent: null,
       }),
     ).toBe("Reviewing API docs");
@@ -55,7 +55,7 @@ describe("dropListedPrefix", () => {
   it("keeps a title whose rest would be one word, or with nothing listed", () => {
     expect(
       dropListedPrefix("Inside Harbor rewrite", {
-        group: "Inside Harbor",
+        workstream: "Inside Harbor",
         parent: null,
       }),
     ).toBe("Inside Harbor rewrite");
@@ -71,7 +71,7 @@ describe("dropListedPrefix", () => {
 
 describe("listing context", () => {
   const child = {
-    group: "Harbor: Sandbox Plugin",
+    workstream: "Harbor › Sandbox Plugin",
     parent: "Build Harbor Access tunnel",
   };
 
@@ -79,11 +79,11 @@ describe("listing context", () => {
     const prompt = startPrompt({
       request: "Implement Phase 0",
       project: null,
-      placement: null,
+      choice: null,
       listing: child,
     });
     expect(prompt).toContain(
-      "<listed_under>\nHarbor: Sandbox Plugin\n</listed_under>",
+      "<listed_under>\nHarbor › Sandbox Plugin\n</listed_under>",
     );
     expect(prompt).toContain(
       "<parent_thread>\nBuild Harbor Access tunnel\n</parent_thread>",
@@ -92,7 +92,7 @@ describe("listing context", () => {
       startPrompt({
         request: "Implement Phase 0",
         project: null,
-        placement: null,
+        choice: null,
       }),
     ).not.toContain("listed_under");
   });
@@ -105,10 +105,10 @@ describe("listing context", () => {
       lastAssistantText: null,
       listing: child,
     } as const;
-    expect(fullAnalysisPrompt({ ...input, mode: "full" })).toContain(
+    expect(descriptionPrompt({ ...input, mode: "full" })).toContain(
       "<listed_under>",
     );
-    expect(fullAnalysisPrompt({ ...input, mode: "status" })).not.toContain(
+    expect(descriptionPrompt({ ...input, mode: "status" })).not.toContain(
       "<listed_under>",
     );
   });
@@ -119,7 +119,7 @@ describe("listing context", () => {
         JSON.stringify({
           title: { verb: "restoring", subject: "recap cards task list" },
         }),
-        { request: "", project: null, placement: null, listing },
+        { request: "", project: null, choice: null, listing },
       ).title,
     ).toBe("Restoring task list");
   });

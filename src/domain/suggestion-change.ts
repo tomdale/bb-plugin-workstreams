@@ -3,43 +3,49 @@
  * a list of moves, each one path becoming another. Pure, so the server and
  * tests share one definition.
  *
- * A thread move goes from the topic holding its threads (null for Unfiled) to
- * the topic that would hold them, and lists them. A topic move (merge, move
- * under, rename, adopt into a new parent) goes from the topic's own path to
- * the path it would have, or for a merge to the topic it folds into; the
- * threads that come along are counted, not listed, except a merged topic's
- * own threads. A topic a suggestion creates on its own has no `from`.
+ * A thread move goes from the workstream holding its threads (null for Other) to
+ * the workstream that would hold them, and lists them. A workstream move (merge, move
+ * under, rename, adopt into a new parent) goes from the workstream's own path to
+ * the path it would have, or for a merge to the workstream it folds into; the
+ * threads that come along are counted, not listed, except a merged workstream's
+ * own threads. A workstream a suggestion creates on its own has no `from`.
  *
  * `changeDelta` states the same change as data, for drawing the sidebar after.
  */
 import type { Split, TidyEdit } from "./tidy.ts";
-import { assertTopicLevels, topicAncestors } from "./topics.ts";
+import { assertWorkstreamLevels, workstreamAncestors } from "./topics.ts";
 
 type PathPart = {
   readonly name: string;
-  /** Accepting the suggestion creates this topic. */
+  /** Accepting the suggestion creates this workstream. */
   readonly created: boolean;
 };
 
-/** Topic names from the top level down; empty for the top level. */
-export type TopicPlace = readonly PathPart[];
+/** Workstream names from the top level down; empty for the top level. */
+export type WorkstreamPlace = readonly PathPart[];
 
 export type ChangeMove = {
-  /** Null for Unfiled threads, or for a topic that doesn't exist yet. */
-  readonly from: TopicPlace | null;
-  readonly to: TopicPlace;
+  /** Null for Other threads, or for a workstream that doesn't exist yet. */
+  readonly from: WorkstreamPlace | null;
+  readonly to: WorkstreamPlace;
   /** The threads making this move. */
   readonly threads: readonly { readonly id: string; readonly title: string }[];
-  /** Further visible threads that move along with a moved topic. */
+  /** Further visible threads that move along with a moved workstream. */
   readonly carried: number;
 };
 
 /**
- * `split` partitions a topic's threads into new subtopics; `file` moves the
- * threads a topic holds beside its subtopics into them.
+ * `split` partitions a workstream's threads into new workstreams in a group; `file` moves the
+ * threads a workstream holds beside its workstreams in a group into them.
  */
 type ChangeOp =
-  "refile" | "split" | "file" | "merge" | "reparent" | "rename" | "create";
+  | "move-thread"
+  | "split"
+  | "repair"
+  | "merge"
+  | "move-workstream"
+  | "rename"
+  | "group";
 
 export type SuggestionChange = {
   readonly op: ChangeOp;
@@ -47,26 +53,26 @@ export type SuggestionChange = {
 };
 
 export type ChangeContext = {
-  readonly topics: readonly {
+  readonly workstreams: readonly {
     id: string;
     name: string;
     parentId: string | null;
     aliases?: readonly string[];
   }[];
   /**
-   * Each filed root's topic, archived ones included; null for Unfiled. A
+   * Each filed root's workstream, archived ones included; null for Other. A
    * suggestion can name any of them.
    */
-  readonly threadTopic: Readonly<Record<string, string | null>>;
+  readonly threadWorkstream: Readonly<Record<string, string | null>>;
   readonly title: (threadId: string) => string;
   /**
-   * Whether a thread shows in the sidebar. The threads a merge or topic move
+   * Whether a thread shows in the sidebar. The threads a merge or workstream move
    * lists and counts are only these, since review describes what the user
    * sees move; archived assignments move too. Every thread, when absent.
    */
   readonly visible?: (threadId: string) => boolean;
   /**
-   * Topics that waiting suggestions of the same tidy pass would create, by
+   * Workstreams that waiting suggestions of the same tidy pass would create, by
    * lowercased name, so `new:` references read as their eventual paths.
    */
   readonly creates?: ReadonlyMap<
@@ -78,69 +84,69 @@ export type ChangeContext = {
 const normalize = (name: string) => name.trim().toLowerCase();
 
 /**
- * Accepting a suggestion as data: the topics it creates, renames, moves or
+ * Accepting a suggestion as data: the workstreams it creates, renames, moves or
  * removes, and the threads it files elsewhere, all by id. A client applies it
- * to the topics and filing it already holds (`applyDelta`) to see the tree
+ * to the workstreams and filing it already holds (`applyDelta`) to see the tree
  * after accepting, so the server never needs to know how the client lays the
  * sidebar out.
  */
 export type ChangeDelta = {
   /**
-   * Topics the change creates, renames or moves, each as it would be
-   * after. A topic the change creates has no id yet, so its id here starts
+   * Workstreams the change creates, renames or moves, each as it would be
+   * after. A workstream the change creates has no id yet, so its id here starts
    * with `new:` and stands for it within this delta only.
    */
-  readonly topics: readonly DeltaTopic[];
-  /** Topics that no longer exist, such as a merged topic. */
+  readonly workstreams: readonly DeltaWorkstream[];
+  /** Workstreams that no longer exist, such as a merged workstream. */
   readonly removed: readonly string[];
   /**
-   * Threads whose topic changes, archived and hidden ones included; null for
-   * Unfiled. Only the threads a client draws matter to it.
+   * Threads whose workstream changes, archived and hidden ones included; null for
+   * Other. Only the threads a client draws matter to it.
    */
   readonly assignments: readonly {
     readonly threadId: string;
-    readonly topicId: string | null;
+    readonly workstreamId: string | null;
   }[];
   /**
    * Every root in the sidebar's population (not archived or hidden) filed,
-   * before the change, in a topic it touches, with its title: where a thread
-   * is moving from, a topic that is renamed or merged, or a topic threads
+   * before the change, in a workstream it touches, with its title: where a thread
+   * is moving from, a workstream that is renamed or merged, or a workstream threads
    * arrive in. The client reads only the filing of the threads its sidebar
    * lists, so this is how it learns of the snoozed ones a change acts on.
    */
   readonly held: readonly {
     readonly threadId: string;
-    readonly topicId: string;
+    readonly workstreamId: string;
     readonly title: string;
   }[];
   /**
    * How many of the threads in `assignments` are archived or hidden. Their
-   * number is all a drawing says of them: a topic can hold hundreds.
+   * number is all a drawing says of them: a workstream can hold hundreds.
    */
   readonly archived: number;
   /**
-   * The topics the change touches: the ones it changes, removes or files
+   * The workstreams the change touches: the ones it changes, removes or files
    * threads into or out of. A drawing shows each, even one whose threads are
    * all archived and so unknown to the client.
    */
   readonly touched: readonly string[];
 };
 
-export type DeltaTopic = {
+export type DeltaWorkstream = {
   readonly id: string;
   readonly name: string;
   readonly parentId: string | null;
 };
 
-/** The id a delta gives a topic the change creates. */
-export const newTopicId = (parentId: string | null, name: string) =>
+/** The id a delta gives a workstream the change creates. */
+export const newWorkstreamId = (parentId: string | null, name: string) =>
   `new:${parentId ?? ""}/${normalize(name)}`;
 
 /**
- * What accepting `body` would change, as data, or null when a topic or thread
- * it names no longer exists, it still needs a topic another suggestion
+ * What accepting `body` would change, as data, or null when a workstream or thread
+ * it names no longer exists, it still needs a workstream another suggestion
  * creates, or the result would break the two-level limit. It follows what the
- * topic store does for each kind of change, which a test holds it to.
+ * workstream store does for each kind of change, which a test holds it to.
  */
 export function changeDelta(
   body: TidyEdit | Split,
@@ -155,35 +161,35 @@ export function changeDelta(
 
 function delta(body: TidyEdit | Split, context: ChangeContext): ChangeDelta {
   const before = new Map(
-    context.topics.map((t) => [
+    context.workstreams.map((t) => [
       t.id,
       { id: t.id, name: t.name, parentId: t.parentId },
     ]),
   );
-  const topics = new Map<string, DeltaTopic>(before);
-  const filing = new Map(Object.entries(context.threadTopic));
-  const topic = (ref: string | null) => {
+  const workstreams = new Map<string, DeltaWorkstream>(before);
+  const filing = new Map(Object.entries(context.threadWorkstream));
+  const workstream = (ref: string | null) => {
     if (ref === null) return null;
-    const found = topics.get(ref);
-    if (!found) throw new Error("That topic is gone.");
+    const found = workstreams.get(ref);
+    if (!found) throw new Error("That workstream is gone.");
     return found;
   };
-  const edit = (id: string, change: Partial<DeltaTopic>) =>
-    topics.set(id, { ...topic(id)!, ...change });
+  const edit = (id: string, change: Partial<DeltaWorkstream>) =>
+    workstreams.set(id, { ...workstream(id)!, ...change });
   const childrenOf = (id: string) =>
-    [...topics.values()].filter((t) => t.parentId === id);
+    [...workstreams.values()].filter((t) => t.parentId === id);
   const file = (threadId: string, to: string | null) => {
     if (!filing.has(threadId)) throw new Error("That thread is gone.");
     filing.set(threadId, to);
   };
 
-  if ("subgroups" in body) {
-    const parent = topic(body.topicId)!;
-    for (const group of body.subgroups) {
-      // A subgroup with no threads is not created.
+  if ("workstreams" in body) {
+    const parent = workstream(body.workstreamId)!;
+    for (const group of body.workstreams) {
+      // A workstream with no threads is not created.
       if (group.threadIds.length === 0) continue;
       const aliasesOf = (id: string) =>
-        context.topics.find((t) => t.id === id)?.aliases ?? [];
+        context.workstreams.find((t) => t.id === id)?.aliases ?? [];
       const existing = childrenOf(parent.id).find(
         (child) =>
           normalize(child.name) === normalize(group.name) ||
@@ -191,9 +197,9 @@ function delta(body: TidyEdit | Split, context: ChangeContext): ChangeDelta {
             (alias) => normalize(alias) === normalize(group.name),
           ),
       );
-      const id = existing?.id ?? newTopicId(parent.id, group.name);
+      const id = existing?.id ?? newWorkstreamId(parent.id, group.name);
       if (!existing)
-        topics.set(id, {
+        workstreams.set(id, {
           id,
           name: group.name.trim(),
           parentId: parent.id,
@@ -202,35 +208,43 @@ function delta(body: TidyEdit | Split, context: ChangeContext): ChangeDelta {
     }
   } else {
     switch (body.op) {
-      case "move":
-        topic(body.topic);
-        file(body.thread, body.topic);
+      case "move-thread":
+        workstream(body.workstream);
+        file(body.thread, body.workstream);
         break;
       case "rename":
-        edit(body.topic, { name: body.name.trim() });
+        edit(body.workstream, { name: body.name.trim() });
         break;
-      case "reparent":
-        topic(body.parent);
-        edit(body.topic, {
+      case "move-workstream":
+        workstream(body.parent);
+        edit(body.workstream, {
           parentId: body.parent,
           ...(body.name === undefined ? {} : { name: body.name.trim() }),
         });
         break;
-      case "create": {
-        topic(body.parent);
-        const id = newTopicId(body.parent, body.name);
-        topics.set(id, { id, name: body.name.trim(), parentId: body.parent });
+      case "group": {
+        workstream(body.parent);
+        const id = newWorkstreamId(body.parent, body.name);
+        workstreams.set(id, {
+          id,
+          name: body.name.trim(),
+          parentId: body.parent,
+        });
         for (const child of body.children) edit(child, { parentId: id });
         break;
       }
       case "merge": {
-        const into = topic(body.into)!;
-        const from = topic(body.from)!;
+        const into = workstream(body.into)!;
+        const from = workstream(body.from)!;
         // A target inside the source takes the source's place first.
-        if (topicAncestors(into.id, [...topics.values()]).includes(from.id))
+        if (
+          workstreamAncestors(into.id, [...workstreams.values()]).includes(
+            from.id,
+          )
+        )
           edit(into.id, { parentId: from.parentId });
-        // The merged topic's threads and subtopics join the target's; a
-        // subtopic whose name the target's own subtopic has merges into it.
+        // The merged workstream's threads and workstreams in a group join the target's; a
+        // a workstream whose name matches one of the target's own workstreams merges into it.
         const fold = (source: string, target: string) => {
           for (const [threadId, at] of filing)
             if (at === source) filing.set(threadId, target);
@@ -244,44 +258,44 @@ function delta(body: TidyEdit | Split, context: ChangeContext): ChangeDelta {
             if (twin) fold(child.id, twin.id);
             else edit(child.id, { parentId: target });
           }
-          topics.delete(source);
+          workstreams.delete(source);
         };
         fold(from.id, into.id);
         break;
       }
     }
   }
-  assertTopicLevels([...topics.values()]);
-  const changed = [...topics.values()].filter((t) => {
+  assertWorkstreamLevels([...workstreams.values()]);
+  const changed = [...workstreams.values()].filter((t) => {
     const was = before.get(t.id);
     return !was || was.name !== t.name || was.parentId !== t.parentId;
   });
-  const removed = [...before.keys()].filter((id) => !topics.has(id));
+  const removed = [...before.keys()].filter((id) => !workstreams.has(id));
   const assignments = [...filing]
-    .filter(([threadId, to]) => context.threadTopic[threadId] !== to)
-    .map(([threadId, topicId]) => ({ threadId, topicId }));
+    .filter(([threadId, to]) => context.threadWorkstream[threadId] !== to)
+    .map(([threadId, workstreamId]) => ({ threadId, workstreamId }));
   const touched = new Set([
     ...changed.map((t) => t.id),
     ...removed,
-    ...assignments.flatMap(({ threadId, topicId }) => [
-      context.threadTopic[threadId] ?? null,
-      topicId,
+    ...assignments.flatMap(({ threadId, workstreamId }) => [
+      context.threadWorkstream[threadId] ?? null,
+      workstreamId,
     ]),
   ]);
   return {
-    topics: changed,
+    workstreams: changed,
     removed,
     assignments,
-    held: Object.entries(context.threadTopic)
+    held: Object.entries(context.threadWorkstream)
       .filter(
         (entry): entry is [string, string] =>
           entry[1] !== null &&
           touched.has(entry[1]) &&
           (context.visible?.(entry[0]) ?? true),
       )
-      .map(([threadId, topicId]) => ({
+      .map(([threadId, workstreamId]) => ({
         threadId,
-        topicId,
+        workstreamId,
         title: context.title(threadId),
       })),
     archived: assignments.filter(
@@ -292,25 +306,25 @@ function delta(body: TidyEdit | Split, context: ChangeContext): ChangeDelta {
 }
 
 /**
- * The topics and filing after accepting: `delta` applied to `topics` and to
- * `filing`, each root thread's topic id (null for Unfiled).
+ * The workstreams and filing after accepting: `delta` applied to `workstreams` and to
+ * `filing`, each thread's workstream id (null for Other).
  */
 export function applyDelta(
-  topics: readonly DeltaTopic[],
+  workstreams: readonly DeltaWorkstream[],
   filing: Readonly<Record<string, string | null>>,
   change: ChangeDelta,
-): { topics: DeltaTopic[]; filing: Record<string, string | null> } {
-  const next = new Map(topics.map((t) => [t.id, t]));
+): { workstreams: DeltaWorkstream[]; filing: Record<string, string | null> } {
+  const next = new Map(workstreams.map((t) => [t.id, t]));
   for (const id of change.removed) next.delete(id);
-  for (const t of change.topics) next.set(t.id, t);
+  for (const t of change.workstreams) next.set(t.id, t);
   const after = { ...filing };
-  for (const { threadId, topicId } of change.assignments)
-    after[threadId] = topicId;
-  return { topics: [...next.values()], filing: after };
+  for (const { threadId, workstreamId } of change.assignments)
+    after[threadId] = workstreamId;
+  return { workstreams: [...next.values()], filing: after };
 }
 
 /**
- * The moves accepting `body` would make, or null when a topic or thread it
+ * The moves accepting `body` would make, or null when a workstream or thread it
  * names no longer exists; the suggestion's problem then says why.
  */
 export function suggestionChange(
@@ -328,17 +342,19 @@ function describe(
   body: TidyEdit | Split,
   context: ChangeContext,
 ): SuggestionChange {
-  const { topics, threadTopic } = context;
-  const byId = new Map(topics.map((topic) => [topic.id, topic]));
+  const { workstreams, threadWorkstream } = context;
+  const byId = new Map(
+    workstreams.map((workstream) => [workstream.id, workstream]),
+  );
 
-  /** A topic's path; `new:` references name a topic the pass creates. */
-  const place = (ref: string | null, depth = 0): TopicPlace => {
+  /** A workstream's path; `new:` references name a workstream the pass creates. */
+  const place = (ref: string | null, depth = 0): WorkstreamPlace => {
     if (ref === null) return [];
     if (!ref.startsWith("new:"))
-      return topicAncestors(ref, topics)
+      return workstreamAncestors(ref, workstreams)
         .reverse()
         .map((at) => ({ name: byId.get(at)!.name, created: false }));
-    if (depth > 10) throw new Error("Topic references loop.");
+    if (depth > 10) throw new Error("Workstream references loop.");
     const name = ref.slice(4).trim();
     const create = context.creates?.get(normalize(name));
     return [
@@ -347,40 +363,42 @@ function describe(
     ];
   };
   const thread = (id: string) => {
-    if (!(id in threadTopic)) throw new Error("That thread is gone.");
+    if (!(id in threadWorkstream)) throw new Error("That thread is gone.");
     return { id, title: context.title(id) };
   };
-  /** Visible threads filed in a topic or any topic below it. */
-  const shown = Object.entries(threadTopic).filter(
+  /** Visible threads filed in a workstream or any workstream below it. */
+  const shown = Object.entries(threadWorkstream).filter(
     ([id]) => context.visible?.(id) ?? true,
   );
   const within = (ref: string) =>
     shown
       .filter(
-        ([, topic]) =>
-          topic !== null &&
-          byId.has(topic) &&
-          topicAncestors(topic, topics).includes(ref),
+        ([, workstream]) =>
+          workstream !== null &&
+          byId.has(workstream) &&
+          workstreamAncestors(workstream, workstreams).includes(ref),
       )
       .map(([id]) => thread(id));
   const carry = (threads: ReturnType<typeof thread>[]) => ({
     carried: threads.length,
   });
-  /** A topic moving from its own path to `to`, with its threads counted. */
-  const topicMove = (ref: string, to: TopicPlace): ChangeMove => ({
+  /** A workstream moving from its own path to `to`, with its threads counted. */
+  const workstreamMove = (ref: string, to: WorkstreamPlace): ChangeMove => ({
     from: place(ref),
     to,
     threads: [],
     ...carry(within(ref)),
   });
-  const under = (parent: TopicPlace, ref: string): TopicPlace => [
+  const under = (parent: WorkstreamPlace, ref: string): WorkstreamPlace => [
     ...parent,
     place(ref).at(-1)!,
   ];
 
-  if ("subgroups" in body) {
-    const group = place(body.topicId);
-    const children = topics.filter((t) => t.parentId === body.topicId);
+  if ("workstreams" in body) {
+    const group = place(body.workstreamId);
+    const children = workstreams.filter(
+      (t) => t.parentId === body.workstreamId,
+    );
     const exists = (name: string) =>
       children.some(
         (child) =>
@@ -390,21 +408,21 @@ function describe(
           ),
       );
     return {
-      op: body.repair ? "file" : "split",
-      moves: body.subgroups.flatMap((subgroup) => {
+      op: body.repair ? "repair" : "split",
+      moves: body.workstreams.flatMap((workstream) => {
         const to = [
           ...group,
-          { name: subgroup.name, created: !exists(subgroup.name) },
+          { name: workstream.name, created: !exists(workstream.name) },
         ];
-        // A thread that left the topic since moves from where it is now,
+        // A thread that left the workstream since moves from where it is now,
         // and a gone one drops out; the suggestion's problem says so.
         const moves = new Map<string | null, ChangeMove>();
-        for (const id of subgroup.threadIds) {
-          if (!(id in threadTopic)) continue;
-          const topic = threadTopic[id] ?? null;
-          const move = moves.get(topic);
-          moves.set(topic, {
-            from: move?.from ?? (topic ? place(topic) : null),
+        for (const id of workstream.threadIds) {
+          if (!(id in threadWorkstream)) continue;
+          const workstream = threadWorkstream[id] ?? null;
+          const move = moves.get(workstream);
+          moves.set(workstream, {
+            from: move?.from ?? (workstream ? place(workstream) : null),
             to,
             threads: [...(move?.threads ?? []), thread(id)],
             carried: 0,
@@ -418,15 +436,15 @@ function describe(
   }
 
   switch (body.op) {
-    case "move": {
+    case "move-thread": {
       const from = thread(body.thread);
-      const topic = threadTopic[body.thread];
+      const workstream = threadWorkstream[body.thread];
       return {
-        op: "refile",
+        op: "move-thread",
         moves: [
           {
-            from: topic ? place(topic) : null,
-            to: place(body.topic),
+            from: workstream ? place(workstream) : null,
+            to: place(body.workstream),
             threads: [from],
             carried: 0,
           },
@@ -442,23 +460,23 @@ function describe(
             from: place(body.from),
             to: into,
             threads: shown
-              .filter(([, topic]) => topic === body.from)
+              .filter(([, workstream]) => workstream === body.from)
               .map(([id]) => thread(id)),
             carried: 0,
           },
-          ...topics
+          ...workstreams
             .filter((t) => t.parentId === body.from)
-            .map((t) => topicMove(t.id, under(into, t.id))),
+            .map((t) => workstreamMove(t.id, under(into, t.id))),
         ],
       };
     }
-    case "reparent": {
-      const to = under(place(body.parent), body.topic);
+    case "move-workstream": {
+      const to = under(place(body.parent), body.workstream);
       return {
-        op: "reparent",
+        op: "move-workstream",
         moves: [
-          topicMove(
-            body.topic,
+          workstreamMove(
+            body.workstream,
             body.name === undefined
               ? to
               : [...to.slice(0, -1), { ...to.at(-1)!, name: body.name }],
@@ -467,27 +485,27 @@ function describe(
       };
     }
     case "rename": {
-      const own = place(body.topic);
+      const own = place(body.workstream);
       return {
         op: "rename",
         moves: [
-          topicMove(body.topic, [
+          workstreamMove(body.workstream, [
             ...own.slice(0, -1),
             { ...own.at(-1)!, name: body.name },
           ]),
         ],
       };
     }
-    case "create": {
+    case "group": {
       const created = [
         ...place(body.parent),
         { name: body.name, created: true },
       ];
       return {
-        op: "create",
+        op: "group",
         moves: body.children.length
           ? body.children.map((child) =>
-              topicMove(child, under(created, child)),
+              workstreamMove(child, under(created, child)),
             )
           : [{ from: null, to: created, threads: [], carried: 0 }],
       };
@@ -495,7 +513,7 @@ function describe(
   }
 }
 
-const placeText = (place: TopicPlace) =>
+const placeText = (place: WorkstreamPlace) =>
   place.length === 0
     ? "Top level"
     : place
@@ -512,14 +530,14 @@ export function changeLines(change: SuggestionChange): string[] {
       move.from
         ? `${placeText(move.from)} → `
         : move.threads.length
-          ? "Unfiled → "
+          ? "No workstream → "
           : ""
     }${placeText(move.to)}${move.carried ? ` (with ${move.carried} ${move.carried === 1 ? "thread" : "threads"})` : ""}`,
     ...move.threads.map((t) => `  “${t.title}”`),
   ]);
 }
 
-const leaf = (place: TopicPlace) => place.at(-1)?.name ?? "the top level";
+const leaf = (place: WorkstreamPlace) => place.at(-1)?.name ?? "the top level";
 const list = (names: readonly string[]) => names.join(" and ");
 
 /**
@@ -551,9 +569,9 @@ export function changeHeadline(change: SuggestionChange): string {
   // A suggestion whose threads are gone since names no count.
   const count = threads.length ? `${threads.length} ` : "";
   switch (change.op) {
-    case "refile":
+    case "move-thread":
     case "split":
-    case "file":
+    case "repair":
       if (change.op === "split" && destinations.length > 1)
         return `Split ${group} into ${namedOrCounted(destinations, "workstreams")}`;
       if (destinations.length > 1)
@@ -563,21 +581,21 @@ export function changeHeadline(change: SuggestionChange): string {
         : `Move ${count}threads to ${destinations[0]}`;
     case "merge":
       return `Merge ${leaf(first.from ?? [])} into ${leaf(first.to)}`;
-    case "reparent": {
+    case "move-workstream": {
       const name = leaf(first.from ?? first.to);
       const as = name === leaf(first.to) ? "" : ` as ${leaf(first.to)}`;
       return first.to.length > 1
-        ? `Move ${name} under ${group}${as}`
-        : `Move ${name} to the top level${as}`;
+        ? `Move ${name} into ${group}${as}`
+        : `Move ${name} out of its group${as}`;
     }
     case "rename":
       return `Rename ${leaf(first.from ?? [])} to ${leaf(first.to)}`;
-    case "create":
+    case "group":
       return first.from
         ? `Group ${namedOrCounted(
             change.moves.map((m) => leaf(m.to)),
-            "topics",
+            "workstreams",
           )} under a new ${group}`
-        : `Create ${leaf(first.to)}${first.to.length > 1 ? ` under ${group}` : ""}`;
+        : `Create ${leaf(first.to)}${first.to.length > 1 ? ` in ${group}` : ""}`;
   }
 }

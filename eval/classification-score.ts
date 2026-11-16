@@ -1,11 +1,11 @@
-import type { TopicAnswer } from "../src/domain/classify.ts";
+import type { WorkstreamAnswer } from "../src/domain/classify.ts";
 import {
   assertProposalLevels,
   resolveProposal,
-  topicAncestors,
+  workstreamAncestors,
 } from "../src/domain/topics.ts";
 import type { ClassifyInput } from "./classification-cases.ts";
-type Result = TopicAnswer;
+type Result = WorkstreamAnswer;
 /** Evaluation-only synonym sets; production routing never uses them. Score baseline and candidate with the same sets. */
 const aliases: Record<string, RegExp> = {
   Automations:
@@ -28,12 +28,12 @@ export function scoreClassification(
   let resolved: ReturnType<typeof resolveProposal> | null = null;
   try {
     resolved = value.proposed
-      ? resolveProposal(value.proposed, input.entities)
+      ? resolveProposal(value.proposed, input.workstreams)
       : null;
     if (resolved?.proposed)
-      assertProposalLevels(resolved.proposed, input.entities);
-    const selected = value.subjectId ?? resolved?.subjectId;
-    if (selected && topicAncestors(selected, input.entities).length > 2)
+      assertProposalLevels(resolved.proposed, input.workstreams);
+    const selected = value.workstreamId ?? resolved?.workstreamId;
+    if (selected && workstreamAncestors(selected, input.workstreams).length > 2)
       throw new Error("Topic depth exceeds two levels.");
   } catch {
     return {
@@ -50,10 +50,10 @@ export function scoreClassification(
     let anchor = resolved?.proposed?.parentId ?? null;
     while (anchor && !ancestry.includes(anchor)) {
       ancestry.push(anchor);
-      anchor = input.entities.find((e) => e.id === anchor)?.parentId ?? null;
+      anchor = input.workstreams.find((e) => e.id === anchor)?.parentId ?? null;
     }
     const pass =
-      !value.subjectId &&
+      !value.workstreamId &&
       !!resolved?.proposed &&
       !(expectNew.outside && ancestry.includes(expectNew.outside)) &&
       !(expectNew.inside && !ancestry.includes(expectNew.inside));
@@ -66,7 +66,7 @@ export function scoreClassification(
     };
   }
   if (!expected) {
-    const pass = !value.subjectId && !value.proposed;
+    const pass = !value.workstreamId && !value.proposed;
     return {
       owner: pass,
       capability: pass,
@@ -78,12 +78,12 @@ export function scoreClassification(
   const path: string[] = [];
   let id: string | null = expected;
   while (id) {
-    const e = input.entities.find((e) => e.id === id)!;
+    const e = input.workstreams.find((e) => e.id === id)!;
     path.unshift(e.name);
     id = e.parentId;
   }
   if (!cold) {
-    const pass = value.subjectId === expected && !value.proposed;
+    const pass = value.workstreamId === expected && !value.proposed;
     return {
       owner: pass,
       capability: pass,

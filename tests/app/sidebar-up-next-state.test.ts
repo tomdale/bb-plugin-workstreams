@@ -17,7 +17,7 @@ function view(
   threads: TestThread[],
   active: string | null = null,
   previous: UpNextState = initialUpNextState,
-  { expanded = false, snoozed = "", prioritized = new Set<string>() } = {},
+  { expanded = false, snoozed = "", focused = new Set<string>() } = {},
 ) {
   const projection = projectWorkstreams(
     threads,
@@ -33,7 +33,7 @@ function view(
     {
       now,
       kindOf: (t) => (t.hasPendingInteraction ? "question" : "other"),
-      prioritized,
+      focused,
     },
     active,
     expanded,
@@ -157,7 +157,7 @@ it("holds the open row when focus arrives and releases it when focus is selected
     thread("open", { hasPendingInteraction: true, latestAttentionAt: 100 }),
     thread("focus", { sectionId: "focused", latestAttentionAt: 50 }),
   ];
-  const options = { prioritized: new Set(["focused"]) };
+  const options = { focused: new Set(["focused"]) };
   const before = view(threads, "open", initialUpNextState, options);
   expect(before.focused).toBe(false);
   threads[1] = {

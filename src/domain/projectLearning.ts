@@ -1,15 +1,15 @@
-import { topicAncestors, type Topic } from "./topics.ts";
-import { topicProject } from "./topicProject.ts";
+import { workstreamAncestors, type Workstream } from "./topics.ts";
+import { chosenProject } from "./topicProject.ts";
 
 export type ProjectRoot = {
   id: string;
   name: string;
   projectId: string;
-  topicId: string;
+  workstreamId: string;
 };
 
 export type ProjectLearningDecision = {
-  topicId: string;
+  workstreamId: string;
   projectId: string | null;
   kind: "learn" | "correct";
   roots: ProjectRoot[];
@@ -19,33 +19,33 @@ const PROJECT_LEARNING_ROOTS = 3;
 
 /** Independent roots must agree; a parent's children must also agree. */
 export function projectLearningPlan(
-  topics: readonly Topic[],
+  workstreams: readonly Workstream[],
   roots: readonly ProjectRoot[],
   available: ReadonlySet<string>,
 ): ProjectLearningDecision[] {
   const history = new Map<string, Map<string, ProjectRoot>>();
   for (const root of roots) {
-    if (!topics.some((topic) => topic.id === root.topicId)) continue;
-    for (const id of topicAncestors(root.topicId, topics)) {
+    if (!workstreams.some((workstream) => workstream.id === root.workstreamId)) continue;
+    for (const id of workstreamAncestors(root.workstreamId, workstreams)) {
       const members = history.get(id) ?? new Map();
       members.set(root.id, root);
       history.set(id, members);
     }
   }
-  const ordered = [...topics].sort(
+  const ordered = [...workstreams].sort(
     (a, b) =>
-      topicAncestors(b.id, topics).length -
-        topicAncestors(a.id, topics).length || a.id.localeCompare(b.id),
+      workstreamAncestors(b.id, workstreams).length -
+        workstreamAncestors(a.id, workstreams).length || a.id.localeCompare(b.id),
   );
   const agreed = new Map<string, string | null>();
   const decisions: ProjectLearningDecision[] = [];
-  for (const topic of ordered) {
-    const members = [...(history.get(topic.id)?.values() ?? [])].sort((a, b) =>
+  for (const workstream of ordered) {
+    const members = [...(history.get(workstream.id)?.values() ?? [])].sort((a, b) =>
       a.id.localeCompare(b.id),
     );
     const projects = new Set(members.map((root) => root.projectId));
     const only = projects.size === 1 ? [...projects][0]! : null;
-    const children = topics.filter((child) => child.parentId === topic.id);
+    const children = workstreams.filter((child) => child.parentId === workstream.id);
     const candidate =
       members.length >= PROJECT_LEARNING_ROOTS &&
       only &&
@@ -54,34 +54,34 @@ export function projectLearningPlan(
         ? only
         : null;
     const fixed =
-      topic.projectSource === "manual" || topic.projectSource === "disabled";
+      workstream.projectSource === "manual" || workstream.projectSource === "disabled";
     agreed.set(
-      topic.id,
-      topic.projectSource === "disabled"
+      workstream.id,
+      workstream.projectSource === "disabled"
         ? null
-        : (topic.projectId ?? candidate),
+        : (workstream.projectId ?? candidate),
     );
     if (fixed || members.length < PROJECT_LEARNING_ROOTS) continue;
-    if (topic.projectSource === "learned" && topic.projectId) {
+    if (workstream.projectSource === "learned" && workstream.projectId) {
       if (
-        candidate !== topic.projectId &&
+        candidate !== workstream.projectId &&
         (projects.size > 1 ||
-          only !== topic.projectId ||
-          !available.has(topic.projectId))
+          only !== workstream.projectId ||
+          !available.has(workstream.projectId))
       )
         decisions.push({
-          topicId: topic.id,
+          workstreamId: workstream.id,
           projectId: candidate,
           kind: "correct",
           roots: members,
         });
     } else if (
-      !topic.projectId &&
+      !workstream.projectId &&
       candidate &&
-      topicProject(topic.parentId, topics) !== candidate
+      chosenProject(workstream.parentId, workstreams) !== candidate
     ) {
       decisions.push({
-        topicId: topic.id,
+        workstreamId: workstream.id,
         projectId: candidate,
         kind: "learn",
         roots: members,

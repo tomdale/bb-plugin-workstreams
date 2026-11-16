@@ -1,13 +1,10 @@
 import { useState } from "react";
 import type { useRpc } from "@get-bb/plugin-sdk/app";
-import type {
-  RpcContract,
-  ReclassificationPlan,
-} from "../../server/contract.ts";
+import type { RpcContract, RepairPreview } from "../../server/contract.ts";
 import { secondaryButton, primaryButton } from "./controls.ts";
 
-/** Explicit preview/apply keeps catalog repairs separate from editing topics. */
-export function Reclassification({
+/** Explicit preview/apply keeps workstream tree repairs separate from editing workstreams. */
+export function Repair({
   rpc,
   threadIds,
   onApplied,
@@ -16,7 +13,7 @@ export function Reclassification({
   threadIds: string[];
   onApplied: () => void;
 }) {
-  const [plan, setPlan] = useState<ReclassificationPlan | null>(null);
+  const [plan, setPlan] = useState<RepairPreview | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -26,19 +23,19 @@ export function Reclassification({
     setMessage(null);
     try {
       if (apply && plan) {
-        const result = await rpc.call("reclassificationApply", {
+        const result = await rpc.call("repairApply", {
           planId: plan.id,
         });
         setMessage(
-          `${result.changed} topics changed; ${result.skipped} skipped. Manual choices and newer evidence are preserved.`,
+          `Moved ${result.changed} threads; skipped ${result.skipped}. Threads you moved, and newer requests, are left as they are.`,
         );
         setPlan(null);
         onApplied();
       } else {
-        const next = await rpc.call("reclassificationPreview", { threadIds });
+        const next = await rpc.call("repairPreview", { threadIds });
         setPlan(next);
         setMessage(
-          `${next.rows.filter((row) => !row.error).length} topic proposals ready for review; ${next.excludedManual} manual choices excluded.`,
+          `${next.rows.filter((row) => !row.error).length} moves ready for review; ${next.excludedManual} threads you moved left out.`,
         );
       }
     } catch (cause) {
@@ -50,12 +47,13 @@ export function Reclassification({
   return (
     <section
       className="rounded-xl border border-border p-4"
-      aria-label="Topic repair"
+      aria-label="Preview automatic moves"
     >
-      <h2 className="text-sm font-semibold">Review automatic topics</h2>
+      <h2 className="text-sm font-semibold">Preview automatic moves</h2>
       <p className="mt-1 text-xs text-muted-foreground">
-        After editing the catalog, preview assignments before applying repairs.
-        Previewing makes model calls but changes no topics or titles.
+        After changing your workstreams, preview where Workstreams would move
+        the threads it placed itself. Previewing makes model calls but moves no
+        threads and changes no titles.
       </p>
       <button
         type="button"
@@ -63,26 +61,27 @@ export function Reclassification({
         disabled={busy || !threadIds.length || threadIds.length > 100}
         onClick={() => void run(false)}
       >
-        {busy ? "Working…" : "Preview topic repairs"}
+        {busy ? "Previewing…" : "Preview moves"}
       </button>
       {threadIds.length > 100 ? (
         <p className="mt-2 text-xs">
-          This view previews up to 100 roots. For a larger set, preview
-          individual roots with{" "}
-          <code>bb workstreams topics preview &lt;thread-id&gt;</code>.
+          This view previews up to 100 threads. For a larger set, preview
+          threads one at a time with{" "}
+          <code>bb workstreams preview &lt;thread-id&gt;</code>.
         </p>
       ) : null}
       {plan ? (
         <div className="mt-3">
           {plan.excludedManual ? (
             <p className="mb-2 text-xs">
-              {plan.excludedManual} manual choices excluded
+              {plan.excludedManual} threads you moved left out
             </p>
           ) : null}
           <ul className="space-y-1 text-xs">
             {plan.rows.map((row) => (
               <li key={row.threadId}>
-                {row.title}: {row.from ?? "Unfiled"} → {row.to ?? "Unfiled"}
+                {row.title}: {row.from ?? "No workstream"} →{" "}
+                {row.to ?? "No workstream"}
                 {row.error ? ` — ${row.error}` : ""}
               </li>
             ))}
@@ -93,7 +92,7 @@ export function Reclassification({
             disabled={busy || plan.rows.every((row) => row.error)}
             onClick={() => void run(true)}
           >
-            Apply topic repairs
+            Apply the preview
           </button>
         </div>
       ) : null}

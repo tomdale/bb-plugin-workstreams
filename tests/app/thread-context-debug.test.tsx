@@ -72,13 +72,13 @@ const stateWith = (threadId: string) => ({
       traceId: null,
     },
   },
-  catalog: {
+  tree: {
     assignments: {
       [threadId]: {
         threadId,
-        entityId: "e1",
+        workstreamId: "e1",
         status: "assigned",
-        provenance: "full",
+        provenance: "automatic",
         label: "bb: Workstreams Plugin",
         ancestorIds: [],
         evidence: null,
@@ -161,7 +161,7 @@ it("uses bb's section and detail-row primitives in the Info tab", async () => {
   ).toEqual([
     { label: "Goal", icon: "Target", align: "start" },
     { label: "Digest", icon: "FileText", align: "start" },
-    { label: "Topic", icon: "Folder", align: "start" },
+    { label: "Workstream", icon: "Folder", align: "start" },
     { label: "Settled title", icon: "Edit", align: "start" },
     { label: "Status", icon: "ChartColumn", align: "start" },
     { label: "Analyzed", icon: "Clock", align: "start" },
@@ -177,16 +177,16 @@ it("lists analysis and journal events and opens every transcript behind an event
       "complete · title “Evaluate rename guidance” · goal “Keep titles current”",
     threads: ["t1"],
   });
-  const placement = trace("placement", {
+  const placement = trace("workstream-choice", {
     at: now - 3_000,
-    kind: "placement",
+    kind: "workstream-choice",
     label: "Evaluate rename guidance",
     summary: "Workstreams",
     threads: ["t1"],
   });
   const journal = {
     ...entry,
-    action: "retitle" as const,
+    action: "title-updated" as const,
     at: now - 2_000,
     rationale: "Retitled from Old focus",
     traceIds: [analysis.id, placement.id],
@@ -265,13 +265,13 @@ it("lists analysis and journal events and opens every transcript behind an event
     expect(chevron.getAttribute("aria-hidden")).toBe("true");
   expect(rows.map((row) => row.textContent)).toEqual([
     expect.stringContaining("Turn end"),
-    expect.stringContaining("Updated title"),
+    expect.stringContaining("Title updated"),
     expect.stringContaining("Workstream choice"),
   ]);
 
   fireEvent.click(
     within(activity as HTMLElement).getByRole("button", {
-      name: /Updated title/,
+      name: /Title updated/,
     }),
   );
   const pane = await within(document.body).findByRole("dialog");
@@ -427,7 +427,7 @@ it("renders nothing when its own switch is off under Debug mode", async () => {
 });
 
 it("says when a thread has no analysis recorded", async () => {
-  const slot = await renderSection(true, { analysis: {}, catalog: {} });
+  const slot = await renderSection(true, { analysis: {}, tree: {} });
   await waitFor(() => {
     expect(slot.baseElement.textContent).toContain(
       "No analysis recorded for this thread.",

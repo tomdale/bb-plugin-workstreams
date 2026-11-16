@@ -16,7 +16,7 @@ const root = (id: string, title: string) => ({
 });
 
 const input: CategoryFitInput = {
-  topicId: "harbor",
+  workstreamId: "harbor",
   label: "Harbor",
   roots: [
     root("a", "Invoice rounding"),

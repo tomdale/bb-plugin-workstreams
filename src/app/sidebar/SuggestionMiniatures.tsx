@@ -27,6 +27,7 @@ import type {
   Miniature,
   MiniWorkstream,
 } from "./suggestionMiniatures.ts";
+import { PATH_SEPARATOR } from "../../domain/topic-path.ts";
 
 /** Titles the card lists before it gives the rest as a count. */
 const TITLES_SHOWN = 12;
@@ -36,7 +37,7 @@ const NOTE_PX = 17;
 const plural = (n: number, noun: string) => `${n} ${noun}${n === 1 ? "" : "s"}`;
 const total = (flow: MiniFlow) => flow.threads.length;
 const labelOf = (to: MiniFlow["to"]) =>
-  to.prefix ? `${to.prefix}: ${to.name}` : to.name;
+  to.prefix ? `${to.prefix}${PATH_SEPARATOR}${to.name}` : to.name;
 
 type Ribbon = { flow: number; d: string; thin: boolean };
 type Notes = { above: [number, number]; below: [number, number] };

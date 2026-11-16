@@ -3,14 +3,14 @@ import {
   TITLE_MAX,
   RECAP_MAX,
   GOAL_MAX,
-  fullAnalysisPrompt,
-  fullAnalysisSchema,
+  descriptionPrompt,
+  descriptionSchema,
   isCurrent,
-  parseFullAnalysis,
-  type FullAnalysisInput,
+  parseDescription,
+  type DescriptionInput,
 } from "../../src/domain/analysis.ts";
 
-const entities = [
+const workstreams = [
   {
     id: "lumen",
     name: "Lumen",
@@ -27,7 +27,7 @@ const entities = [
   },
 ];
 
-const base: FullAnalysisInput = {
+const base: DescriptionInput = {
   title: "Fix stale build cache",
   titledBy: "other",
   requests: [{ text: "The Lumen cache serves stale builds", initial: true }],
@@ -37,7 +37,7 @@ const base: FullAnalysisInput = {
 
 describe("Full analysis", () => {
   it("settles an outcome independently of titles and reported headlines", () => {
-    const input: FullAnalysisInput = {
+    const input: DescriptionInput = {
       ...base,
       titledBy: "you",
       goal: "Keep builds fresh without clearing the cache manually.",
@@ -47,7 +47,7 @@ describe("Full analysis", () => {
         latest: [],
       },
     };
-    const prompt = fullAnalysisPrompt(input);
+    const prompt = descriptionPrompt(input);
     expect(prompt).toContain('"goal": string|null');
     expect(prompt).toContain("usually 12–20 words");
     expect(prompt).toContain("Lead with success");
@@ -58,9 +58,9 @@ describe("Full analysis", () => {
       "<thread_goal>\nKeep builds fresh without clearing the cache manually.",
     );
     expect(prompt).not.toContain('"title": {');
-    expect(fullAnalysisSchema(input)).toHaveProperty("properties.goal");
+    expect(descriptionSchema(input)).toHaveProperty("properties.goal");
     expect(
-      parseFullAnalysis(
+      parseDescription(
         JSON.stringify({
           goal: "Keep builds fresh without clearing the cache manually.",
           title: { verb: "Changing", subject: "directories" },
@@ -75,18 +75,18 @@ describe("Full analysis", () => {
   });
 
   it("settles an accumulated context digest alongside the outcome", () => {
-    const input: FullAnalysisInput = {
+    const input: DescriptionInput = {
       ...base,
       digest: "The thread evaluates the Workstreams plugin's tidy suggestions.",
     };
-    const prompt = fullAnalysisPrompt(input);
+    const prompt = descriptionPrompt(input);
     expect(prompt).toContain('"digest": string|null');
     expect(prompt).toContain(
       "<thread_digest>\nThe thread evaluates the Workstreams plugin's tidy suggestions.",
     );
-    expect(fullAnalysisSchema(input)).toHaveProperty("properties.digest");
+    expect(descriptionSchema(input)).toHaveProperty("properties.digest");
     expect(
-      parseFullAnalysis(
+      parseDescription(
         JSON.stringify({
           recap: "Done",
           state: "complete",
@@ -98,14 +98,14 @@ describe("Full analysis", () => {
     ).toMatchObject({ digest: "The thread evaluates tidy guidance." });
     for (const digest of [null, "", 42, "x".repeat(481)]) {
       expect(
-        parseFullAnalysis(
+        parseDescription(
           JSON.stringify({ recap: "Done", state: "complete", digest }),
           base,
         ),
       ).toMatchObject({ digest: null });
     }
     const statusOnly = { ...base, mode: "status" } as const;
-    expect(fullAnalysisSchema(statusOnly)).not.toHaveProperty(
+    expect(descriptionSchema(statusOnly)).not.toHaveProperty(
       "properties.digest",
     );
   });
@@ -113,14 +113,14 @@ describe("Full analysis", () => {
   it("rejects malformed outcomes without losing other analysis fields", () => {
     for (const goal of [null, "", "  ", 42, {}, "x".repeat(GOAL_MAX + 1)]) {
       expect(
-        parseFullAnalysis(
+        parseDescription(
           JSON.stringify({ recap: "Done", state: "complete", goal }),
           base,
         ),
       ).toMatchObject({ status: { state: "complete" }, goal: null });
     }
     expect(
-      parseFullAnalysis(
+      parseDescription(
         JSON.stringify({
           recap: "Done",
           goal: "  Keep builds\n fresh.  ",
@@ -129,11 +129,11 @@ describe("Full analysis", () => {
       ).goal,
     ).toBe("Keep builds fresh.");
     const statusOnly = { ...base, mode: "status" } as const;
-    expect(fullAnalysisSchema(statusOnly)).not.toHaveProperty(
+    expect(descriptionSchema(statusOnly)).not.toHaveProperty(
       "properties.goal",
     );
     expect(
-      parseFullAnalysis(
+      parseDescription(
         JSON.stringify({ recap: "Done", goal: "Unexpected change" }),
         statusOnly,
       ).goal,
@@ -141,7 +141,7 @@ describe("Full analysis", () => {
   });
 
   it("bounds a decision prompt to the advertised 80 characters", () => {
-    const parsed = parseFullAnalysis(
+    const parsed = parseDescription(
       JSON.stringify({
         recap: "Needs a choice",
         state: "needs-input",
@@ -152,28 +152,28 @@ describe("Full analysis", () => {
     expect(parsed.status?.ask).toHaveLength(80);
   });
   it("asks for status and goal, never a topic, after a new request with no report", () => {
-    const prompt = fullAnalysisPrompt(base);
+    const prompt = descriptionPrompt(base);
     expect(prompt).toContain('"recap": string');
     expect(prompt).toContain(
       '"title": {"verb": string, "subject": string}|null',
     );
-    expect(prompt).not.toContain("subjectId");
-    expect(prompt).not.toContain("topic_tree");
+    expect(prompt).not.toContain("workstreamId");
+    expect(prompt).not.toContain("workstream_tree");
   });
 
   it("may keep only a title Workstreams wrote, and never names over yours", () => {
     const keeps = "null keeps the current title";
-    expect(fullAnalysisPrompt(base)).not.toContain(keeps);
-    expect(fullAnalysisPrompt({ ...base, titledBy: "workstreams" })).toContain(
+    expect(descriptionPrompt(base)).not.toContain(keeps);
+    expect(descriptionPrompt({ ...base, titledBy: "workstreams" })).toContain(
       keeps,
     );
     const yours = { ...base, titledBy: "you" } as const;
-    expect(fullAnalysisPrompt(yours)).not.toContain("- title:");
-    expect(fullAnalysisPrompt(yours)).toContain("which the user gave it");
-    expect(fullAnalysisSchema(yours)).not.toHaveProperty("properties.title");
-    expect(fullAnalysisSchema(base)).toHaveProperty("properties.title");
+    expect(descriptionPrompt(yours)).not.toContain("- title:");
+    expect(descriptionPrompt(yours)).toContain("which the user gave it");
+    expect(descriptionSchema(yours)).not.toHaveProperty("properties.title");
+    expect(descriptionSchema(base)).toHaveProperty("properties.title");
     expect(
-      parseFullAnalysis(
+      parseDescription(
         JSON.stringify({
           recap: "Done",
           state: "complete",
@@ -185,8 +185,8 @@ describe("Full analysis", () => {
   });
 
   it("asks for exactly the fields the prompt names", () => {
-    const required = (input: FullAnalysisInput) =>
-      fullAnalysisSchema(input).required;
+    const required = (input: DescriptionInput) =>
+      descriptionSchema(input).required;
     expect(required(base)).toEqual([
       "recap",
       "state",
@@ -209,13 +209,13 @@ describe("Full analysis", () => {
   });
 
   it("doesn't ask for status the agent already reported", () => {
-    const prompt = fullAnalysisPrompt({
+    const prompt = descriptionPrompt({
       ...base,
       report: { state: "complete", headline: "Fixed the cache", latest: [] },
     });
     expect(prompt).toContain("reported this turn as complete");
     expect(prompt).not.toContain('"recap": string');
-    const parsed = parseFullAnalysis(
+    const parsed = parseDescription(
       '{"title":{"verb":"fixing","subject":"stale build cache"}}',
       { ...base, report: { state: "complete", headline: "x", latest: [] } },
     );
@@ -228,11 +228,11 @@ describe("Full analysis", () => {
   });
 
   it("asks only for status when no new request arrived", () => {
-    const input: FullAnalysisInput = { ...base, mode: "status" };
-    const prompt = fullAnalysisPrompt(input);
+    const input: DescriptionInput = { ...base, mode: "status" };
+    const prompt = descriptionPrompt(input);
     expect(prompt).not.toContain('"title"');
     expect(
-      parseFullAnalysis('{"recap":"Waiting on CI","state":"blocked"}', input),
+      parseDescription('{"recap":"Waiting on CI","state":"blocked"}', input),
     ).toEqual({
       status: { recap: "Waiting on CI", state: "blocked", ask: null },
       goal: null,
@@ -244,13 +244,13 @@ describe("Full analysis", () => {
   it("asks only for analysis fields in both modes", () => {
     for (const mode of ["full", "status"] as const) {
       const input = { ...base, mode };
-      expect(fullAnalysisPrompt(input)).not.toContain('"names"');
-      expect(fullAnalysisSchema(input)).not.toHaveProperty("properties.names");
+      expect(descriptionPrompt(input)).not.toContain('"names"');
+      expect(descriptionSchema(input)).not.toHaveProperty("properties.names");
     }
   });
 
   it("clips the recap, keeps an ask only for a decision, and drops a long goal", () => {
-    const parsed = parseFullAnalysis(
+    const parsed = parseDescription(
       "```json\n" +
         JSON.stringify({
           recap: "x ".repeat(200),
@@ -264,11 +264,11 @@ describe("Full analysis", () => {
     expect(parsed.status!.recap.length).toBeLessThanOrEqual(RECAP_MAX);
     expect(parsed.status!.ask).toBeNull();
     expect(parsed.title).toBeNull();
-    expect(() => parseFullAnalysis('{"state":"complete"}', base)).toThrow();
+    expect(() => parseDescription('{"state":"complete"}', base)).toThrow();
   });
 
   it("wraps each request and the reply in tags inside the conversation", () => {
-    const prompt = fullAnalysisPrompt({
+    const prompt = descriptionPrompt({
       ...base,
       requests: [
         { text: "Fix the cache", initial: true },
@@ -290,13 +290,13 @@ describe("Full analysis", () => {
         "</conversation>",
       ].join("\n"),
     );
-    expect(fullAnalysisPrompt({ ...base, lastAssistantText: null })).toContain(
+    expect(descriptionPrompt({ ...base, lastAssistantText: null })).toContain(
       "the agent hasn't replied yet",
     );
   });
 
   it("keeps inserted text from closing or forging a prompt tag", () => {
-    const prompt = fullAnalysisPrompt({
+    const prompt = descriptionPrompt({
       ...base,
       requests: [
         {
@@ -312,7 +312,7 @@ describe("Full analysis", () => {
   });
 
   it("redacts secrets and never shows a project outside the topic part", () => {
-    const prompt = fullAnalysisPrompt({
+    const prompt = descriptionPrompt({
       ...base,
       requests: [
         { text: "use key sk-abcdefghijklmnopqrstuvwxyz", initial: true },

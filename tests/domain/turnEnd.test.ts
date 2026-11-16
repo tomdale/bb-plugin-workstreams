@@ -5,9 +5,9 @@ import {
   turnEndSchema,
   type TurnEndInput,
 } from "../../src/domain/turnEnd.ts";
-import type { PlacementInput } from "../../src/domain/placement.ts";
+import type { WorkstreamChoiceInput } from "../../src/domain/placement.ts";
 
-const topic = (id: string, name: string, parentId: string | null) => ({
+const workstream = (id: string, name: string, parentId: string | null) => ({
   id,
   name,
   description: "",
@@ -15,18 +15,18 @@ const topic = (id: string, name: string, parentId: string | null) => ({
   aliases: [] as string[],
 });
 
-const placement: PlacementInput = {
+const choice: WorkstreamChoiceInput = {
   title: null,
   requests: ["Add themes to the viewer"],
   project: "atlas",
   checkout: null,
-  entities: [
-    topic("atlas", "Atlas", null),
-    topic("billing", "Billing", "atlas"),
-    topic("viewer", "Viewer", "atlas"),
+  workstreams: [
+    workstream("atlas", "Atlas", null),
+    workstream("billing", "Billing", "atlas"),
+    workstream("viewer", "Viewer", "atlas"),
   ],
   hints: [],
-  current: { label: "Atlas: Billing", inherited: false },
+  current: { label: "Atlas › Billing", inherited: false },
   digest: "A digest placement must not repeat.",
 };
 
@@ -39,8 +39,8 @@ const input: TurnEndInput = {
   lastAssistantText: "Added a theme picker.",
   report: null,
   mode: "full",
-  listing: { group: "Atlas: Billing", parent: null },
-  placement,
+  listing: { workstream: "Atlas › Billing", parent: null },
+  choice,
 };
 
 const answer = (fields: Record<string, unknown>) =>
@@ -51,7 +51,7 @@ const answer = (fields: Record<string, unknown>) =>
     goal: "Let readers pick a viewer theme.",
     digest: "Atlas viewer themes.",
     title: { verb: "Adding", subject: "Atlas viewer themes" },
-    topic: "viewer",
+    workstream: "viewer",
     propose: null,
     scopeShift: false,
     ...fields,
@@ -60,25 +60,25 @@ const answer = (fields: Record<string, unknown>) =>
 describe("turn-end call", () => {
   it("asks for the topic beside the description only when placement is supplied", () => {
     const prompt = turnEndPrompt(input);
-    expect(prompt).toContain("decide which topic it belongs under now");
+    expect(prompt).toContain("decide which workstream it belongs in now");
     expect(prompt).toContain("[viewer] Viewer");
-    expect(prompt).toContain("<current_topic>");
+    expect(prompt).toContain("<current_workstream>");
     // The digest appears once, as the call's own memory.
     expect(prompt).not.toContain("A digest placement must not repeat.");
     expect(prompt.match(/<thread_digest>/g)).toHaveLength(1);
     expect(Object.keys(turnEndSchema(input).properties as object)).toEqual(
-      expect.arrayContaining(["recap", "digest", "title", "topic", "propose"]),
+      expect.arrayContaining(["recap", "digest", "title", "workstream", "propose"]),
     );
 
-    const alone = { ...input, placement: null };
-    expect(turnEndPrompt(alone)).not.toContain("topic_tree");
-    expect(turnEndSchema(alone).properties).not.toHaveProperty("topic");
+    const alone = { ...input, choice: null };
+    expect(turnEndPrompt(alone)).not.toContain("workstream_tree");
+    expect(turnEndSchema(alone).properties).not.toHaveProperty("workstream");
   });
 
   it("titles the thread beside the topic it chose", () => {
     const output = parseTurnEnd(answer({}), input);
-    expect(output.topic).toEqual({
-      subjectId: "viewer",
+    expect(output.workstream).toEqual({
+      workstreamId: "viewer",
       proposed: null,
       scopeShift: false,
     });
@@ -87,9 +87,9 @@ describe("turn-end call", () => {
   });
 
   it("refuses an invalid topic without losing the description", () => {
-    const output = parseTurnEnd(answer({ topic: "atlas" }), input);
-    expect(output.topic).toBeNull();
-    expect(output.topicError).toMatch(/Invalid topic/);
+    const output = parseTurnEnd(answer({ workstream: "atlas" }), input);
+    expect(output.workstream).toBeNull();
+    expect(output.workstreamError).toMatch(/Invalid workstream/);
     expect(output.status?.recap).toBe("Added a theme picker.");
     expect(output.goal).toBe("Let readers pick a viewer theme.");
   });

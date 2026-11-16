@@ -1,18 +1,18 @@
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import type { SuggestThread } from "../domain/tidy.ts";
 import { requestEvidence } from "./requests.ts";
-import type { TopicStore } from "./topics.ts";
+import type { WorkstreamStore } from "./topics.ts";
 
-/** A topic division reviews archived filing choices as well as current roots. */
-export async function topicDivisionEvidence(
+/** A workstream division reviews archived filing choices as well as current roots. */
+export async function workstreamDivisionEvidence(
   sdk: BbPluginApi["sdk"],
-  topics: TopicStore,
-  topicId: string,
+  workstreamStore: WorkstreamStore,
+  workstreamId: string,
   checkout: (threadId: string) => string | null,
 ): Promise<SuggestThread[]> {
-  const assignments = Object.values(topics.assignments()).filter(
+  const assignments = Object.values(workstreamStore.assignments()).filter(
     (assignment) =>
-      assignment.entityId === topicId && !assignment.inheritedFrom,
+      assignment.workstreamId === workstreamId && !assignment.inheritedFrom,
   );
   const result: SuggestThread[] = new Array(assignments.length);
   let cursor = 0;
@@ -30,7 +30,7 @@ export async function topicDivisionEvidence(
           title: thread.title ?? "Untitled thread",
           work: requests.join("\n\n"),
           checkout: checkout(thread.id),
-          topicId,
+          workstreamId,
         };
       }
     }),

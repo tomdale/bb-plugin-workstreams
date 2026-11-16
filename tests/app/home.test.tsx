@@ -64,8 +64,8 @@ describe("Home screen", () => {
       ),
       sections: [section("sec_vertex", "Vertex")],
       prefs: { showForYou: false, showRecent: false },
-      catalog: {
-        entities: [
+      tree: {
+        workstreams: [
           {
             id: "vertex",
             name: "Vertex",
@@ -107,8 +107,8 @@ describe("Home screen", () => {
   it("uses the same topic color in Home's Up Next label and workstream dot", async () => {
     const slot = await mountHome({
       threads: sample(),
-      catalog: {
-        entities: [
+      tree: {
+        workstreams: [
           {
             id: "alpha",
             name: "Alpha",
@@ -148,7 +148,7 @@ describe("Home screen", () => {
       "Workstreams",
       "Alpha",
       "Beta",
-      "Unfiled",
+      "Other",
     ]);
   });
 
@@ -347,7 +347,7 @@ describe("Home screen", () => {
       open(slot, "Expand all");
       expect(links(region(slot, "Alpha"))).toHaveLength(2);
       expect(links(region(slot, "Beta"))).toEqual(["Beta one"]);
-      expect(links(region(slot, "Unfiled"))).toEqual(["Loose task"]);
+      expect(links(region(slot, "Other"))).toEqual(["Loose task"]);
       open(slot, "Collapse all");
       expect(links(region(slot, "Alpha"))).toEqual([]);
       expect(slot.getByRole("button", { name: "Expand all" })).toBeTruthy();
@@ -360,8 +360,8 @@ describe("Home screen", () => {
           sidebarThread("two", { title: "Second", latestAttentionAt: 10 }),
         ],
       });
-      await slot.findByRole("region", { name: "Unfiled" });
-      expect(links(region(slot, "Unfiled"))).toEqual(["First", "Second"]);
+      await slot.findByRole("region", { name: "Other" });
+      expect(links(region(slot, "Other"))).toEqual(["First", "Second"]);
     });
 
     it("files whole trees under the root's workstream, with the children toggled by a count", async () => {
@@ -375,7 +375,7 @@ describe("Home screen", () => {
           sidebarThread("kid", {
             parentThreadId: "root",
             sectionId: "sec_b",
-            title: "Delegate",
+            title: "Child",
             latestAttentionAt: minutes(4),
           }),
           sidebarThread("other", {
@@ -389,7 +389,7 @@ describe("Home screen", () => {
       await slot.findByRole("region", { name: "Workstreams" });
       open(slot, "Expand all");
       const alpha = region(slot, "Alpha");
-      expect(links(alpha)).toEqual(["Manager", "Delegate"]);
+      expect(links(alpha)).toEqual(["Manager", "Child"]);
       expect(links(region(slot, "Beta"))).toEqual(["Other"]);
       const fold = within(alpha).getByRole("button", {
         name: "Hide 1 thread under Manager",
@@ -401,7 +401,7 @@ describe("Home screen", () => {
           name: "Show 1 thread under Manager",
         }),
       );
-      expect(links(alpha)).toEqual(["Manager", "Delegate"]);
+      expect(links(alpha)).toEqual(["Manager", "Child"]);
     });
 
     it("pins a focused workstream open and hides the rest behind a toggle", async () => {
@@ -427,7 +427,7 @@ describe("Home screen", () => {
           sidebarThread("a1", { sectionId: "sec_a", title: "Alpha one" }),
           sidebarThread("loose", { title: "Unfiled quiet" }),
         ],
-        order: { prioritized: ["sec_z"] },
+        order: { focused: ["sec_z"] },
       });
       const band = await slot.findByRole("region", { name: "Up Next" });
       // Focus: only the focused workstream's threads show.
@@ -455,7 +455,7 @@ describe("Home screen", () => {
         "Zeta",
         "Alpha",
         "Beta",
-        "Unfiled",
+        "Other",
       ]);
       // Revealed workstreams start closed.
       expect(links(region(slot, "Alpha"))).toEqual([]);
@@ -780,7 +780,7 @@ describe("Home screen with a focused workstream", () => {
         sidebarThread("b1", { sectionId: "sec_b", title: "Beta one" }),
       ],
       snoozes: { z1: { until, attentionAt: 0, at: 0 } },
-      order: { prioritized: ["sec_z"] },
+      order: { focused: ["sec_z"] },
     });
     await slot.findAllByRole("region", { name: "Workstreams" });
     expect(regionNames(slot)).toEqual([
@@ -825,7 +825,7 @@ describe("Home screen with a focused workstream", () => {
           sidebarThread("a2", { sectionId: "sec_a" }),
         ],
         prefs,
-        order: { prioritized: ["sec_z"] },
+        order: { focused: ["sec_z"] },
       });
       const toggle = await slot.findByRole("button", { name });
       fireEvent.click(toggle);
@@ -846,7 +846,7 @@ describe("Home screen with a focused workstream", () => {
         }),
       ],
       prefs: { showForYou: false },
-      order: { prioritized: ["sec_z"] },
+      order: { focused: ["sec_z"] },
     });
     await slot.findAllByRole("region", { name: "Workstreams" });
     expect(slot.queryByRole("region", { name: "Up Next" })).toBeNull();
@@ -905,7 +905,7 @@ describe("Home screen accessibility", () => {
         }),
         sidebarThread("z1", { sectionId: "sec_z", title: "Zeta one" }),
       ],
-      order: { prioritized: ["sec_z"] },
+      order: { focused: ["sec_z"] },
     });
     await slot.findAllByRole("region", { name: "Workstreams" });
     expect(slot.getByRole("button", { name: /^Zeta, focused/ })).toBeTruthy();

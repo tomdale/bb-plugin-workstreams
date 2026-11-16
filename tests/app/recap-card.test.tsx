@@ -1744,7 +1744,7 @@ it("re-reads its recap only for changes that can concern its thread", async () =
       recaps: 1,
       order: 0,
       snoozes: 0,
-      catalog: 0,
+      tree: 0,
       suggestions: 0,
     },
   };

@@ -47,7 +47,7 @@ export function planSidebarUpNext<T extends UpNextThread>(
   // Resolve from live groups, not the prior view: explicitly hidden, archived,
   // and snoozed threads must leave even while selected.
   const openRow = activeThreadId
-    ? [...projection.groups, projection.unsorted, ...projection.dormant]
+    ? [...projection.groups, projection.other, ...projection.dormant]
         .flatMap((group) => group.rows)
         .find((row) => row.thread.id === activeThreadId)
     : undefined;

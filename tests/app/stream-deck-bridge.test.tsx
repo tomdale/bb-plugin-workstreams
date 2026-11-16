@@ -47,7 +47,7 @@ const stamp = (epoch: string) => ({
     recaps: 1,
     order: 1,
     snoozes: 1,
-    catalog: 1,
+    tree: 1,
     suggestions: 1,
   },
 });

@@ -21,19 +21,19 @@ afterEach(() => {
 });
 
 describe("nested workstreams", () => {
-  const topic = (id: string, name: string, parentId: string | null) => ({
+  const workstream = (id: string, name: string, parentId: string | null) => ({
     id,
     name,
     description: "",
     parentId,
     aliases: [],
   });
-  const catalog = {
-    entities: [
-      topic("va", "Beacon", null),
-      topic("auto", "Automations", "va"),
-      topic("alerts", "Alert Investigations", "auto"),
-      topic("cli", "CLI", "auto"),
+  const tree = {
+    workstreams: [
+      workstream("va", "Beacon", null),
+      workstream("auto", "Automations", "va"),
+      workstream("alerts", "Alert Investigations", "auto"),
+      workstream("cli", "CLI", "auto"),
     ],
     groups: {
       sec_alerts: "alerts",
@@ -41,14 +41,14 @@ describe("nested workstreams", () => {
     },
     layout: [
       {
-        topicId: "auto",
+        workstreamId: "auto",
         name: "Automations",
         prefix: ["Beacon"],
         lists: false,
         total: 6,
         children: [
           {
-            topicId: "alerts",
+            workstreamId: "alerts",
             name: "Alert Investigations",
             prefix: [],
             lists: true,
@@ -56,7 +56,7 @@ describe("nested workstreams", () => {
             children: [],
           },
           {
-            topicId: "cli",
+            workstreamId: "cli",
             name: "CLI",
             prefix: [],
             lists: true,
@@ -68,8 +68,8 @@ describe("nested workstreams", () => {
     ],
   };
   const nestedSections = [
-    section("sec_alerts", "Beacon: Automations: Alert Investigations"),
-    section("sec_cli", "Beacon: Automations: CLI"),
+    section("sec_alerts", "Beacon › Automations › Alert Investigations"),
+    section("sec_cli", "Beacon › Automations › CLI"),
   ];
   // Each subgroup shows enough threads for its own header (`GROUP_MIN`).
   const nestedThreads = () => [
@@ -95,17 +95,17 @@ describe("nested workstreams", () => {
   const options = {
     activeThreadId: null,
     sections: nestedSections,
-    catalog,
+    tree,
     settings: { showRecent: false, showForYou: false },
   };
 
   it("draws a topic's workstreams as subgroups of its group", async () => {
     const slot = await mount(nestedThreads(), options);
     // The catalog arrives after the first frame, which draws flat groups.
-    const top = () => slot.getByRole("region", { name: "Beacon: Automations" });
+    const top = () => slot.getByRole("region", { name: "Beacon › Automations" });
     const alerts = () =>
       within(top()).getByRole("region", {
-        name: "Beacon: Automations: Alert Investigations",
+        name: "Beacon › Automations › Alert Investigations",
       });
     await waitFor(() => alerts());
     // One top-level group holds both subgroups.
@@ -114,9 +114,9 @@ describe("nested workstreams", () => {
         .getAllByRole("region")
         .filter((region) => !region.parentElement?.closest("section"))
         .map((region) => region.getAttribute("aria-label")),
-    ).toEqual(["Beacon: Automations"]);
+    ).toEqual(["Beacon › Automations"]);
     expect(within(alerts()).getByText("Alert Investigations")).toBeTruthy();
-    expect(groupRows(slot, "Beacon: Automations")).toEqual([
+    expect(groupRows(slot, "Beacon › Automations")).toEqual([
       "Rebase alerts PR",
       "Triage alert noise",
       "Verify alerts in staging",
@@ -125,23 +125,23 @@ describe("nested workstreams", () => {
       "Add CLI flags",
     ]);
     fireEvent.click(
-      slot.getByRole("button", { name: "Focus on Beacon: Automations" }),
+      slot.getByRole("button", { name: "Focus on Beacon › Automations" }),
     );
     await waitFor(() =>
       expect(
         slot.getByRole("button", {
-          name: "Stop focusing on Beacon: Automations",
+          name: "Stop focusing on Beacon › Automations",
         }),
       ).toBeTruthy(),
     );
     expect(
       slot.queryByRole("button", {
-        name: "Focus on Beacon: Automations: CLI",
+        name: "Focus on Beacon › Automations › CLI",
       }),
     ).toBeNull();
     fireEvent.click(
       slot.getByRole("button", {
-        name: "Stop focusing on Beacon: Automations",
+        name: "Stop focusing on Beacon › Automations",
       }),
     );
     // Collapsing a subgroup leaves its parent's other threads showing.
@@ -151,7 +151,7 @@ describe("nested workstreams", () => {
       }),
     );
     await waitFor(() =>
-      expect(groupRows(slot, "Beacon: Automations")).toEqual([
+      expect(groupRows(slot, "Beacon › Automations")).toEqual([
         "Design CLI commands",
         "Write CLI docs",
         "Add CLI flags",
@@ -168,8 +168,8 @@ describe("nested workstreams", () => {
         : nestedThreads();
       const slot = await mount(threads, {
         ...options,
-        catalog: {
-          ...catalog,
+        tree: {
+          ...tree,
           colors: { alerts: { hue: 35, level: 1 } },
           categories: {
             alerts: {
@@ -187,10 +187,10 @@ describe("nested workstreams", () => {
         },
       });
       const heading = await slot.findByRole("heading", {
-        name: inline ? "Alert Investigations: Triage" : "Triage",
+        name: inline ? "Alert Investigations › Triage" : "Triage",
       });
       expect(heading.textContent).toBe(
-        inline ? "Alert Investigations: Triage" : "Triage",
+        inline ? "Alert Investigations › Triage" : "Triage",
       );
       expect(Number(heading.style.getPropertyValue("--ws-hue"))).toBe(35);
       expect(heading.style.getPropertyValue("--ws-color-light")).toContain(
@@ -203,14 +203,14 @@ describe("nested workstreams", () => {
         row.closest("li")!.parentElement!.closest("li")?.className,
       ).toContain("pl-3");
       if (!inline) {
-        const subgroup = slot.getByRole("region", {
-          name: "Beacon: Automations: Alert Investigations",
+        const workstream = slot.getByRole("region", {
+          name: "Beacon › Automations › Alert Investigations",
         });
-        expect(subgroup.querySelector(".ws-workstream-name")?.textContent).toBe(
+        expect(workstream.querySelector(".ws-workstream-name")?.textContent).toBe(
           "Alert Investigations",
         );
         expect(
-          (subgroup as HTMLElement).style.getPropertyValue("--ws-hue"),
+          (workstream as HTMLElement).style.getPropertyValue("--ws-hue"),
         ).toBe("35");
       }
       slot.lifecycle.unmount();
@@ -226,27 +226,27 @@ describe("nested workstreams", () => {
       {
         ...options,
         sections: [
-          section("sec_auto", "Beacon: Automations"),
+          section("sec_auto", "Beacon › Automations"),
           ...nestedSections,
         ],
-        catalog: {
-          ...catalog,
-          groups: { ...catalog.groups, sec_auto: "auto" },
-          layout: [{ ...catalog.layout[0]!, lists: true, total: 7 }],
+        tree: {
+          ...tree,
+          groups: { ...tree.groups, sec_auto: "auto" },
+          layout: [{ ...tree.layout[0]!, lists: true, total: 7 }],
         },
       },
     );
     await waitFor(() =>
-      expect(groupRows(slot, "Beacon: Automations")).toHaveLength(7),
+      expect(groupRows(slot, "Beacon › Automations")).toHaveLength(7),
     );
     expect(
       within(
-        slot.getByRole("region", { name: "Beacon: Automations" }),
+        slot.getByRole("region", { name: "Beacon › Automations" }),
       ).queryAllByRole("region"),
     ).toEqual([]);
     expect(
       within(
-        slot.getByRole("region", { name: "Beacon: Automations" }),
+        slot.getByRole("region", { name: "Beacon › Automations" }),
       ).getByRole("link", { name: "Design MVP" }),
     ).toBeTruthy();
     for (const name of [
@@ -255,7 +255,7 @@ describe("nested workstreams", () => {
       "Write CLI docs",
     ]) {
       const row = within(
-        slot.getByRole("region", { name: "Beacon: Automations" }),
+        slot.getByRole("region", { name: "Beacon › Automations" }),
       )
         .getByRole("link", { name })
         .closest("li")!;
@@ -264,16 +264,16 @@ describe("nested workstreams", () => {
       );
     }
     await waitFor(() =>
-      expect(groupRows(slot, "Beacon: Automations")).toHaveLength(4),
+      expect(groupRows(slot, "Beacon › Automations")).toHaveLength(4),
     );
-    const top = slot.getByRole("region", { name: "Beacon: Automations" });
+    const top = slot.getByRole("region", { name: "Beacon › Automations" });
     expect(within(top).queryAllByRole("region")).toEqual([]);
     expect(within(top).queryByText("CLI")).toBeNull();
     fireEvent.contextMenu(top.querySelector(".group\\/row")!);
     await screen.findByRole("menuitem", { name: "New work" });
     expect(
       screen.queryByRole("menuitem", {
-        name: "New work in Beacon: Automations: CLI",
+        name: "New work in Beacon › Automations › CLI",
       }),
     ).toBeNull();
     slot.lifecycle.unmount();
@@ -281,33 +281,33 @@ describe("nested workstreams", () => {
 
   it("snoozes a top-level group with its subgroups, and a subgroup alone", async () => {
     const slot = await mount(nestedThreads(), options);
-    const top = () => slot.getByRole("region", { name: "Beacon: Automations" });
+    const top = () => slot.getByRole("region", { name: "Beacon › Automations" });
     await waitFor(() =>
-      within(top()).getByRole("region", { name: "Beacon: Automations: CLI" }),
+      within(top()).getByRole("region", { name: "Beacon › Automations › CLI" }),
     );
     fireEvent.click(
       within(top()).getByRole("button", {
-        name: /^Snooze 3 threads in Beacon: Automations: CLI until/,
+        name: /^Snooze 3 threads in Beacon › Automations › CLI until/,
       }),
     );
     await waitFor(() =>
       expect(
-        slot.queryByRole("region", { name: "Beacon: Automations: CLI" }),
+        slot.queryByRole("region", { name: "Beacon › Automations › CLI" }),
       ).toBeNull(),
     );
     expect(
       within(top()).queryByRole("button", {
-        name: "New work in Beacon: Automations: CLI",
+        name: "New work in Beacon › Automations › CLI",
       }),
     ).toBeNull();
     fireEvent.click(
       within(top()).getByRole("button", {
-        name: /^Snooze 3 threads in Beacon: Automations until/,
+        name: /^Snooze 3 threads in Beacon › Automations until/,
       }),
     );
     await waitFor(() =>
       expect(
-        slot.queryByRole("region", { name: "Beacon: Automations" }),
+        slot.queryByRole("region", { name: "Beacon › Automations" }),
       ).toBeNull(),
     );
     expect(
@@ -324,15 +324,15 @@ describe("nested workstreams", () => {
 
 describe("small groups", () => {
   it("labels inline subgroup rows without introducing another region", async () => {
-    const topic = (id: string, name: string, parentId: string | null) => ({
+    const workstream = (id: string, name: string, parentId: string | null) => ({
       id,
       name,
       description: "",
       parentId,
       aliases: [],
     });
-    const node = (topicId: string, name: string, total: number) => ({
-      topicId,
+    const node = (workstreamId: string, name: string, total: number) => ({
+      workstreamId,
       name,
       prefix: [],
       lists: true,
@@ -348,14 +348,14 @@ describe("small groups", () => {
       ],
       {
         sections: [
-          section("sec_alerts", "Automations: Alert Investigations"),
-          section("sec_cli", "Automations: CLI"),
+          section("sec_alerts", "Automations › Alert Investigations"),
+          section("sec_cli", "Automations › CLI"),
         ],
-        catalog: {
-          entities: [
-            topic("auto", "Automations", null),
-            topic("alerts", "Alert Investigations", "auto"),
-            topic("cli", "CLI", "auto"),
+        tree: {
+          workstreams: [
+            workstream("auto", "Automations", null),
+            workstream("alerts", "Alert Investigations", "auto"),
+            workstream("cli", "CLI", "auto"),
           ],
           groups: {
             sec_alerts: "alerts",
@@ -403,7 +403,7 @@ describe("small groups", () => {
       sidebarThread(`t${i}`, { title: `Task ${i}`, sectionId: "sec_vertex" }),
     );
     threads.push(
-      sidebarThread("delegate", {
+      sidebarThread("child", {
         title: "Delegated task",
         parentThreadId: "t0",
         sectionId: "sec_vertex",
@@ -412,8 +412,8 @@ describe("small groups", () => {
     const slot = await mount(threads, {
       sections: [section("sec_vertex", "Vertex")],
       settings: { showRecent: false, showForYou: false },
-      catalog: {
-        entities: [
+      tree: {
+        workstreams: [
           {
             id: "vertex",
             name: "Vertex",
@@ -450,7 +450,7 @@ describe("small groups", () => {
     const root = within(group)
       .getByRole("link", { name: "Task 0" })
       .closest(".ws-row") as HTMLElement;
-    const delegate = within(group)
+    const child = within(group)
       .getByRole("link", { name: "Delegated task" })
       .closest(".ws-row") as HTMLElement;
     const arrival = within(group)
@@ -459,10 +459,10 @@ describe("small groups", () => {
     const tree = (row: HTMLElement) =>
       row.closest("li")!.parentElement!.closest("li")!;
     expect(tree(root).className).toContain("pl-3");
-    expect(tree(delegate)).toBe(tree(root));
+    expect(tree(child)).toBe(tree(root));
     expect(tree(arrival).className).not.toContain("pl-3");
     expect(
-      parseFloat(delegate.style.paddingLeft) -
+      parseFloat(child.style.paddingLeft) -
         parseFloat(root.style.paddingLeft),
     ).toBe(childIndent(8));
     slot.lifecycle.unmount();
@@ -473,10 +473,10 @@ describe("small groups", () => {
       sidebarThread(`t${i}`, { title: `Task ${i}`, sectionId: "sec_ws" }),
     );
     const slot = await mount(threads, {
-      sections: [section("sec_ws", "bb: Workstreams Plugin")],
+      sections: [section("sec_ws", "bb › Workstreams Plugin")],
       settings: { showRecent: false, showForYou: false },
-      catalog: {
-        entities: [
+      tree: {
+        workstreams: [
           {
             id: "ws",
             name: "bb",
@@ -502,9 +502,9 @@ describe("small groups", () => {
       },
     });
     await slot.findByRole("heading", { name: "Reply Block" });
-    const group = slot.getByRole("region", { name: "bb: Workstreams Plugin" });
+    const group = slot.getByRole("region", { name: "bb › Workstreams Plugin" });
     const header = within(group).getByRole("button", {
-      name: "Collapse bb: Workstreams Plugin",
+      name: "Collapse bb › Workstreams Plugin",
     });
     expect(group.querySelector(".ws-workstream-name")?.textContent).toBe(
       "Workstreams Plugin",
@@ -611,9 +611,9 @@ describe("small groups", () => {
       ],
       {
         sections: [
-          section("sec_studio_app", "Studio: App"),
-          section("sec_studio_ws", "Studio: Workstreams"),
-          section("sec_tools_cli", "Tools: CLI"),
+          section("sec_studio_app", "Studio › App"),
+          section("sec_studio_ws", "Studio › Workstreams"),
+          section("sec_tools_cli", "Tools › CLI"),
           section("sec_prompting", "Prompting"),
           section("sec_quality", "Quality"),
         ],
@@ -621,7 +621,7 @@ describe("small groups", () => {
       },
     );
     await waitFor(() =>
-      expect(groupRows(slot, "Studio: App")).toEqual([
+      expect(groupRows(slot, "Studio › App")).toEqual([
         "Studio App root",
         "Studio App child",
       ]),
@@ -635,9 +635,9 @@ describe("small groups", () => {
     expect(heading.parentElement?.style.paddingLeft).toBe("10px");
 
     // Workstream header: 22px tall, its chevron a 20px target after the name
-    const studioApp = slot.getByRole("region", { name: "Studio: App" });
+    const studioApp = slot.getByRole("region", { name: "Studio › App" });
     const studioAppHeader = within(studioApp).getByRole("button", {
-      name: "Collapse Studio: App",
+      name: "Collapse Studio › App",
     });
     const studioAppRow = studioAppHeader.closest(".group\\/row") as HTMLElement;
     expect(studioAppRow.style.height).toBe("22px");
@@ -664,8 +664,8 @@ describe("small groups", () => {
     // Workstream gaps (alphabetical order: Prompting, Quality, Studio: App, Studio: Workstreams, Tools: CLI):
     const prompting = slot.getByRole("region", { name: "Prompting" });
     const quality = slot.getByRole("region", { name: "Quality" });
-    const studioWs = slot.getByRole("region", { name: "Studio: Workstreams" });
-    const toolsCli = slot.getByRole("region", { name: "Tools: CLI" });
+    const studioWs = slot.getByRole("region", { name: "Studio › Workstreams" });
+    const toolsCli = slot.getByRole("region", { name: "Tools › CLI" });
 
     // Prompting is first (marginTop 0)
     expect(parseFloat((prompting as HTMLElement).style.marginTop || "0")).toBe(
@@ -678,7 +678,7 @@ describe("small groups", () => {
     // Studio: App follows Quality (diff owner -> inline boundary -> 22px gap)
     expect(parseFloat((studioApp as HTMLElement).style.marginTop)).toBe(22);
 
-    // Studio: Workstreams follows Studio: App (same parent "Studio" -> 9px gap)
+    // Studio › Workstreams follows Studio › App (same parent "Studio" -> 9px gap)
     expect(parseFloat((studioWs as HTMLElement).style.marginTop)).toBe(9);
 
     // Tools: CLI follows Studio: Workstreams (different parent -> inline boundary -> 22px gap)
@@ -686,7 +686,7 @@ describe("small groups", () => {
 
     // Collapse Studio: Workstreams and verify Tools: CLI gap drops to 4px (collapsed inline boundary)
     const studioWsHeader = within(studioWs).getByRole("button", {
-      name: "Collapse Studio: Workstreams",
+      name: "Collapse Studio › Workstreams",
     });
     fireEvent.click(studioWsHeader);
     await waitFor(() =>

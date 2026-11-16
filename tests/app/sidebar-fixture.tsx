@@ -76,7 +76,7 @@ export async function mount(
     order?: {
       workstreams: string[];
       threads: Record<string, string[]>;
-      prioritized?: string[];
+      focused?: string[];
     };
     snoozes?: Record<
       string,
@@ -87,8 +87,8 @@ export async function mount(
     /** Each root thread's topic id, in the catalog's assignments. */
     assignments?: Record<string, string>;
     /** The topic tree and section bindings that nest workstreams. */
-    catalog?: {
-      entities: {
+    tree?: {
+      workstreams: {
         id: string;
         name: string;
         description: string;
@@ -98,7 +98,7 @@ export async function mount(
       groups: Record<string, string>;
       colors?: Record<
         string,
-        import("../../src/domain/workstreamColor.ts").TopicColor
+        import("../../src/domain/workstreamColor.ts").WorkstreamColor
       >;
       layout?: LayoutNode[];
       categories?: Record<string, CategoryGeneration>;
@@ -115,7 +115,7 @@ export async function mount(
   // Stateful like the server, so a refetch after a change never undoes it.
   const snoozes = { ...options.snoozes };
   const order = {
-    prioritized: [] as string[],
+    focused: [] as string[],
     ...(options.order ?? { workstreams: [], threads: {} }),
   };
   const list = { component: WorkstreamsThreadList };
@@ -202,21 +202,21 @@ export async function mount(
         order: {
           workstreams: [...order.workstreams],
           threads: { ...order.threads },
-          prioritized: [...order.prioritized],
+          focused: [...order.focused],
         },
         snoozes: { ...snoozes },
         snoozePrefs: options.snoozePrefs ?? {},
-        ...(options.catalog
+        ...(options.tree
           ? {
-              catalog: {
-                ...options.catalog,
+              tree: {
+                ...options.tree,
                 // Like the server, one for each thread the snapshot covers.
                 assignments: Object.fromEntries(
                   threads.map((thread) => [
                     thread.id,
                     {
                       threadId: thread.id,
-                      entityId: options.assignments?.[thread.id] ?? null,
+                      workstreamId: options.assignments?.[thread.id] ?? null,
                       status: options.assignments?.[thread.id]
                         ? "assigned"
                         : "unresolved",
@@ -234,18 +234,18 @@ export async function mount(
           : {}),
       }),
       moveThread: () => ({ entry: null }),
-      taskMove: async (raw: unknown) => {
+      threadMoveToGroup: async (raw: unknown) => {
         await options.moveWait;
         if (options.assignmentError) throw new Error(options.assignmentError);
-        const { threadId, entityId } = raw as {
+        const { threadId, workstreamId } = raw as {
           threadId: string;
-          entityId: string;
+          workstreamId: string;
         };
-        const sectionId = Object.entries(options.catalog?.groups ?? {}).find(
-          ([, topic]) => topic === entityId,
+        const sectionId = Object.entries(options.tree?.groups ?? {}).find(
+          ([, workstream]) => workstream === workstreamId,
         )?.[0];
-        const leaf = options.catalog?.entities.find(
-          (e) => e.parentId === entityId,
+        const leaf = options.tree?.workstreams.find(
+          (e) => e.parentId === workstreamId,
         );
         if (!sectionId || !leaf) throw new Error("No destination topic");
         const index = threads.findIndex((t) => t.id === threadId);
@@ -253,27 +253,27 @@ export async function mount(
         return {
           assignment: {
             threadId,
-            entityId: leaf.id,
+            workstreamId: leaf.id,
             status: "assigned",
             provenance: "manual",
             label: leaf.name,
-            ancestorIds: [leaf.id, entityId],
+            ancestorIds: [leaf.id, workstreamId],
             evidence: null,
             inheritedFrom: null,
           },
         };
       },
-      taskAssign: (raw: unknown) => {
+      threadMove: (raw: unknown) => {
         if (options.assignmentError) throw new Error(options.assignmentError);
-        const { threadId, entityId } = raw as {
+        const { threadId, workstreamId } = raw as {
           threadId: string;
-          entityId: string | null;
+          workstreamId: string | null;
         };
         const sectionId =
-          entityId === null
+          workstreamId === null
             ? null
-            : Object.entries(options.catalog?.groups ?? {}).find(
-                ([, topic]) => topic === entityId,
+            : Object.entries(options.tree?.groups ?? {}).find(
+                ([, workstream]) => workstream === workstreamId,
               )?.[0];
         if (sectionId === undefined)
           throw new Error("Unknown destination topic");
@@ -282,10 +282,10 @@ export async function mount(
         return {
           assignment: {
             threadId,
-            entityId,
-            status: entityId ? "assigned" : "unresolved",
+            workstreamId,
+            status: workstreamId ? "assigned" : "unresolved",
             provenance: "manual",
-            label: entityId,
+            label: workstreamId,
             ancestorIds: [],
             evidence: null,
             inheritedFrom: null,
@@ -362,13 +362,13 @@ export async function mount(
           ids: string[];
         };
         if (input.kind === "workstreams") order.workstreams = input.ids;
-        else if (input.kind === "prioritized") order.prioritized = input.ids;
+        else if (input.kind === "focused") order.focused = input.ids;
         else order.threads[input.groupId!] = input.ids;
         return {
           order: {
             workstreams: [...order.workstreams],
             threads: { ...order.threads },
-            prioritized: [...order.prioritized],
+            focused: [...order.focused],
           },
         };
       },

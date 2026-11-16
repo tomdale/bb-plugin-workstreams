@@ -97,7 +97,7 @@ const ActivityEntryRow = memo(function ActivityEntryRow({
     <li
       className={cn(
         "group/entry grid grid-cols-[3.5rem_minmax(0,1fr)_auto] items-baseline gap-x-3 rounded-md px-2 py-2 text-[13px] hover:bg-state-hover/50",
-        (entry.status === "undone" || entry.status === "dismissed") &&
+        (entry.status === "undone" || entry.status === "declined") &&
           "opacity-60",
         focused && "rounded-md bg-state-hover",
       )}
@@ -206,8 +206,8 @@ const ActivityEntryRow = memo(function ActivityEntryRow({
 });
 
 /**
- * The Activity log: every change Workstreams made or observed, and every
- * proposal, with filters by workstream, action, and needs-review.
+ * The Activity log: every change Workstreams made or observed, with filters
+ * by workstream and action.
  * With the debug UI on it also lists each model call in place, with what the
  * decided.
  */

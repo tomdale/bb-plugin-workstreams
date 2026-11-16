@@ -4,12 +4,12 @@ import {
   changeDelta,
   changeHeadline,
   changeLines,
-  newTopicId,
+  newWorkstreamId,
   suggestionChange,
   type ChangeContext,
 } from "../../src/domain/suggestion-change.ts";
 
-const topic = (
+const workstream = (
   id: string,
   name: string,
   parentId: string | null = null,
@@ -21,15 +21,15 @@ const topic = (
  * thread beside its Alerts subtopic.
  */
 const context = (extra: Partial<ChangeContext> = {}): ChangeContext => ({
-  topics: [
-    topic("bb", "bb"),
-    topic("todo", "Todo Plugin", "bb"),
-    topic("toolbelt", "Toolbelt"),
-    topic("agent", "Agent"),
-    topic("auto", "Automations", "agent"),
-    topic("alerts", "Alert Investigations", "auto", ["Alerts"]),
+  workstreams: [
+    workstream("bb", "bb"),
+    workstream("todo", "Todo Plugin", "bb"),
+    workstream("toolbelt", "Toolbelt"),
+    workstream("agent", "Agent"),
+    workstream("auto", "Automations", "agent"),
+    workstream("alerts", "Alert Investigations", "auto", ["Alerts"]),
   ],
-  threadTopic: {
+  threadWorkstream: {
     t1: "toolbelt",
     t2: "toolbelt",
     t3: "auto",
@@ -49,9 +49,9 @@ const listed = (...ids: string[]) =>
 describe("suggestionChange", () => {
   it("refiles a thread from where it is, or from Unfiled", () => {
     expect(
-      suggestionChange({ op: "move", thread: "t1", topic: "todo" }, context()),
+      suggestionChange({ op: "move-thread", thread: "t1", workstream: "todo" }, context()),
     ).toEqual({
-      op: "refile",
+      op: "move-thread",
       moves: [
         {
           from: at("Toolbelt"),
@@ -62,7 +62,7 @@ describe("suggestionChange", () => {
       ],
     });
     expect(
-      suggestionChange({ op: "move", thread: "t5", topic: "todo" }, context())
+      suggestionChange({ op: "move-thread", thread: "t5", workstream: "todo" }, context())
         ?.moves[0],
     ).toMatchObject({ from: null, threads: listed("t5") });
   });
@@ -71,8 +71,8 @@ describe("suggestionChange", () => {
     expect(
       suggestionChange(
         {
-          topicId: "toolbelt",
-          subgroups: [
+          workstreamId: "toolbelt",
+          workstreams: [
             { name: "Shell", description: "", threadIds: ["t2"] },
             { name: "Sidebar", description: "", threadIds: ["t1"] },
           ],
@@ -101,8 +101,8 @@ describe("suggestionChange", () => {
   it("shows a split's threads from where they are now, and drops gone ones", () => {
     const change = suggestionChange(
       {
-        topicId: "toolbelt",
-        subgroups: [
+        workstreamId: "toolbelt",
+        workstreams: [
           { name: "Shell", description: "", threadIds: ["t1", "t3"] },
           { name: "Sidebar", description: "", threadIds: ["gone"] },
         ],
@@ -134,13 +134,13 @@ describe("suggestionChange", () => {
   it("files threads beside subtopics in existing subtopics by name or alias", () => {
     const change = suggestionChange(
       {
-        topicId: "auto",
+        workstreamId: "auto",
         repair: true,
-        subgroups: [{ name: "alerts", description: "", threadIds: ["t3"] }],
+        workstreams: [{ name: "alerts", description: "", threadIds: ["t3"] }],
       },
       context(),
     );
-    expect(change?.op).toBe("file");
+    expect(change?.op).toBe("repair");
     expect(change?.moves[0]?.to).toEqual([
       ...at("Agent", "Automations"),
       { name: "alerts", created: false },
@@ -172,7 +172,7 @@ describe("suggestionChange", () => {
   it("moves a topic with every thread below it", () => {
     expect(
       suggestionChange(
-        { op: "reparent", topic: "agent", parent: "bb" },
+        { op: "move-workstream", workstream: "agent", parent: "bb" },
         context(),
       )?.moves,
     ).toEqual([
@@ -185,7 +185,7 @@ describe("suggestionChange", () => {
     ]);
     expect(
       suggestionChange(
-        { op: "reparent", topic: "todo", parent: null },
+        { op: "move-workstream", workstream: "todo", parent: null },
         context(),
       )?.moves[0],
     ).toMatchObject({ from: at("bb", "Todo Plugin"), to: at("Todo Plugin") });
@@ -194,7 +194,7 @@ describe("suggestionChange", () => {
   it("counts only visible threads moving with a topic", () => {
     const hidden = context({ visible: (id) => id !== "t4" && id !== "t1" });
     expect(
-      suggestionChange({ op: "reparent", topic: "agent", parent: "bb" }, hidden)
+      suggestionChange({ op: "move-workstream", workstream: "agent", parent: "bb" }, hidden)
         ?.moves[0],
     ).toMatchObject({ carried: 1 });
     expect(
@@ -206,7 +206,7 @@ describe("suggestionChange", () => {
   it("renames a topic in place", () => {
     expect(
       suggestionChange(
-        { op: "rename", topic: "todo", name: "Todos" },
+        { op: "rename", workstream: "todo", name: "Todos" },
         context(),
       )?.moves[0],
     ).toMatchObject({ from: at("bb", "Todo Plugin"), to: at("bb", "Todos") });
@@ -216,7 +216,7 @@ describe("suggestionChange", () => {
     expect(
       suggestionChange(
         {
-          op: "create",
+          op: "group",
           name: "Plugins",
           description: "",
           parent: "bb",
@@ -235,7 +235,7 @@ describe("suggestionChange", () => {
     expect(
       suggestionChange(
         {
-          op: "create",
+          op: "group",
           name: "Plugins",
           description: "",
           parent: null,
@@ -248,7 +248,7 @@ describe("suggestionChange", () => {
 
   it("places a topic another suggestion of the pass creates", () => {
     const change = suggestionChange(
-      { op: "move", thread: "t1", topic: "new:plugins" },
+      { op: "move-thread", thread: "t1", workstream: "new:plugins" },
       context({
         creates: new Map([["plugins", { name: "Plugins", parent: "bb" }]]),
       }),
@@ -259,7 +259,7 @@ describe("suggestionChange", () => {
   it("is null when a thread or topic it names is gone", () => {
     expect(
       suggestionChange(
-        { op: "move", thread: "gone", topic: "todo" },
+        { op: "move-thread", thread: "gone", workstream: "todo" },
         context(),
       ),
     ).toBeNull();
@@ -273,7 +273,7 @@ describe("changeLines", () => {
   it("writes each move as from → to, with its threads below", () => {
     expect(
       changeLines({
-        op: "file",
+        op: "repair",
         moves: [
           {
             from: null,
@@ -286,7 +286,7 @@ describe("changeLines", () => {
         ],
       }),
     ).toEqual([
-      "Unfiled → Agent › Evals (new)",
+      "No workstream → Agent › Evals (new)",
       "  “Fix CI”",
       "Agent → bb › Agent (with 2 threads)",
       "Plugins (new)",
@@ -299,13 +299,13 @@ describe("changeHeadline", () => {
     changeHeadline(suggestionChange(body, context())!);
 
   it("names what moves and where", () => {
-    expect(headline({ op: "move", thread: "t1", topic: "todo" })).toBe(
+    expect(headline({ op: "move-thread", thread: "t1", workstream: "todo" })).toBe(
       "Move “Thread t1” to Todo Plugin",
     );
     expect(
       headline({
-        topicId: "toolbelt",
-        subgroups: [
+        workstreamId: "toolbelt",
+        workstreams: [
           { name: "Shell", description: "", threadIds: ["t1"] },
           { name: "Sidebar", description: "", threadIds: ["t2"] },
         ],
@@ -314,8 +314,8 @@ describe("changeHeadline", () => {
     // Three or more destinations read as their count: the preview names each.
     expect(
       headline({
-        topicId: "toolbelt",
-        subgroups: [
+        workstreamId: "toolbelt",
+        workstreams: [
           { name: "Shell", description: "", threadIds: ["t1"] },
           { name: "Sidebar", description: "", threadIds: ["t2"] },
           { name: "Docs", description: "", threadIds: ["t3"] },
@@ -326,16 +326,16 @@ describe("changeHeadline", () => {
     ).toBe("Split Toolbelt into 5 workstreams");
     expect(
       headline({
-        topicId: "auto",
+        workstreamId: "auto",
         repair: true,
-        subgroups: [{ name: "Alerts", description: "", threadIds: ["t3"] }],
+        workstreams: [{ name: "Alerts", description: "", threadIds: ["t3"] }],
       }),
     ).toBe("Move “Thread t3” to Alerts");
     expect(
       headline({
-        topicId: "toolbelt",
+        workstreamId: "toolbelt",
         repair: true,
-        subgroups: [
+        workstreams: [
           { name: "Shell", description: "", threadIds: ["t1"] },
           { name: "Sidebar", description: "", threadIds: ["t2"] },
         ],
@@ -343,9 +343,9 @@ describe("changeHeadline", () => {
     ).toBe("Move 2 Toolbelt threads into Shell and Sidebar");
     expect(
       headline({
-        topicId: "toolbelt",
+        workstreamId: "toolbelt",
         repair: true,
-        subgroups: [
+        workstreams: [
           { name: "Shell", description: "", threadIds: ["t1"] },
           { name: "Sidebar", description: "", threadIds: ["gone"] },
         ],
@@ -353,9 +353,9 @@ describe("changeHeadline", () => {
     ).toBe("Move 1 Toolbelt thread into Shell and Sidebar");
     expect(
       headline({
-        topicId: "toolbelt",
+        workstreamId: "toolbelt",
         repair: true,
-        subgroups: [
+        workstreams: [
           { name: "Shell", description: "", threadIds: ["t1"] },
           { name: "Sidebar", description: "", threadIds: ["t2"] },
           { name: "Docs", description: "", threadIds: ["t3"] },
@@ -365,48 +365,48 @@ describe("changeHeadline", () => {
     // Threads gone since leave no count.
     expect(
       headline({
-        topicId: "toolbelt",
-        subgroups: [{ name: "Shell", description: "", threadIds: ["gone"] }],
+        workstreamId: "toolbelt",
+        workstreams: [{ name: "Shell", description: "", threadIds: ["gone"] }],
       }),
     ).toBe("Move threads to Shell");
     expect(headline({ op: "merge", from: "auto", into: "todo" })).toBe(
       "Merge Automations into Todo Plugin",
     );
-    expect(headline({ op: "reparent", topic: "agent", parent: "bb" })).toBe(
-      "Move Agent under bb",
+    expect(headline({ op: "move-workstream", workstream: "agent", parent: "bb" })).toBe(
+      "Move Agent into bb",
     );
-    expect(headline({ op: "reparent", topic: "todo", parent: null })).toBe(
-      "Move Todo Plugin to the top level",
+    expect(headline({ op: "move-workstream", workstream: "todo", parent: null })).toBe(
+      "Move Todo Plugin out of its group",
     );
     expect(
       headline({
-        op: "reparent",
-        topic: "agent",
+        op: "move-workstream",
+        workstream: "agent",
         parent: "bb",
         name: "Agents",
       }),
-    ).toBe("Move Agent under bb as Agents");
-    expect(headline({ op: "rename", topic: "todo", name: "Todos" })).toBe(
+    ).toBe("Move Agent into bb as Agents");
+    expect(headline({ op: "rename", workstream: "todo", name: "Todos" })).toBe(
       "Rename Todo Plugin to Todos",
     );
     expect(
       headline({
-        op: "create",
+        op: "group",
         name: "Work",
         description: "",
         parent: null,
         children: ["agent", "toolbelt", "bb"],
       }),
-    ).toBe("Group 3 topics under a new Work");
+    ).toBe("Group 3 workstreams under a new Work");
     expect(
       headline({
-        op: "create",
+        op: "group",
         name: "Plugins",
         description: "",
         parent: "bb",
         children: [],
       }),
-    ).toBe("Create Plugins under bb");
+    ).toBe("Create Plugins in bb");
   });
 });
 
@@ -417,17 +417,17 @@ describe("changeDelta", () => {
    * filed under Payments.
    */
   const world = (extra: Partial<ChangeContext> = {}): ChangeContext => ({
-    topics: [
-      topic("billing", "Billing"),
-      topic("invoices", "Invoices", "billing"),
-      topic("payments", "Payments", "billing", ["Pay"]),
-      topic("docs", "Docs"),
-      topic("infra", "Infra"),
-      topic("auto", "Automations"),
-      topic("web", "Web"),
-      topic("invoices-web", "Invoices", "web"),
+    workstreams: [
+      workstream("billing", "Billing"),
+      workstream("invoices", "Invoices", "billing"),
+      workstream("payments", "Payments", "billing", ["Pay"]),
+      workstream("docs", "Docs"),
+      workstream("infra", "Infra"),
+      workstream("auto", "Automations"),
+      workstream("web", "Web"),
+      workstream("invoices-web", "Invoices", "web"),
     ],
-    threadTopic: {
+    threadWorkstream: {
       i1: "invoices",
       p1: "payments",
       p2: "payments",
@@ -444,56 +444,56 @@ describe("changeDelta", () => {
 
   it("refiles a thread, and files an unfiled one", () => {
     expect(
-      changeDelta({ op: "move", thread: "d1", topic: "infra" }, world()),
+      changeDelta({ op: "move-thread", thread: "d1", workstream: "infra" }, world()),
     ).toMatchObject({
-      topics: [],
+      workstreams: [],
       removed: [],
-      assignments: [{ threadId: "d1", topicId: "infra" }],
+      assignments: [{ threadId: "d1", workstreamId: "infra" }],
       // Where it leaves and where it lands.
       held: [
-        { threadId: "d1", topicId: "docs" },
-        { threadId: "d2", topicId: "docs" },
-        { threadId: "f1", topicId: "infra" },
+        { threadId: "d1", workstreamId: "docs" },
+        { threadId: "d2", workstreamId: "docs" },
+        { threadId: "f1", workstreamId: "infra" },
       ],
     });
     expect(
-      changeDelta({ op: "move", thread: "u1", topic: "docs" }, world())
+      changeDelta({ op: "move-thread", thread: "u1", workstream: "docs" }, world())
         ?.assignments,
-    ).toEqual([{ threadId: "u1", topicId: "docs" }]);
+    ).toEqual([{ threadId: "u1", workstreamId: "docs" }]);
   });
 
   it("moves nothing for a rename, and names the topic as it will be", () => {
     expect(
       changeDelta(
-        { op: "rename", topic: "docs", name: " Documentation " },
+        { op: "rename", workstream: "docs", name: " Documentation " },
         world(),
       ),
     ).toMatchObject({
-      topics: [{ id: "docs", name: "Documentation", parentId: null }],
+      workstreams: [{ id: "docs", name: "Documentation", parentId: null }],
       removed: [],
       assignments: [],
       held: [
-        { threadId: "d1", topicId: "docs" },
-        { threadId: "d2", topicId: "docs" },
+        { threadId: "d1", workstreamId: "docs" },
+        { threadId: "d2", workstreamId: "docs" },
       ],
     });
   });
 
   it("reparents a topic, with or without a new name", () => {
     expect(
-      changeDelta({ op: "reparent", topic: "docs", parent: "billing" }, world())
-        ?.topics,
+      changeDelta({ op: "move-workstream", workstream: "docs", parent: "billing" }, world())
+        ?.workstreams,
     ).toEqual([{ id: "docs", name: "Docs", parentId: "billing" }]);
     expect(
       changeDelta(
         {
-          op: "reparent",
-          topic: "invoices",
+          op: "move-workstream",
+          workstream: "invoices",
           parent: null,
           name: "Billing Docs",
         },
         world(),
-      )?.topics,
+      )?.workstreams,
     ).toEqual([{ id: "invoices", name: "Billing Docs", parentId: null }]);
   });
 
@@ -501,16 +501,16 @@ describe("changeDelta", () => {
     expect(
       changeDelta({ op: "merge", from: "docs", into: "infra" }, world()),
     ).toMatchObject({
-      topics: [],
+      workstreams: [],
       removed: ["docs"],
       assignments: [
-        { threadId: "d1", topicId: "infra" },
-        { threadId: "d2", topicId: "infra" },
+        { threadId: "d1", workstreamId: "infra" },
+        { threadId: "d2", workstreamId: "infra" },
       ],
       held: [
-        { threadId: "d1", topicId: "docs" },
-        { threadId: "d2", topicId: "docs" },
-        { threadId: "f1", topicId: "infra" },
+        { threadId: "d1", workstreamId: "docs" },
+        { threadId: "d2", workstreamId: "docs" },
+        { threadId: "f1", workstreamId: "infra" },
       ],
     });
   });
@@ -531,12 +531,12 @@ describe("changeDelta", () => {
     expect(
       changeDelta({ op: "merge", from: "web", into: "billing" }, world()),
     ).toMatchObject({
-      topics: [],
+      workstreams: [],
       removed: ["web", "invoices-web"],
-      assignments: [{ threadId: "w1", topicId: "invoices" }],
+      assignments: [{ threadId: "w1", workstreamId: "invoices" }],
       held: [
-        { threadId: "i1", topicId: "invoices" },
-        { threadId: "w1", topicId: "invoices-web" },
+        { threadId: "i1", workstreamId: "invoices" },
+        { threadId: "w1", workstreamId: "invoices-web" },
       ],
     });
   });
@@ -547,7 +547,7 @@ describe("changeDelta", () => {
       world(),
     )!;
     expect(merged.removed).toEqual(["billing"]);
-    expect(merged.topics).toEqual(
+    expect(merged.workstreams).toEqual(
       expect.arrayContaining([
         { id: "payments", name: "Payments", parentId: null },
         { id: "invoices", name: "Invoices", parentId: "payments" },
@@ -558,7 +558,7 @@ describe("changeDelta", () => {
   it("creates a topic, adopting the topics it names", () => {
     const created = changeDelta(
       {
-        op: "create",
+        op: "group",
         name: "Money",
         description: "",
         parent: null,
@@ -566,17 +566,17 @@ describe("changeDelta", () => {
       },
       world(),
     )!;
-    expect(created.topics).toEqual(
+    expect(created.workstreams).toEqual(
       expect.arrayContaining([
-        { id: newTopicId(null, "Money"), name: "Money", parentId: null },
-        { id: "docs", name: "Docs", parentId: newTopicId(null, "Money") },
-        { id: "infra", name: "Infra", parentId: newTopicId(null, "Money") },
+        { id: newWorkstreamId(null, "Money"), name: "Money", parentId: null },
+        { id: "docs", name: "Docs", parentId: newWorkstreamId(null, "Money") },
+        { id: "infra", name: "Infra", parentId: newWorkstreamId(null, "Money") },
       ]),
     );
     expect(
       changeDelta(
         {
-          op: "create",
+          op: "group",
           name: "Ops",
           description: "",
           parent: null,
@@ -585,7 +585,7 @@ describe("changeDelta", () => {
         world(),
       ),
     ).toMatchObject({
-      topics: [{ id: newTopicId(null, "Ops"), name: "Ops", parentId: null }],
+      workstreams: [{ id: newWorkstreamId(null, "Ops"), name: "Ops", parentId: null }],
       removed: [],
       assignments: [],
       held: [],
@@ -595,8 +595,8 @@ describe("changeDelta", () => {
   it("splits a topic into new subtopics and reuses a matching one", () => {
     const split = changeDelta(
       {
-        topicId: "docs",
-        subgroups: [
+        workstreamId: "docs",
+        workstreams: [
           { name: "Guides", description: "", threadIds: ["d1"] },
           { name: "Reference", description: "", threadIds: ["d2"] },
           { name: "Unused", description: "", threadIds: [] },
@@ -604,31 +604,31 @@ describe("changeDelta", () => {
       },
       world(),
     )!;
-    expect(split.topics).toEqual([
-      { id: newTopicId("docs", "Guides"), name: "Guides", parentId: "docs" },
+    expect(split.workstreams).toEqual([
+      { id: newWorkstreamId("docs", "Guides"), name: "Guides", parentId: "docs" },
       {
-        id: newTopicId("docs", "Reference"),
+        id: newWorkstreamId("docs", "Reference"),
         name: "Reference",
         parentId: "docs",
       },
     ]);
     expect(split.assignments).toEqual([
-      { threadId: "d1", topicId: newTopicId("docs", "Guides") },
-      { threadId: "d2", topicId: newTopicId("docs", "Reference") },
+      { threadId: "d1", workstreamId: newWorkstreamId("docs", "Guides") },
+      { threadId: "d2", workstreamId: newWorkstreamId("docs", "Reference") },
     ]);
     // A subgroup named like an existing subtopic, or its alias, files into it.
     expect(
       changeDelta(
         {
-          topicId: "billing",
-          subgroups: [
+          workstreamId: "billing",
+          workstreams: [
             { name: "pay", description: "", threadIds: ["p1", "t9"] },
           ],
         },
         world(),
       ),
     ).toMatchObject({
-      topics: [],
+      workstreams: [],
       removed: [],
       assignments: [],
       held: [],
@@ -637,12 +637,12 @@ describe("changeDelta", () => {
 
   it("names the threads filed in a topic it touches, with titles, and leaves archived ones out", () => {
     const delta = changeDelta(
-      { op: "rename", topic: "payments", name: "Billing Payments" },
+      { op: "rename", workstream: "payments", name: "Billing Payments" },
       world({ visible: (id) => id !== "t9" }),
     )!;
     expect(delta.held).toEqual([
-      { threadId: "p1", topicId: "payments", title: "Thread p1" },
-      { threadId: "p2", topicId: "payments", title: "Thread p2" },
+      { threadId: "p1", workstreamId: "payments", title: "Thread p1" },
+      { threadId: "p2", workstreamId: "payments", title: "Thread p2" },
     ]);
   });
 
@@ -655,26 +655,26 @@ describe("changeDelta", () => {
     expect(delta.assignments).toHaveLength(3);
     expect(delta.held.some((h) => h.threadId === "t9")).toBe(false);
     expect(
-      changeDelta({ op: "move", thread: "d1", topic: "infra" }, world())!
+      changeDelta({ op: "move-thread", thread: "d1", workstream: "infra" }, world())!
         .archived,
     ).toBe(0);
   });
 
   it("is null when a topic or thread it names is gone", () => {
     expect(
-      changeDelta({ op: "move", thread: "gone", topic: "docs" }, world()),
+      changeDelta({ op: "move-thread", thread: "gone", workstream: "docs" }, world()),
     ).toBeNull();
     expect(
-      changeDelta({ op: "move", thread: "d1", topic: "gone" }, world()),
+      changeDelta({ op: "move-thread", thread: "d1", workstream: "gone" }, world()),
     ).toBeNull();
     expect(
-      changeDelta({ op: "rename", topic: "gone", name: "X" }, world()),
+      changeDelta({ op: "rename", workstream: "gone", name: "X" }, world()),
     ).toBeNull();
     expect(
       changeDelta(
         {
-          topicId: "docs",
-          subgroups: [{ name: "A", description: "", threadIds: ["gone"] }],
+          workstreamId: "docs",
+          workstreams: [{ name: "A", description: "", threadIds: ["gone"] }],
         },
         world(),
       ),
@@ -683,20 +683,20 @@ describe("changeDelta", () => {
 
   it("is null while it needs a topic another suggestion creates", () => {
     expect(
-      changeDelta({ op: "move", thread: "d1", topic: "new:Money" }, world()),
+      changeDelta({ op: "move-thread", thread: "d1", workstream: "new:Money" }, world()),
     ).toBeNull();
   });
 
   it("is null when the result would pass two levels", () => {
     expect(
       changeDelta(
-        { op: "reparent", topic: "docs", parent: "invoices" },
+        { op: "move-workstream", workstream: "docs", parent: "invoices" },
         world(),
       ),
     ).toBeNull();
     expect(
       changeDelta(
-        { op: "reparent", topic: "billing", parent: "docs" },
+        { op: "move-workstream", workstream: "billing", parent: "docs" },
         world(),
       ),
     ).toBeNull();
@@ -708,11 +708,11 @@ describe("changeDelta", () => {
       { op: "merge", from: "docs", into: "infra" },
       context,
     )!;
-    const filing = { ...context.threadTopic };
-    const after = applyDelta(context.topics, filing, change);
-    expect(after.topics.map((t) => t.id)).not.toContain("docs");
+    const filing = { ...context.threadWorkstream };
+    const after = applyDelta(context.workstreams, filing, change);
+    expect(after.workstreams.map((t) => t.id)).not.toContain("docs");
     expect(after.filing.d1).toBe("infra");
     expect(filing.d1).toBe("docs");
-    expect(context.topics.map((t) => t.id)).toContain("docs");
+    expect(context.workstreams.map((t) => t.id)).toContain("docs");
   });
 });

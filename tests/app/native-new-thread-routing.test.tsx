@@ -61,7 +61,7 @@ const identityDecision: Preview = {
   confidence: "high",
   reason: "Belongs in Alpha",
   subject: "Alpha",
-  subjectId: "ent_alpha",
+  workstreamId: "ent_alpha",
   title: "Alpha parser",
 };
 
@@ -190,7 +190,7 @@ function mount(
   decision: Preview,
   options: {
     component?: typeof RootComposer;
-    entities?: {
+    workstreams?: {
       id: string;
       name: string;
       description: string;
@@ -209,8 +209,8 @@ function mount(
   const routeCancel = vi.fn(async () => ({ canceled: true }));
   const draftIdentity = vi.fn(async () => ({ filed: false }));
   const metadataUpdates = vi.fn(async (input: unknown) => ({
-    entity: {
-      id: (input as { entityId: string }).entityId,
+    workstream: {
+      id: (input as { workstreamId: string }).workstreamId,
       name: "Alpha",
       description: "",
       parentId: null,
@@ -257,8 +257,8 @@ function mount(
         }),
         state: () => ({
           ...emptyState(),
-          catalog: {
-            entities: options.entities ?? [
+          tree: {
+            workstreams: options.workstreams ?? [
               {
                 id: "ent_alpha",
                 name: "Alpha",
@@ -273,8 +273,8 @@ function mount(
             revision: 1,
           },
         }),
-        catalog: () => ({
-          entities: options.entities ?? [
+        tree: () => ({
+          workstreams: options.workstreams ?? [
             {
               id: "ent_alpha",
               name: "Alpha",
@@ -291,7 +291,7 @@ function mount(
         preview: route,
         previewCancel: routeCancel,
         draftIdentity,
-        catalogUpdateMetadata: metadataUpdates,
+        workstreamUpdate: metadataUpdates,
       },
     },
   );
@@ -316,7 +316,7 @@ it("fills the field with the classified identity and submits it through host sub
   const { slot, route } = mount(identityDecision);
   await typePrompt(slot, "Fix the parser in Alpha");
   const field = await screen.findByRole("button", {
-    name: "Topic: Alpha",
+    name: "Workstream: Alpha",
   });
   expect(field.dataset.wsAuto).toBe("true");
   expect(route).toHaveBeenCalledTimes(1);
@@ -327,7 +327,7 @@ it("fills the field with the classified identity and submits it through host sub
       draftKey: expect.any(String),
       projectChoice: { projectId: "project-alpha", source: "independent" },
       identity: {
-        entityId: "ent_alpha",
+        workstreamId: "ent_alpha",
         proposal: null,
         provenance: "automatic",
         title: "Alpha parser",
@@ -337,14 +337,14 @@ it("fills the field with the classified identity and submits it through host sub
   });
 });
 
-it("places the Topic picker in the host picker row", async () => {
+it("places the workstream picker in the host picker row", async () => {
   mount(identityDecision, { component: RootComposerWithPickerRow });
   const picker = await screen.findByRole("button", {
-    name: "Topic: Automatic",
+    name: "Workstream: Automatic",
   });
   expect(picker).toBeTruthy();
   expect(picker.getAttribute("data-ws-identity-control")).toBe("");
-  expect(screen.queryByRole("button", { name: /Workstream:/ })).toBeNull();
+  expect(screen.getAllByRole("button", { name: /Workstream:/ })).toHaveLength(1);
 });
 
 it("leaves a preview with no topic out of the host submit metadata", async () => {
@@ -353,13 +353,13 @@ it("leaves a preview with no topic out of the host submit metadata", async () =>
     id: "route-unsure",
     confidence: "low",
     subject: null,
-    subjectId: null,
+    workstreamId: null,
     title: null,
   };
   const { slot, route } = mount(unsure);
   await typePrompt(slot, "Something vague");
   await waitFor(() => expect(route).toHaveBeenCalledTimes(1));
-  expect(screen.getByRole("button", { name: "Topic: Automatic" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Workstream: Automatic" })).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Host submit" }));
   await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
   expect(slot.inspection.composer.submits[0]).toEqual({
@@ -373,9 +373,9 @@ it("leaves a preview with no topic out of the host submit metadata", async () =>
 it("submits a picked No topic when selecting it", async () => {
   const { slot } = mount(identityDecision);
   await typePrompt(slot, "Some unresolvable request");
-  fireEvent.click(await screen.findByRole("button", { name: "Topic: Alpha" }));
-  fireEvent.click(await screen.findByRole("option", { name: "No topic" }));
-  await screen.findByRole("button", { name: "Topic: No topic" });
+  fireEvent.click(await screen.findByRole("button", { name: "Workstream: Alpha" }));
+  fireEvent.click(await screen.findByRole("option", { name: "No workstream" }));
+  await screen.findByRole("button", { name: "Workstream: No workstream" });
   fireEvent.click(screen.getByRole("button", { name: "Host submit" }));
   await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
   expect(slot.inspection.composer.submits[0]).toEqual({
@@ -383,7 +383,7 @@ it("submits a picked No topic when selecting it", async () => {
       draftKey: expect.any(String),
       projectChoice: { projectId: "project-alpha", source: "independent" },
       identity: {
-        entityId: null,
+        workstreamId: null,
         proposal: null,
         provenance: "manual",
       },
@@ -402,7 +402,7 @@ it("submits proposal identity when proposing a new feature", async () => {
   };
   const { slot } = mount(proposalDecision);
   await typePrompt(slot, "Add invoice billing");
-  await screen.findByRole("button", { name: "Topic: Billing" });
+  await screen.findByRole("button", { name: "Workstream: Billing" });
   fireEvent.click(screen.getByRole("button", { name: "Host submit" }));
   await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
   expect(slot.inspection.composer.submits[0]).toEqual({
@@ -410,7 +410,7 @@ it("submits proposal identity when proposing a new feature", async () => {
       draftKey: expect.any(String),
       projectChoice: { projectId: "project-alpha", source: "independent" },
       identity: {
-        entityId: null,
+        workstreamId: null,
         proposal: { name: "Billing", description: "Invoices" },
         provenance: "automatic",
         title: null,
@@ -425,7 +425,7 @@ it("does not render routing controls or intercept submits when inside a dialog",
     component: DialogComposer,
   });
   await typePrompt(slot, "Fix the parser in Alpha");
-  expect(screen.queryByRole("button", { name: /Topic:/ })).toBeNull();
+  expect(screen.queryByRole("button", { name: /Workstream:/ })).toBeNull();
   expect(screen.queryByRole("button", { name: /Workstream:/ })).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Host submit" }));
   await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
@@ -438,14 +438,14 @@ it("does not render routing controls or intercept submits when inside a dialog",
 it("reports the draft's identity so a plain Enter can be filed", async () => {
   const { slot, draftIdentity } = mount(identityDecision);
   await typePrompt(slot, "Fix the parser in Alpha");
-  await screen.findByRole("button", { name: "Topic: Alpha" });
+  await screen.findByRole("button", { name: "Workstream: Alpha" });
   await waitFor(() =>
     expect(draftIdentity).toHaveBeenLastCalledWith({
       draftKey: expect.any(String),
       text: "Fix the parser in Alpha",
       projectChoice: { projectId: "project-alpha", source: "independent" },
       identity: {
-        entityId: "ent_alpha",
+        workstreamId: "ent_alpha",
         proposal: null,
         provenance: "automatic",
         title: "Alpha parser",
@@ -453,12 +453,12 @@ it("reports the draft's identity so a plain Enter can be filed", async () => {
       },
     }),
   );
-  fireEvent.click(await screen.findByRole("button", { name: "Topic: Alpha" }));
-  fireEvent.click(await screen.findByRole("option", { name: "No topic" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Workstream: Alpha" }));
+  fireEvent.click(await screen.findByRole("option", { name: "No workstream" }));
   await waitFor(() =>
     expect(draftIdentity).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        identity: { entityId: null, proposal: null, provenance: "manual" },
+        identity: { workstreamId: null, proposal: null, provenance: "manual" },
       }),
     ),
   );
@@ -468,7 +468,7 @@ it("starts with the topic of the workstream whose ＋ opened it", async () => {
   setComposerPreset({ sectionId: "section-docs" }, "Docs");
   const { slot } = mount(identityDecision);
   await typePrompt(slot, "Add an example");
-  const field = await screen.findByRole("button", { name: "Topic: Docs" });
+  const field = await screen.findByRole("button", { name: "Workstream: Docs" });
   expect(field.dataset.wsAuto).not.toBe("true");
   fireEvent.click(screen.getByRole("button", { name: "Host submit" }));
   await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
@@ -477,7 +477,7 @@ it("starts with the topic of the workstream whose ＋ opened it", async () => {
       draftKey: expect.any(String),
       projectChoice: { projectId: "project-alpha", source: "independent" },
       identity: {
-        entityId: null,
+        workstreamId: null,
         proposal: null,
         provenance: "inherited",
         sectionId: "section-docs",
@@ -486,7 +486,7 @@ it("starts with the topic of the workstream whose ＋ opened it", async () => {
   });
 });
 
-const projectTopics = [
+const projectWorkstreams = [
   {
     id: "ent_alpha",
     name: "Alpha",
@@ -506,7 +506,7 @@ const projectTopics = [
 
 it("uses the associated project after Quick analysis selects a topic", async () => {
   const { slot, route, draftIdentity } = mount(identityDecision, {
-    entities: projectTopics,
+    workstreams: projectWorkstreams,
   });
   await typePrompt(slot, "Fix the parser in Alpha");
   await waitFor(() =>
@@ -527,17 +527,17 @@ it("uses the associated project after Quick analysis selects a topic", async () 
 });
 
 it("uses a manually selected topic's project and moves to No project for an unassociated topic", async () => {
-  const { slot } = mount(identityDecision, { entities: projectTopics });
+  const { slot } = mount(identityDecision, { workstreams: projectWorkstreams });
   fireEvent.click(
-    await screen.findByRole("button", { name: "Topic: Automatic" }),
+    await screen.findByRole("button", { name: "Workstream: Automatic" }),
   );
   fireEvent.click(await screen.findByText("Alpha"));
   await waitFor(() =>
     expect(slot.inspection.composer.selection?.projectId).toBe("project-beta"),
   );
-  fireEvent.click(screen.getByRole("button", { name: "Topic: Alpha" }));
+  fireEvent.click(screen.getByRole("button", { name: "Workstream: Alpha" }));
   fireEvent.click(await screen.findByText("Beta"));
-  await screen.findByRole("button", { name: "Topic: Beta" });
+  await screen.findByRole("button", { name: "Workstream: Beta" });
   await waitFor(() =>
     expect(slot.inspection.composer.selection?.projectId).toBe("proj_personal"),
   );
@@ -545,8 +545,8 @@ it("uses a manually selected topic's project and moves to No project for an unas
 });
 
 it("uses the project of a workstream whose plus button opened the composer", async () => {
-  setComposerPreset({ topicId: "ent_alpha" }, "Alpha");
-  const { slot } = mount(identityDecision, { entities: projectTopics });
+  setComposerPreset({ workstreamId: "ent_alpha" }, "Alpha");
+  const { slot } = mount(identityDecision, { workstreams: projectWorkstreams });
   await waitFor(() =>
     expect(slot.inspection.composer.selection?.projectId).toBe("project-beta"),
   );
@@ -554,9 +554,9 @@ it("uses the project of a workstream whose plus button opened the composer", asy
 
 it("does not apply a stale project's lookup after selecting another topic", async () => {
   const { slot, projectList } = mount(identityDecision, {
-    entities: [
-      projectTopics[0]!,
-      { ...projectTopics[1]!, projectId: "project-alpha" },
+    workstreams: [
+      projectWorkstreams[0]!,
+      { ...projectWorkstreams[1]!, projectId: "project-alpha" },
     ],
   });
   let resolve!: (projects: Awaited<ReturnType<typeof projectList>>) => void;
@@ -567,11 +567,11 @@ it("does not apply a stale project's lookup after selecting another topic", asyn
       }),
   );
   fireEvent.click(
-    await screen.findByRole("button", { name: "Topic: Automatic" }),
+    await screen.findByRole("button", { name: "Workstream: Automatic" }),
   );
   fireEvent.click(await screen.findByText("Alpha"));
   await waitFor(() => expect(projectList).toHaveBeenCalledOnce());
-  fireEvent.click(screen.getByRole("button", { name: "Topic: Alpha" }));
+  fireEvent.click(screen.getByRole("button", { name: "Workstream: Alpha" }));
   fireEvent.click(await screen.findByText("Beta"));
   await act(async () =>
     resolve([{ id: "project-beta", name: "Beta", kind: "directory" }]),
@@ -582,10 +582,10 @@ it("does not apply a stale project's lookup after selecting another topic", asyn
 
 it("ignores an associated project that is no longer available", async () => {
   const { slot } = mount(identityDecision, {
-    entities: [{ ...projectTopics[0]!, projectId: "deleted" }],
+    workstreams: [{ ...projectWorkstreams[0]!, projectId: "deleted" }],
   });
   await typePrompt(slot, "Fix the parser in Alpha");
-  await screen.findByRole("button", { name: "Topic: Alpha" });
+  await screen.findByRole("button", { name: "Workstream: Alpha" });
   await waitFor(() =>
     expect(
       slot.inspection.sdkCalls.some((call) => call.method === "projects.list"),
@@ -600,10 +600,10 @@ it("keeps a picked topic in a project you choose for this thread only", async ()
   });
   await act(() => slot.behavior.setComposerText("Port the parser to Beta"));
   fireEvent.click(
-    await screen.findByRole("button", { name: "Topic: Automatic" }),
+    await screen.findByRole("button", { name: "Workstream: Automatic" }),
   );
   fireEvent.click(await screen.findByText("Alpha"));
-  await screen.findByRole("button", { name: "Topic: Alpha" });
+  await screen.findByRole("button", { name: "Workstream: Alpha" });
   fireEvent.click(screen.getByRole("button", { name: "Pick Beta" }));
   await waitFor(() =>
     expect(slot.inspection.composer.selection?.projectId).toBe("project-beta"),
@@ -624,7 +624,7 @@ it("keeps a picked topic in a project you choose for this thread only", async ()
     experimental_data: {
       draftKey: expect.any(String),
       projectChoice: { projectId: "project-beta", source: "independent" },
-      identity: { entityId: "ent_alpha", proposal: null, provenance: "manual" },
+      identity: { workstreamId: "ent_alpha", proposal: null, provenance: "manual" },
     },
   });
   expect(metadataUpdates).not.toHaveBeenCalled();
@@ -634,27 +634,27 @@ it("keeps a picked topic when you choose another project and BB remounts the com
   draftKey.fixed = "root-draft";
   const { slot } = mount(identityDecision, { component: RemountingComposer });
   fireEvent.click(
-    await screen.findByRole("button", { name: "Topic: Automatic" }),
+    await screen.findByRole("button", { name: "Workstream: Automatic" }),
   );
   fireEvent.click(await screen.findByText("Alpha"));
-  await screen.findByRole("button", { name: "Topic: Alpha" });
+  await screen.findByRole("button", { name: "Workstream: Alpha" });
   await act(async () => {
     await slot.behavior.setComposerScope({
       kind: "new-thread",
       projectId: "project-beta",
     });
   });
-  expect(screen.getByRole("button", { name: "Topic: Alpha" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Workstream: Alpha" })).toBeTruthy();
   expect(slot.inspection.composer.selections).toEqual([]);
 });
 
 it("offers the workstream default under the picker row", async () => {
   mount(identityDecision, { component: PickerRowWithProjectPick });
   fireEvent.click(
-    await screen.findByRole("button", { name: "Topic: Automatic" }),
+    await screen.findByRole("button", { name: "Workstream: Automatic" }),
   );
   fireEvent.click(await screen.findByText("Alpha"));
-  await screen.findByRole("button", { name: "Topic: Alpha" });
+  await screen.findByRole("button", { name: "Workstream: Alpha" });
   fireEvent.click(screen.getByRole("button", { name: "Pick Beta" }));
   const offer = await screen.findByRole("button", {
     name: "Set Beta as default for Alpha",
@@ -669,10 +669,10 @@ it("changes the workstream's project to the one you chose when asked", async () 
     component: ComposerWithProjectPick,
   });
   fireEvent.click(
-    await screen.findByRole("button", { name: "Topic: Automatic" }),
+    await screen.findByRole("button", { name: "Workstream: Automatic" }),
   );
   fireEvent.click(await screen.findByText("Alpha"));
-  await screen.findByRole("button", { name: "Topic: Alpha" });
+  await screen.findByRole("button", { name: "Workstream: Alpha" });
   fireEvent.click(screen.getByRole("button", { name: "Pick Beta" }));
   fireEvent.click(
     await screen.findByRole("button", {
@@ -681,7 +681,7 @@ it("changes the workstream's project to the one you chose when asked", async () 
   );
   await screen.findByText("Beta is now the default for Alpha.");
   expect(metadataUpdates).toHaveBeenCalledWith({
-    entityId: "ent_alpha",
+    workstreamId: "ent_alpha",
     projectId: "project-beta",
   });
 });
@@ -689,19 +689,19 @@ it("changes the workstream's project to the one you chose when asked", async () 
 it("moves to a newly picked topic's project after a project you chose", async () => {
   const { slot } = mount(identityDecision, {
     component: ComposerWithProjectPick,
-    entities: [
-      { ...projectTopics[0]!, projectId: "project-alpha" },
-      { ...projectTopics[1]!, projectId: "project-alpha" },
+    workstreams: [
+      { ...projectWorkstreams[0]!, projectId: "project-alpha" },
+      { ...projectWorkstreams[1]!, projectId: "project-alpha" },
     ],
   });
   fireEvent.click(
-    await screen.findByRole("button", { name: "Topic: Automatic" }),
+    await screen.findByRole("button", { name: "Workstream: Automatic" }),
   );
   fireEvent.click(await screen.findByText("Alpha"));
-  await screen.findByRole("button", { name: "Topic: Alpha" });
+  await screen.findByRole("button", { name: "Workstream: Alpha" });
   fireEvent.click(screen.getByRole("button", { name: "Pick Beta" }));
   await screen.findByRole("button", { name: "Set Beta as default for Alpha" });
-  fireEvent.click(screen.getByRole("button", { name: "Topic: Alpha" }));
+  fireEvent.click(screen.getByRole("button", { name: "Workstream: Alpha" }));
   fireEvent.click(await screen.findByText("Beta"));
   await waitFor(() =>
     expect(slot.inspection.composer.selection?.projectId).toBe("project-alpha"),
@@ -711,7 +711,7 @@ it("moves to a newly picked topic's project after a project you chose", async ()
 
 it("leaves an automatic topic unfiled rather than moving a thread out of its project", async () => {
   const { slot } = mount(identityDecision, {
-    entities: [
+    workstreams: [
       {
         id: "ent_alpha",
         name: "Alpha",
@@ -724,7 +724,7 @@ it("leaves an automatic topic unfiled rather than moving a thread out of its pro
   await typePrompt(slot, "Fix the parser in Alpha");
   await waitFor(() =>
     expect(
-      screen.getByRole("button", { name: "Topic: No topic" }),
+      screen.getByRole("button", { name: "Workstream: No workstream" }),
     ).toBeTruthy(),
   );
   expect(slot.inspection.composer.selection?.projectId).toBe("project-alpha");

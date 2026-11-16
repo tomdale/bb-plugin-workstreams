@@ -1,5 +1,5 @@
 /**
- * Pairs a thread BB's native New thread view just created with the topic its
+ * Pairs a thread BB's native New thread view just created with the workstream its
  * Workstreams banner showed for that draft.
  *
  * The banner can attach the choice as submit data only when it sees the
@@ -10,18 +10,18 @@
  * fresh first message against them by text. Either side can arrive first: a
  * dispatch with no matching draft waits briefly for a late report.
  */
-import type { DraftSubjectProposal } from "../domain/topics.ts";
+import type { DraftWorkstreamProposal } from "../domain/topics.ts";
 import type { ProjectChoice } from "../domain/projectChoice.ts";
 
 /**
- * The topic a composer showed: one you picked (`manual`), the topic of the
+ * The workstream a composer showed: one you picked (`manual`), the workstream of the
  * workstream whose ＋ opened it (`inherited`, by `sectionId`), or the start
  * call's preview (`automatic`), with the title it gives the thread. An
  * `answered` preview was computed for exactly the text sent.
  */
 export type ComposedIdentity = {
-  entityId?: string | null;
-  proposal?: DraftSubjectProposal | null;
+  workstreamId?: string | null;
+  proposal?: DraftWorkstreamProposal | null;
   provenance?: "manual" | "automatic" | "inherited";
   sectionId?: string | null;
   title?: string | null;

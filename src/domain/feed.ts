@@ -14,8 +14,8 @@
  * jump while the user works through them.
  */
 import { arrangeGroups, focusedSections } from "./groups.ts";
-import type { GroupSort, WorkstreamNode, WorkstreamTopics } from "./groups.ts";
-import { UNSORTED_ID, UNFILED_NAME, type Row } from "./project.ts";
+import type { GroupSort, WorkstreamNode, WorkstreamTree } from "./groups.ts";
+import { OTHER_ID, OTHER_NAME, type Row } from "./project.ts";
 import type { Projection } from "./project.ts";
 import {
   isRunning,
@@ -23,10 +23,11 @@ import {
   type UpNextOptions,
   type UpNextThread,
 } from "./upNext.ts";
+import { pathNames } from "./topic-path.ts";
 
 /** Where a root is filed: its top-level workstream and the path to its own. */
 type FeedPlace = {
-  /** The top-level workstream's id, or {@link UNSORTED_ID} for Unfiled. */
+  /** The top-level workstream's id, or {@link UNSORTED_ID} for Other. */
   readonly topId: string;
   /** Names from the top-level workstream down to the root's own. */
   readonly path: readonly string[];
@@ -45,28 +46,28 @@ const byAttention = <T extends UpNextThread>(a: Row<T>, b: Row<T>) =>
   b.thread.latestAttentionAt - a.thread.latestAttentionAt ||
   a.thread.id.localeCompare(b.thread.id);
 
-/** "Vercel Agent: Automations" → ["Vercel Agent", "Automations"]. */
-const parts = (label: string) =>
-  label
-    .split(":")
-    .map((part) => part.trim())
-    .filter(Boolean);
+/** "Vercel Agent › Automations" → ["Vercel Agent", "Automations"]. */
+const parts = pathNames;
 
 export function planFeed<T extends UpNextThread>(
   projection: Projection<T>,
   options: UpNextOptions<T> & {
-    /** Focused section ids (`ManualOrder.prioritized`). */
-    readonly prioritized: ReadonlySet<string>;
+    /** Focused section ids (`ManualOrder.focused`). */
+    readonly focused: ReadonlySet<string>;
     readonly groupSort: GroupSort;
-    readonly topics?: WorkstreamTopics;
+    readonly workstreams?: WorkstreamTree;
   },
 ): FeedPlan<T> {
-  const arranged = arrangeGroups(projection, options.groupSort, options.topics);
+  const arranged = arrangeGroups(
+    projection,
+    options.groupSort,
+    options.workstreams,
+  );
   // Ranked by the same settings as the sidebar's Up Next, so both list the
   // same threads.
   const selection = selectUpNext(projection, {
     ...options,
-    prioritized: focusedSections(arranged, options.prioritized),
+    focused: focusedSections(arranged, options.focused),
     // The page is where a Waiting recap's status check is watched and
     // cancelled, so it takes those threads after everything else; the sidebar's
     // Up Next leaves them out.
@@ -86,22 +87,22 @@ export function planFeed<T extends UpNextThread>(
     above: readonly string[],
   ) => {
     const own = parts(node.label);
-    // A second section bound to its parent's topic repeats the parent's name.
+    // A second section bound to its parent's workstream repeats the parent's name.
     const repeats =
       above.length >= own.length &&
       above.slice(above.length - own.length).join("\n") === own.join("\n");
     const path = repeats ? above : [...above, ...own];
     if (node.hasSection) sectionPlace.set(node.id, { topId, path });
-    for (const sub of node.subgroups) walk(sub, topId, path);
+    for (const sub of node.workstreams) walk(sub, topId, path);
   };
   for (const node of tops) walk(node, node.id, []);
-  const unfiled: FeedPlace = { topId: UNSORTED_ID, path: [UNFILED_NAME] };
+  const other: FeedPlace = { topId: OTHER_ID, path: [OTHER_NAME] };
   const placeOf = (row: Row<T>) =>
-    (row.workstreamId && sectionPlace.get(row.workstreamId)) || unfiled;
+    (row.workstreamId && sectionPlace.get(row.workstreamId)) || other;
 
   const groups = [
     ...projection.groups,
-    projection.unsorted,
+    projection.other,
     ...projection.dormant,
   ];
   const roots = groups.flatMap((group) =>

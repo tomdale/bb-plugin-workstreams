@@ -1,43 +1,45 @@
 import {
   allocateChildColor,
   allocateFamilyColor,
-  type TopicColor,
+  type WorkstreamColor,
 } from "../domain/workstreamColor.ts";
-import type { Topic } from "../domain/topics.ts";
+import type { Workstream } from "../domain/topics.ts";
 import type { Database } from "./db.ts";
 
-type StoredColor = TopicColor & { topicId: string; familyId: string };
+type StoredColor = WorkstreamColor & { workstreamId: string; familyId: string };
 
-/** Persists workstream colors by topic, independently of disposable BB sections. */
-export class TopicColors {
+/** Persists workstream colors by workstream, independently of disposable BB sections. */
+export class WorkstreamColors {
   constructor(private readonly db: Database) {}
 
-  /** Allocate missing colors and reassign topics whose family changed, atomically. */
+  /** Allocate missing colors and reassign workstreams whose family changed, atomically. */
   snapshot(
-    entities: readonly Topic[],
+    workstreams: readonly Workstream[],
     groups: Readonly<Record<string, string>>,
-  ): Record<string, TopicColor> {
+  ): Record<string, WorkstreamColor> {
     return this.db.transaction(() => {
-      const byId = new Map(entities.map((entity) => [entity.id, entity]));
+      const byId = new Map(
+        workstreams.map((workstream) => [workstream.id, workstream]),
+      );
       const familyOf = (id: string): string | null => {
         const seen = new Set<string>();
         let at: string | null = id;
         while (at) {
           if (seen.has(at)) return null;
           seen.add(at);
-          const entity = byId.get(at);
-          if (!entity) return null;
-          if (!entity.parentId) return entity.id;
-          at = entity.parentId;
+          const workstream = byId.get(at);
+          if (!workstream) return null;
+          if (!workstream.parentId) return workstream.id;
+          at = workstream.parentId;
         }
         return null;
       };
       const rows = this.db
         .prepare(
-          "SELECT topic_id, family_id, hue, level FROM ws_topic_color ORDER BY topic_id",
+          "SELECT workstream_id, family_id, hue, level FROM ws_workstream_color ORDER BY workstream_id",
         )
         .all() as {
-        topic_id: string;
+        workstream_id: string;
         family_id: string;
         hue: number;
         level: -1 | 0 | 1;
@@ -48,23 +50,23 @@ export class TopicColors {
       const colors = new Map<string, StoredColor>();
       const reparented = new Set<string>();
       for (const row of rows) {
-        const topic = byId.get(row.topic_id);
-        if (!topic) {
+        const workstream = byId.get(row.workstream_id);
+        if (!workstream) {
           this.db
-            .prepare("DELETE FROM ws_topic_color WHERE topic_id = ?")
-            .run(row.topic_id);
+            .prepare("DELETE FROM ws_workstream_color WHERE workstream_id = ?")
+            .run(row.workstream_id);
           continue;
         }
-        required.add(topic.id);
-        const familyId = familyOf(topic.id);
+        required.add(workstream.id);
+        const familyId = familyOf(workstream.id);
         if (familyId && row.family_id !== familyId) {
           this.db
-            .prepare("DELETE FROM ws_topic_color WHERE topic_id = ?")
-            .run(topic.id);
-          reparented.add(topic.id);
+            .prepare("DELETE FROM ws_workstream_color WHERE workstream_id = ?")
+            .run(workstream.id);
+          reparented.add(workstream.id);
         } else {
-          colors.set(topic.id, {
-            topicId: topic.id,
+          colors.set(workstream.id, {
+            workstreamId: workstream.id,
             familyId: row.family_id,
             hue: row.hue,
             level: row.level,
@@ -73,50 +75,56 @@ export class TopicColors {
       }
       const used = () => {
         const roots = [...colors.values()].filter(
-          (color) => color.topicId === color.familyId,
+          (color) => color.workstreamId === color.familyId,
         );
         return roots.flatMap((root) => {
           const children = [...colors.values()].filter(
             (color) =>
-              color.familyId === root.topicId && color.topicId !== root.topicId,
+              color.familyId === root.workstreamId &&
+              color.workstreamId !== root.workstreamId,
           );
           return children.length ? children : [root];
         });
       };
-      const put = (topicId: string, familyId: string, color: TopicColor) => {
+      const put = (
+        workstreamId: string,
+        familyId: string,
+        color: WorkstreamColor,
+      ) => {
         this.db
           .prepare(
-            "INSERT INTO ws_topic_color(topic_id, family_id, hue, level) VALUES (?, ?, ?, ?)",
+            "INSERT INTO ws_workstream_color(workstream_id, family_id, hue, level) VALUES (?, ?, ?, ?)",
           )
-          .run(topicId, familyId, color.hue, color.level);
+          .run(workstreamId, familyId, color.hue, color.level);
         const stored = {
-          topicId,
+          workstreamId,
           familyId,
           hue: color.hue,
           level: color.level,
         };
-        colors.set(topicId, stored);
+        colors.set(workstreamId, stored);
         return stored;
       };
       for (const id of [...required].sort()) {
-        const topic = byId.get(id)!;
-        const familyId = familyOf(topic.id);
+        const workstream = byId.get(id)!;
+        const familyId = familyOf(workstream.id);
         if (!familyId) continue;
         let parent = colors.get(familyId);
         if (!parent)
           parent = put(familyId, familyId, allocateFamilyColor(used()));
-        if (topic.id === familyId || colors.has(topic.id)) continue;
+        if (workstream.id === familyId || colors.has(workstream.id)) continue;
         const siblings = [...colors.values()].filter(
-          (color) => color.familyId === familyId && color.topicId !== familyId,
+          (color) =>
+            color.familyId === familyId && color.workstreamId !== familyId,
         );
         put(
-          topic.id,
+          workstream.id,
           familyId,
           allocateChildColor(
             parent,
             siblings,
             used(),
-            reparented.has(topic.id),
+            reparented.has(workstream.id),
           ),
         );
       }

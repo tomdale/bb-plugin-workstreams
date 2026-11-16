@@ -126,7 +126,7 @@ it("labels unknown and unfiled workstreams and preserves within-group sorting", 
   );
   expect(grouped.map((g) => [g.name, ids(g.trees.flat())])).toEqual([
     ["Alpha", ["a", "z"]],
-    ["Unfiled", ["loose", "unknown"]],
+    ["Other", ["loose", "unknown"]],
   ]);
 });
 
@@ -212,7 +212,7 @@ it("bounds archived ancestry walks with missing or cyclic parents", () => {
   expect(result.rows[0]!.workstreamId).toBe("a");
 });
 
-it("counts descendants in a snooze label but sends roots, including Unfiled", () => {
+it("counts descendants in a snooze label but sends roots, including Other", () => {
   const projection = projectWorkstreams(
     [
       sidebarThread("root", { sectionId: "a" }),
@@ -230,12 +230,12 @@ it("counts descendants in a snooze label but sends roots, including Unfiled", ()
     label: "Snooze 2 threads",
     subject: "2 threads in Alpha",
   });
-  expect(groupSnoozeRequest(projection.unsorted)).toMatchObject({
+  expect(groupSnoozeRequest(projection.other)).toMatchObject({
     label: "Snooze 1 thread",
-    subject: "1 thread in Unfiled",
+    subject: "1 thread in Other",
   });
   expect(
-    groupSnoozeRequest({ ...projection.unsorted, total: 0, rows: [] }),
+    groupSnoozeRequest({ ...projection.other, total: 0, rows: [] }),
   ).toBeUndefined();
 });
 
@@ -255,7 +255,7 @@ it("keeps the grouping policy without mounting rows: manual order, no empty work
       order: {
         workstreams: ["b"],
         threads: { b: ["b3", "b1"] },
-        prioritized: [],
+        focused: [],
       },
       snoozedUntil: (t) => (t.id === "nap" ? null : undefined),
     },

@@ -6,11 +6,11 @@ import {
   type ProjectLearningDecision,
   type ProjectRoot,
 } from "../domain/projectLearning.ts";
-import { topicPath } from "../domain/topic-path.ts";
-import { topicAncestors, type Topic } from "../domain/topics.ts";
+import { workstreamPath } from "../domain/topic-path.ts";
+import { workstreamAncestors, type Workstream } from "../domain/topics.ts";
 import { getMeta, setMeta, type Database } from "./db.ts";
 import type { Journal, JournalEntry } from "./journal.ts";
-import type { TopicStore } from "./topics.ts";
+import type { WorkstreamStore } from "./topics.ts";
 import { displayTitle, type InventoryThread } from "./inventory.ts";
 
 type Sdk = BbPluginApi["sdk"];
@@ -32,7 +32,7 @@ type Source =
   "unknown" | "historical" | "independent" | "workstreams" | "derived";
 type SuggestionRow = {
   id: string;
-  entity_id: string;
+  workstream_id: string;
   association_revision: number;
   project_id: string | null;
   evidence: string;
@@ -41,8 +41,8 @@ type SuggestionRow = {
 
 export type ProjectSuggestion = {
   id: string;
-  entityId: string;
-  topic: string;
+  workstreamId: string;
+  workstream: string;
   fromProject: string;
   toProject: string | null;
   reason: string;
@@ -67,9 +67,9 @@ const derived = (
   );
 
 /**
- * Learns topic projects from the threads stored in `ws_project_thread` (who
- * chose each project) and `ws_project_root` (what BB last reported about each
- * thread that may vote), joined with topic assignments. Archived roots keep their rows and
+ * Learns workstream projects from the threads stored in `ws_project_thread` (who
+ * chose each project) and `ws_project_listing` (what BB last reported about each
+ * thread that may vote), joined with workstream assignments. Archived roots keep their rows and
  * keep voting. The rows follow dispatches, deletions, and the reconciler's
  * active threads; a full sweep of BB's threads runs once to bootstrap
  * historical work and daily after that, because BB has no event for a
@@ -89,7 +89,7 @@ export class ProjectAssociations {
     private deps: {
       db: Database;
       sdk: () => Sdk;
-      topics: TopicStore;
+      workstreamStore: WorkstreamStore;
       journal: Journal;
       exclusive: <T>(task: () => Promise<T>) => Promise<T>;
       onChange: () => void;
@@ -140,12 +140,12 @@ export class ProjectAssociations {
       this.projectsAt = null;
     if (thread.visibility === "hidden" || thread.deletedAt || derived(thread))
       this.deps.db
-        .prepare("DELETE FROM ws_project_root WHERE thread_id = ?")
+        .prepare("DELETE FROM ws_project_listing WHERE thread_id = ?")
         .run(thread.id);
     else
       this.deps.db
         .prepare(
-          `INSERT INTO ws_project_root (thread_id, project_id, name) VALUES (?, ?, ?)
+          `INSERT INTO ws_project_listing (thread_id, project_id, name) VALUES (?, ?, ?)
           ON CONFLICT(thread_id) DO UPDATE SET project_id = excluded.project_id, name = excluded.name`,
         )
         .run(thread.id, thread.projectId, displayTitle(thread));
@@ -157,7 +157,7 @@ export class ProjectAssociations {
    */
   observeActive(threads: readonly InventoryThread[]): void {
     const update = this.deps.db.prepare(
-      `UPDATE ws_project_root SET project_id = ?, name = ?
+      `UPDATE ws_project_listing SET project_id = ?, name = ?
       WHERE thread_id = ? AND (project_id <> ? OR name <> ?)`,
     );
     this.deps.db.transaction(() => {
@@ -208,7 +208,7 @@ export class ProjectAssociations {
       .prepare("DELETE FROM ws_project_thread WHERE thread_id = ?")
       .run(threadId);
     this.deps.db
-      .prepare("DELETE FROM ws_project_root WHERE thread_id = ?")
+      .prepare("DELETE FROM ws_project_listing WHERE thread_id = ?")
       .run(threadId);
   }
 
@@ -287,7 +287,7 @@ export class ProjectAssociations {
   /** Everything a plan depends on, serialized. */
   private inputs(projects: readonly Project[]): string {
     return JSON.stringify([
-      this.deps.topics.list(),
+      this.deps.workstreamStore.list(),
       this.roots(),
       projects.map((project) => project.id),
     ]);
@@ -296,15 +296,15 @@ export class ProjectAssociations {
   /**
    * Records every thread BB lists, forgets the ones it no longer has, and
    * gives eligible threads seen for the first time their provenance: work
-   * created before learning began is historical evidence unless its topic
+   * created before learning began is historical evidence unless its workstream
    * already had a project setting; anything newer is unknown and never votes.
    */
   private sweep(threads: readonly Thread[]): void {
-    const { db, topics } = this.deps;
+    const { db, workstreamStore } = this.deps;
     const present = new Set(threads.map((thread) => thread.id));
     for (const { thread_id } of db
       .prepare(
-        "SELECT thread_id FROM ws_project_thread UNION SELECT thread_id FROM ws_project_root",
+        "SELECT thread_id FROM ws_project_thread UNION SELECT thread_id FROM ws_project_listing",
       )
       .all() as { thread_id: string }[])
       if (!present.has(thread_id)) this.forget(thread_id);
@@ -315,15 +315,15 @@ export class ProjectAssociations {
         }[]
       ).map((row) => row.thread_id),
     );
-    const entities = topics.list();
+    const workstreams = workstreamStore.list();
     const assigned = new Map(
       (
         db
           .prepare(
-            "SELECT thread_id, entity_id FROM ws_corpus_subject WHERE entity_id IS NOT NULL",
+            "SELECT thread_id, workstream_id FROM ws_thread_workstream WHERE workstream_id IS NOT NULL",
           )
-          .all() as { thread_id: string; entity_id: string }[]
-      ).map((row) => [row.thread_id, row.entity_id]),
+          .all() as { thread_id: string; workstream_id: string }[]
+      ).map((row) => [row.thread_id, row.workstream_id]),
     );
     const insert = db.prepare(
       "INSERT OR IGNORE INTO ws_project_thread (thread_id, project_id, source) VALUES (?, ?, ?)",
@@ -337,14 +337,16 @@ export class ProjectAssociations {
         derived(thread)
       )
         continue;
-      const topicId = assigned.get(thread.id);
+      const workstreamId = assigned.get(thread.id);
       // Old composers did not report who chose the project. Only unassociated
       // historical work bootstraps learning; new unknown choices never vote.
       const configured =
-        topicId &&
-        topicAncestors(topicId, entities).some((id) => {
-          const topic = entities.find((entity) => entity.id === id)!;
-          return topic.projectId || topic.projectSource;
+        workstreamId &&
+        workstreamAncestors(workstreamId, workstreams).some((id) => {
+          const workstream = workstreams.find(
+            (workstream) => workstream.id === id,
+          )!;
+          return workstream.projectId || workstream.projectSource;
         });
       insert.run(
         thread.id,
@@ -356,20 +358,20 @@ export class ProjectAssociations {
 
   /**
    * Independent roots that vote: observed as eligible, outside Personal,
-   * still in the project their choice recorded, and filed in a topic.
+   * still in the project their choice recorded, and filed in a workstream.
    * Archived roots count.
    */
   private roots(): ProjectRoot[] {
     return this.deps.db
       .prepare(
-        `SELECT r.thread_id AS id, r.name, r.project_id AS projectId, s.entity_id AS topicId
-        FROM ws_project_root r
+        `SELECT r.thread_id AS id, r.name, r.project_id AS projectId, s.workstream_id AS workstreamId
+        FROM ws_project_listing r
         JOIN ws_project_thread p ON p.thread_id = r.thread_id
-        JOIN ws_corpus_subject s ON s.thread_id = r.thread_id
+        JOIN ws_thread_workstream s ON s.thread_id = r.thread_id
         WHERE p.project_id = r.project_id
           AND p.source IN ('historical', 'independent')
           AND r.project_id <> 'proj_personal'
-          AND s.entity_id IS NOT NULL
+          AND s.workstream_id IS NOT NULL
         ORDER BY r.thread_id`,
       )
       .all() as ProjectRoot[];
@@ -377,7 +379,7 @@ export class ProjectAssociations {
 
   private plan(): ProjectLearningDecision[] {
     return projectLearningPlan(
-      this.deps.topics.list(),
+      this.deps.workstreamStore.list(),
       this.roots(),
       new Set(
         this.projects.filter((p) => p.id !== "proj_personal").map((p) => p.id),
@@ -386,24 +388,24 @@ export class ProjectAssociations {
   }
 
   private apply(): boolean {
-    const { db, topics } = this.deps;
+    const { db, workstreamStore } = this.deps;
     let changed = false;
     const pending = new Set<string>();
     for (const decision of this.plan()) {
-      const topic = topics.getById(decision.topicId)!;
+      const workstream = workstreamStore.getById(decision.workstreamId)!;
       if (decision.kind === "learn") {
-        const next = topics.edit(topic.id, {
+        const next = workstreamStore.edit(workstream.id, {
           projectId: decision.projectId,
           projectSource: "learned",
         });
-        this.record(topic, next, "auto", decision.roots);
+        this.record(workstream, next, "workstreams", decision.roots);
         changed = true;
       } else {
         const id = createHash("sha256")
           .update(
             JSON.stringify([
-              topic.id,
-              topic.projectRevision,
+              workstream.id,
+              workstream.projectRevision,
               decision.projectId,
             ]),
           )
@@ -416,12 +418,12 @@ export class ProjectAssociations {
         const evidence = JSON.stringify(decision.roots);
         if (!row || row.status !== "pending" || row.evidence !== evidence) {
           db.prepare(
-            `INSERT INTO ws_project_suggestion (id, entity_id, association_revision, project_id, evidence, status) VALUES (?, ?, ?, ?, ?, 'pending')
+            `INSERT INTO ws_project_suggestion (id, workstream_id, association_revision, project_id, evidence, status) VALUES (?, ?, ?, ?, ?, 'pending')
             ON CONFLICT(id) DO UPDATE SET evidence = excluded.evidence, status = 'pending'`,
           ).run(
             id,
-            topic.id,
-            topic.projectRevision ?? 0,
+            workstream.id,
+            workstream.projectRevision ?? 0,
             decision.projectId,
             evidence,
           );
@@ -440,7 +442,7 @@ export class ProjectAssociations {
     }
     db.prepare(
       `DELETE FROM ws_project_suggestion WHERE status = 'stale' OR NOT EXISTS
-      (SELECT 1 FROM ws_corpus_entity WHERE id = entity_id AND project_revision = association_revision)`,
+      (SELECT 1 FROM ws_workstream WHERE id = workstream_id AND project_revision = association_revision)`,
     ).run();
     return changed;
   }
@@ -456,29 +458,32 @@ export class ProjectAssociations {
     return (
       this.deps.db
         .prepare(
-          "SELECT * FROM ws_project_suggestion WHERE status = 'pending' ORDER BY entity_id, id",
+          "SELECT * FROM ws_project_suggestion WHERE status = 'pending' ORDER BY workstream_id, id",
         )
         .all() as SuggestionRow[]
     ).flatMap((row) => {
-      const topic = this.deps.topics.getById(row.entity_id);
+      const workstream = this.deps.workstreamStore.getById(row.workstream_id);
       if (
-        !topic ||
-        topic.projectSource !== "learned" ||
-        topic.projectRevision !== row.association_revision
+        !workstream ||
+        workstream.projectSource !== "learned" ||
+        workstream.projectRevision !== row.association_revision
       )
         return [];
       const roots = JSON.parse(row.evidence) as ProjectRoot[];
       return [
         {
           id: row.id,
-          entityId: topic.id,
-          topic: topicPath(topic.id, this.deps.topics.list()),
-          fromProject: this.projectName(topic.projectId),
+          workstreamId: workstream.id,
+          workstream: workstreamPath(
+            workstream.id,
+            this.deps.workstreamStore.list(),
+          ),
+          fromProject: this.projectName(workstream.projectId),
           toProject: row.project_id ? this.projectName(row.project_id) : null,
           reason: row.project_id
-            ? "Independent root threads consistently use a different project."
+            ? "Threads of their own consistently use a different project."
             : new Set(roots.map((root) => root.projectId)).size > 1
-              ? "Independent root threads use different projects."
+              ? "Threads of their own use different projects."
               : "The project used by these independent roots is unavailable.",
           threads: roots.map((root) => ({
             id: root.id,
@@ -501,13 +506,14 @@ export class ProjectAssociations {
         const row = this.deps.db
           .prepare("SELECT * FROM ws_project_suggestion WHERE id = ?")
           .get(id) as SuggestionRow | undefined;
-        const topic = row && this.deps.topics.getById(row.entity_id);
+        const workstream =
+          row && this.deps.workstreamStore.getById(row.workstream_id);
         if (
           !row ||
           row.status !== "pending" ||
-          !topic ||
-          topic.projectSource !== "learned" ||
-          topic.projectRevision !== row.association_revision
+          !workstream ||
+          workstream.projectSource !== "learned" ||
+          workstream.projectRevision !== row.association_revision
         )
           throw new Error(
             "This project suggestion is out of date. Review the current history.",
@@ -519,16 +525,16 @@ export class ProjectAssociations {
           .run(decision === "accept" ? "accepted" : "declined", id);
         const roots = JSON.parse(row.evidence) as ProjectRoot[];
         if (decision === "accept") {
-          const next = this.deps.topics.edit(topic.id, {
+          const next = this.deps.workstreamStore.edit(workstream.id, {
             projectId: row.project_id,
           });
-          return this.record(topic, next, "user", roots);
+          return this.record(workstream, next, "you", roots);
         }
         return this.deps.journal.add({
-          action: "project-association",
-          source: "user",
-          status: "dismissed",
-          rationale: `Kept the project for ${topic.name}`,
+          action: "project-learned",
+          source: "you",
+          status: "declined",
+          rationale: `Kept the project for ${workstream.name}`,
           threads: roots.map(({ id, name }) => ({ id, name })),
           workstreams: [],
           undo: null,
@@ -540,24 +546,27 @@ export class ProjectAssociations {
   }
 
   updateMetadata(
-    entityId: string,
-    updates: Parameters<TopicStore["updateMetadata"]>[1],
+    workstreamId: string,
+    updates: Parameters<WorkstreamStore["updateMetadata"]>[1],
     projects?: Project[],
-  ): Topic {
+  ): Workstream {
     if (projects) this.projects = projects;
     return this.deps.db.transaction(() => {
-      const before = this.deps.topics.getById(entityId);
-      const next = this.deps.topics.updateMetadata(entityId, updates);
+      const before = this.deps.workstreamStore.getById(workstreamId);
+      const next = this.deps.workstreamStore.updateMetadata(
+        workstreamId,
+        updates,
+      );
       if (before && before.projectRevision !== next.projectRevision)
-        this.record(before, next, "user", []);
+        this.record(before, next, "you", []);
       return next;
     })();
   }
 
   private record(
-    before: Topic,
-    after: Topic,
-    source: "user" | "auto",
+    before: Workstream,
+    after: Workstream,
+    source: "you" | "workstreams",
     roots: readonly ProjectRoot[],
   ): JournalEntry {
     const name = after.projectId
@@ -566,17 +575,17 @@ export class ProjectAssociations {
         ? "No associated project"
         : "Automatic";
     return this.deps.journal.add({
-      action: "project-association",
+      action: "project-learned",
       source,
-      rationale: `${source === "auto" ? "Learned" : "Set"} the project for ${after.name}: ${name}`,
+      rationale: `${source === "workstreams" ? "Learned" : "Set"} the project for ${after.name}: ${name}`,
       threads: roots.map(({ id, name }) => ({ id, name })),
-      workstreams: [...this.deps.topics.groups()]
+      workstreams: [...this.deps.workstreamStore.groups()]
         .filter(([, id]) => id === after.id)
         .map(([id]) => ({ id, name: after.name })),
-      detail: `${topicPath(after.id, this.deps.topics.list())} → ${name}${roots.length ? `; ${roots.length} independent root threads` : ""}`,
+      detail: `${workstreamPath(after.id, this.deps.workstreamStore.list())} → ${name}${roots.length ? `; ${roots.length} threads of its own` : ""}`,
       undo: {
         kind: "project-association",
-        entityId: after.id,
+        workstreamId: after.id,
         from: {
           projectId: before.projectId ?? null,
           source: before.projectSource ?? null,
@@ -587,7 +596,9 @@ export class ProjectAssociations {
           revision: after.projectRevision ?? 0,
         },
         disableLearning:
-          source === "auto" && !before.projectId && !before.projectSource,
+          source === "workstreams" &&
+          !before.projectId &&
+          !before.projectSource,
       },
     });
   }

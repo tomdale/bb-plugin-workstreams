@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { fakeWorld } from "./fake-bb.ts";
-import { TopicStore } from "../../src/server/topics.ts";
+import { WorkstreamStore } from "../../src/server/topics.ts";
 import { openDatabase } from "../../src/server/db.ts";
 let world: Awaited<ReturnType<typeof fakeWorld>> | undefined;
 afterEach(async () => {
@@ -10,10 +10,10 @@ afterEach(async () => {
 const preview = (w: NonNullable<typeof world>) =>
   w.harness.behavior.callRpc("preview", {
     prompt: "Audit the release pipeline",
-  }) as Promise<{ title: string | null; subjectId?: string | null }>;
+  }) as Promise<{ title: string | null; workstreamId?: string | null }>;
 describe("bounded classification repair", () => {
   it("repairs an invalid topic ID without losing the independently valid title", async () => {
-    let topicId = "";
+    let workstreamId = "";
     let n = 0;
     world = await fakeWorld({
       complete: () =>
@@ -21,28 +21,28 @@ describe("bounded classification repair", () => {
           n++ === 0
             ? {
                 title: { verb: "Auditing", subject: "release pipeline" },
-                topic: "Product / Pipelines",
+                workstream: "Product / Pipelines",
                 propose: null,
                 scopeShift: false,
               }
             : {
                 title: null,
-                topic: "pipeline",
+                workstream: "pipeline",
                 propose: null,
                 scopeShift: false,
               },
         ),
     });
     const w = world;
-    const topics = new TopicStore(openDatabase(w.bb));
-    topicId = topics.create("Pipeline", "Release pipeline").id;
+    const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
+    workstreamId = workstreamStore.create("Pipeline", "Release pipeline").id;
     expect(await preview(w)).toMatchObject({
       title: "Auditing release pipeline",
-      subjectId: topicId,
+      workstreamId: workstreamId,
     });
     expect(w.completions).toHaveLength(2);
     expect(w.completions[1]!.prompt).toContain(
-      "topic must be exactly an ID in square brackets in <topic_tree>",
+      "workstream must be exactly an ID in square brackets in <workstream_tree>",
     );
   });
   it("keeps a usable title and leaves topic unresolved after two invalid responses", async () => {
@@ -50,14 +50,14 @@ describe("bounded classification repair", () => {
       complete: () =>
         JSON.stringify({
           title: "Release pipeline audit",
-          subjectId: "Not an ID",
+          workstreamId: "Not an ID",
         }),
     });
     const w = world;
-    new TopicStore(openDatabase(w.bb)).create("Pipeline", "Release pipeline");
+    new WorkstreamStore(openDatabase(w.bb)).create("Pipeline", "Release pipeline");
     expect(await preview(w)).toMatchObject({
       title: "Release pipeline audit",
-      subjectId: null,
+      workstreamId: null,
     });
     expect(w.completions).toHaveLength(2);
   });
@@ -68,7 +68,7 @@ describe("bounded classification repair", () => {
           title: null,
           recap: "Review ready",
           state: "review",
-          topic: "docs",
+          workstream: "docs",
           propose: {
             name: "Archive",
             description: "Archived work",
@@ -78,24 +78,24 @@ describe("bounded classification repair", () => {
         }),
     });
     const w = world;
-    const topics = new TopicStore(openDatabase(w.bb));
-    const current = topics.create("Parser", "Parser work");
-    topics.create("Docs", "Documentation work");
+    const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
+    const current = workstreamStore.create("Parser", "Parser work");
+    workstreamStore.create("Docs", "Documentation work");
     w.addThread("t", { status: "idle" });
     w.converse("t", ["Write the parser documentation"]);
-    topics.assign("t", current.id, { provenance: "full" });
-    await w.harness.behavior.callRpc("taskReclassify", { threadId: "t" });
-    expect(topics.assignment("t").entityId).toBe(current.id);
+    workstreamStore.assign("t", current.id, { provenance: "automatic" });
+    await w.harness.behavior.callRpc("threadAutomatic", { threadId: "t" });
+    expect(workstreamStore.assignment("t").workstreamId).toBe(current.id);
     expect(
-      topics
+      workstreamStore
         .list()
-        .map((topic) => topic.name)
+        .map((workstream) => workstream.name)
         .sort(),
     ).toEqual(["Docs", "Parser"]);
     const state = (await w.harness.behavior.callRpc("state", null)) as {
-      analysis: Record<string, { topicError?: string }>;
+      analysis: Record<string, { workstreamError?: string }>;
     };
-    expect(state.analysis.t?.topicError).toContain("never both");
+    expect(state.analysis.t?.workstreamError).toContain("never both");
   });
 
   it("retains valid Full status and title without clearing the topic on invalid output", async () => {
@@ -105,22 +105,22 @@ describe("bounded classification repair", () => {
           title: "Release pipeline audit",
           recap: "Review ready",
           state: "review",
-          subjectId: "Not an ID",
+          workstreamId: "Not an ID",
         }),
     });
     const w = world;
-    const topics = new TopicStore(openDatabase(w.bb));
-    const p = topics.create("Pipeline", "Release pipeline");
+    const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
+    const p = workstreamStore.create("Pipeline", "Release pipeline");
     w.addThread("t", { status: "idle" });
     w.converse("t", ["Audit the release pipeline"]);
-    topics.assign("t", p.id, { provenance: "full" });
+    workstreamStore.assign("t", p.id, { provenance: "automatic" });
     await w.harness.behavior.runCli(["analyze", "t"]);
-    expect(topics.assignment("t").entityId).toBe(p.id);
+    expect(workstreamStore.assignment("t").workstreamId).toBe(p.id);
     const state = (await w.harness.behavior.callRpc("state", null)) as any;
     expect(state.analysis.t).toMatchObject({
       state: "review",
       title: "Release pipeline audit",
-      topicError: expect.any(String),
+      workstreamError: expect.any(String),
     });
   });
 });

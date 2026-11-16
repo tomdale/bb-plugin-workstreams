@@ -21,9 +21,9 @@ import {
 } from "react";
 import { useRpc } from "@get-bb/plugin-sdk/app";
 import type { RpcContract } from "../../server/contract.ts";
-import { topicIndex } from "../../domain/topic-path.ts";
+import { workstreamIndex } from "../../domain/topic-path.ts";
 import { compareGroupNames } from "../../domain/group-name-order.ts";
-import type { Topic } from "../../domain/topics.ts";
+import type { Workstream } from "../../domain/topics.ts";
 import {
   Command,
   CommandGroup,
@@ -105,28 +105,28 @@ function Description({ text }: { text: string | null | undefined }) {
 
 /**
  * The Catalog's entities, fetched each time `enabled` turns on (a picker
- * opening) so the list reflects topics added since.
+ * opening) so the list reflects workstreams added since.
  */
-export function useCatalogEntities(enabled: boolean): Topic[] {
+export function useTreeWorkstreams(enabled: boolean): Workstream[] {
   const rpc = useRpc<RpcContract>();
-  const [entities, setEntities] = useState<Topic[]>([]);
+  const [workstreams, setWorkstreams] = useState<Workstream[]>([]);
   useEffect(() => {
     if (!enabled) return;
     let live = true;
     rpc
-      .call("catalog", null)
+      .call("tree", null)
       .then((result) => {
-        if (live) setEntities(result.entities);
+        if (live) setWorkstreams(result.workstreams);
       })
       .catch(() => {});
     return () => {
       live = false;
     };
   }, [enabled, rpc]);
-  return entities;
+  return workstreams;
 }
 
-/** The Topic field's value as the pickers state it. */
+/** The Workstream field's value as the pickers state it. */
 export function identityValue(state: NewWorkViewState): string {
   return state.identity ? state.identity.label : "Automatic";
 }
@@ -134,17 +134,17 @@ export function identityValue(state: NewWorkViewState): string {
 interface OptionsProps {
   newWork: NewWork;
   /** The Catalog, empty until `useCatalogEntities` has loaded it. */
-  entities: readonly Topic[];
+  workstreams: readonly Workstream[];
   query: string;
   onQueryChange: (query: string) => void;
   /** Runs after a choice has been applied, so the surface can close. */
   onDone: () => void;
 }
 
-/** The Topic list: Automatic, the topic tree, a new topic, and No topic. */
+/** The Workstream list: Automatic, the workstreams and groups, a new workstream, and No workstream. */
 export function IdentityOptions({
   newWork,
-  entities,
+  workstreams,
   query,
   onQueryChange,
   onDone,
@@ -155,12 +155,13 @@ export function IdentityOptions({
   );
   const styles = LIST_CLASSES;
   const needle = query.trim().toLowerCase();
-  const index = useMemo(() => topicIndex(entities), [entities]);
-  const visibleTopics = useMemo(
+  const index = useMemo(() => workstreamIndex(workstreams), [workstreams]);
+  const visibleWorkstreams = useMemo(
     () =>
-      index.leafTopics.filter(
-        (topic) =>
-          !needle || topic.searchText.some((text) => text.includes(needle)),
+      index.leafWorkstreams.filter(
+        (workstream) =>
+          !needle ||
+          workstream.searchText.some((text) => text.includes(needle)),
       ),
     [index, needle],
   );
@@ -168,16 +169,16 @@ export function IdentityOptions({
   const isManual = state.identity?.provenance === "manual";
   const isUnresolved =
     isManual &&
-    state.identity?.entityId === null &&
+    state.identity?.workstreamId === null &&
     state.identity?.proposal === null;
 
   return (
     <Command
-      label="Search topics"
+      label="Search workstreams"
       shouldFilter={false}
       defaultValue={
-        state.identity?.entityId
-          ? `identity:${state.identity.entityId}`
+        state.identity?.workstreamId
+          ? `identity:${state.identity.workstreamId}`
           : isManual
             ? NONE
             : AUTOMATIC
@@ -185,8 +186,8 @@ export function IdentityOptions({
       className="min-h-0"
     >
       <CommandInput
-        aria-label="Search topics"
-        placeholder="Find a topic"
+        aria-label="Search workstreams"
+        placeholder="Find a workstream"
         value={query}
         onValueChange={onQueryChange}
         className={styles.input}
@@ -213,7 +214,7 @@ export function IdentityOptions({
                   styles.note,
                 )}
               >
-                Workstreams picks the topic from the request
+                Workstreams chooses from your request
               </span>
             </span>
             <Icon
@@ -226,19 +227,19 @@ export function IdentityOptions({
             />
           </CommandItem>
         </CommandGroup>
-        {visibleTopics.length ? (
-          <CommandGroup heading="Products and features">
-            {visibleTopics.map(({ entity, path: fullLabel }) => {
+        {visibleWorkstreams.length ? (
+          <CommandGroup heading="Workstreams">
+            {visibleWorkstreams.map(({ workstream, path: fullLabel }) => {
               const isSelected =
-                isManual && state.identity?.entityId === entity.id;
+                isManual && state.identity?.workstreamId === workstream.id;
               return (
                 <CommandItem
-                  key={`identity:${entity.id}`}
-                  value={`identity:${entity.id}`}
+                  key={`identity:${workstream.id}`}
+                  value={`identity:${workstream.id}`}
                   aria-current={isSelected ? "true" : undefined}
                   onSelect={() => {
                     newWork.selectIdentity({
-                      entityId: entity.id,
+                      workstreamId: workstream.id,
                       label: fullLabel,
                     });
                     onDone();
@@ -254,10 +255,10 @@ export function IdentityOptions({
                     <span className={cn("truncate", styles.name)}>
                       {fullLabel}
                     </span>
-                    <Description text={entity.description} />
-                    {entity.aliases.length > 0 && (
+                    <Description text={workstream.description} />
+                    {workstream.aliases.length > 0 && (
                       <span className="line-clamp-1 text-2xs text-muted-foreground/80">
-                        Aliases: {entity.aliases.join(", ")}
+                        Aliases: {workstream.aliases.join(", ")}
                       </span>
                     )}
                   </span>
@@ -274,7 +275,7 @@ export function IdentityOptions({
             })}
           </CommandGroup>
         ) : null}
-        {visibleTopics.length ? <CommandSeparator /> : null}
+        {visibleWorkstreams.length ? <CommandSeparator /> : null}
         <CommandGroup>
           {needle && !exact ? (
             <CommandItem
@@ -294,7 +295,7 @@ export function IdentityOptions({
                 aria-hidden
               />
               <span className="min-w-0 flex-1 truncate">
-                New topic “{query.trim()}”
+                New workstream “{query.trim()}”
               </span>
             </CommandItem>
           ) : null}
@@ -312,7 +313,7 @@ export function IdentityOptions({
               className="size-4 text-muted-foreground"
               aria-hidden
             />
-            No topic
+            No workstream
             <Icon
               name="Check"
               className={cn(

@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   DAY_MS,
-  UNSORTED_ID,
+  OTHER_ID,
   projectWorkstreams,
   type Group,
 } from "../../src/domain/project.ts";
@@ -51,7 +51,7 @@ describe("projectWorkstreams", () => {
         order: {
           workstreams: ["sec_empty", "sec_b", "sec_a"],
           threads: {},
-          prioritized: [],
+          focused: [],
         },
       },
     );
@@ -87,8 +87,8 @@ describe("projectWorkstreams", () => {
       sections,
       { now },
     );
-    expect(p.unsorted.id).toBe(UNSORTED_ID);
-    expect(rowIds(p.unsorted).sort()).toEqual(["ghost", "loose"]);
+    expect(p.other.id).toBe(OTHER_ID);
+    expect(rowIds(p.other).sort()).toEqual(["ghost", "loose"]);
     expect(p.rowOf.get("ghost")?.workstreamId).toBeNull();
   });
 
@@ -185,7 +185,7 @@ describe.skipIf(!snapshotPath)("real snapshot", () => {
       createdAt: Number(t.createdAt ?? 0),
     }));
     const p = projectWorkstreams(threads, raw.sections, { now: Date.now() });
-    const rendered = [...p.groups, p.unsorted, ...p.dormant].flatMap((g) =>
+    const rendered = [...p.groups, p.other, ...p.dormant].flatMap((g) =>
       g.rows.map((r) => r.thread.id),
     );
     const expected = threads
@@ -349,7 +349,7 @@ describe("snoozed threads", () => {
   it("lists the soonest to wake first and activity snoozes last", () => {
     const p = project({ loose: null, beta: now + 50, asks: now + 10 });
     expect(ids(p.snoozed)).toEqual(["asks", "beta", "loose"]);
-    expect(p.unsorted.total).toBe(0);
+    expect(p.other.total).toBe(0);
   });
 
   it("still places every thread exactly once", () => {
@@ -357,7 +357,7 @@ describe("snoozed threads", () => {
     const placed = [
       ...p.groups.flatMap((g) => rowIds(g)),
       ...p.dormant.flatMap((g) => rowIds(g)),
-      ...rowIds(p.unsorted),
+      ...rowIds(p.other),
       ...ids(p.snoozed),
     ].sort();
     expect(placed).toEqual(
@@ -369,10 +369,10 @@ describe("snoozed threads", () => {
 });
 
 describe("prioritized workstreams", () => {
-  const order = (prioritized: string[]) => ({
+  const order = (focused: string[]) => ({
     workstreams: ["sec_a", "sec_b", "sec_empty"],
     threads: {},
-    prioritized,
+    focused,
   });
   const threads = [
     thread("a1", { sectionId: "sec_a", latestAttentionAt: now - 1 }),
@@ -384,14 +384,14 @@ describe("prioritized workstreams", () => {
   it("pins prioritized workstreams first, in manual order, and never dormant", () => {
     const p = projectWorkstreams(threads, all, {
       now,
-      order: order(["sec_old", "sec_b", "sec_empty", "unsorted"]),
+      order: order(["sec_old", "sec_b", "sec_empty", "other"]),
     });
-    expect(p.groups.map((g) => [g.id, g.prioritized])).toEqual([
+    expect(p.groups.map((g) => [g.id, g.focused])).toEqual([
       ["sec_b", true],
       ["sec_old", true],
       ["sec_a", false],
     ]);
     expect(p.dormant).toEqual([]);
-    expect(p.unsorted.prioritized).toBe(false);
+    expect(p.other.focused).toBe(false);
   });
 });

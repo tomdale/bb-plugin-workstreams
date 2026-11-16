@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { fakeWorld } from "./fake-bb.ts";
 import { openDatabase } from "../../src/server/db.ts";
-import { TopicStore } from "../../src/server/topics.ts";
+import { WorkstreamStore } from "../../src/server/topics.ts";
 
 type World = Awaited<ReturnType<typeof fakeWorld>>;
 let world: World | null = null;
@@ -20,22 +20,22 @@ async function setup(options: { onPrompt?: (prompt: string) => void } = {}) {
         recap: "Working on it",
         state: "needs-input",
         title: "Root shelves task",
-        subjectId: shelvesId,
+        workstreamId: shelvesId,
         proposed: null,
       });
     },
   });
   const w = world;
   const section = w.addSection("Storage");
-  const corpus = new TopicStore(openDatabase(w.bb));
-  const storage = corpus.create("Storage", "Storage product", null, [
+  const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
+  const storage = workstreamStore.create("Storage", "Storage product", null, [
     "Warehouse",
   ]);
-  const shelves = corpus.create("Shelves", "Shelves feature", storage.id, [
+  const shelves = workstreamStore.create("Shelves", "Shelves feature", storage.id, [
     "Racks",
   ]);
   shelvesId = shelves.id;
-  corpus.bindGroup(section.id, storage.id);
+  workstreamStore.bindGroup(section.id, storage.id);
   const rootThread = w.addThread("t_root", {
     sectionId: section.id,
     title: "Root shelves task",
@@ -44,12 +44,12 @@ async function setup(options: { onPrompt?: (prompt: string) => void } = {}) {
     parentThreadId: rootThread.id,
     title: "Child review subtask",
   });
-  corpus.assign(rootThread.id, shelves.id, {
-    provenance: "full",
+  workstreamStore.assign(rootThread.id, shelves.id, {
+    provenance: "automatic",
     evidence: "ev_1",
   });
   await w.harness.behavior.callRpc("refresh", null);
-  return { w, section, corpus, storage, shelves, rootThread, childThread };
+  return { w, section, workstreamStore: workstreamStore, storage, shelves, rootThread, childThread };
 }
 
 describe("CLI topics commands", () => {
@@ -57,10 +57,10 @@ describe("CLI topics commands", () => {
     const { w, storage, shelves } = await setup();
 
     // Human output
-    const listRes = await w.harness.behavior.runCli(["topics", "list"]);
+    const listRes = await w.harness.behavior.runCli(["tree"]);
     expect(listRes.exitCode).toBe(0);
     expect(listRes.stdout).toContain("Storage");
-    expect(listRes.stdout).toContain("Storage: Shelves");
+    expect(listRes.stdout).toContain("Storage › Shelves");
     expect(listRes.stdout).toContain(storage.id);
     expect(listRes.stdout).toContain(shelves.id);
     expect(listRes.stdout).toContain("[aliases: Warehouse]");
@@ -68,14 +68,13 @@ describe("CLI topics commands", () => {
 
     // JSON output
     const jsonRes = await w.harness.behavior.runCli([
-      "topics",
-      "list",
+      "tree",
       "--json",
     ]);
     expect(jsonRes.exitCode).toBe(0);
     const parsed = JSON.parse(jsonRes.stdout);
-    expect(parsed.entities).toHaveLength(2);
-    expect(parsed.entities.map((e: { name: string }) => e.name).sort()).toEqual(
+    expect(parsed.workstreams).toHaveLength(2);
+    expect(parsed.workstreams.map((e: { name: string }) => e.name).sort()).toEqual(
       ["Shelves", "Storage"],
     );
   });
@@ -85,20 +84,18 @@ describe("CLI topics commands", () => {
 
     // Show by exact name
     const showName = await w.harness.behavior.runCli([
-      "topics",
-      "show",
+      "describe",
       "Shelves",
     ]);
     expect(showName.exitCode).toBe(0);
-    expect(showName.stdout).toContain("Topic: Storage: Shelves");
+    expect(showName.stdout).toContain("Workstream: Storage › Shelves");
     expect(showName.stdout).toContain(`ID:              ${shelves.id}`);
     expect(showName.stdout).toContain("Aliases:         Racks");
-    expect(showName.stdout).toContain("Assigned threads:  2");
+    expect(showName.stdout).toContain("Threads:         2");
 
     // Show by alias
     const showAlias = await w.harness.behavior.runCli([
-      "topics",
-      "show",
+      "describe",
       "Warehouse",
     ]);
     expect(showAlias.exitCode).toBe(0);
@@ -106,56 +103,52 @@ describe("CLI topics commands", () => {
 
     // Show by ID with --json
     const showJson = await w.harness.behavior.runCli([
-      "topics",
-      "show",
+      "describe",
       shelves.id,
       "--json",
     ]);
     expect(showJson.exitCode).toBe(0);
     const parsed = JSON.parse(showJson.stdout);
-    expect(parsed.entity.id).toBe(shelves.id);
-    expect(parsed.path).toBe("Storage: Shelves");
-    expect(parsed.assignedThreads).toContain(rootThread.id);
+    expect(parsed.workstream.id).toBe(shelves.id);
+    expect(parsed.path).toBe("Storage › Shelves");
+    expect(parsed.threads).toContain(rootThread.id);
 
     // Unknown entity throws clean error
     const showUnknown = await w.harness.behavior.runCli([
-      "topics",
-      "show",
+      "describe",
       "NonExistent",
     ]);
     expect(showUnknown.exitCode).not.toBe(0);
   });
 
   it("topics create creates a new product or feature with parent and aliases", async () => {
-    const { w, corpus } = await setup();
+    const { w, workstreamStore: workstreamStore } = await setup();
 
     const createRes = await w.harness.behavior.runCli([
-      "topics",
       "create",
       "Bins",
       "--description",
       "Storage bins",
-      "--parent",
+      "--group",
       "Storage",
       "--aliases",
       "Containers,Tubs",
     ]);
     expect(createRes.exitCode).toBe(0);
-    expect(createRes.stdout).toContain('Created topic "Bins"');
+    expect(createRes.stdout).toContain('Created workstream "Bins"');
 
-    const created = corpus.list().find((e) => e.name === "Bins")!;
+    const created = workstreamStore.list().find((e) => e.name === "Bins")!;
     expect(created).toBeDefined();
     expect(created.description).toBe("Storage bins");
     expect(created.aliases.sort()).toEqual(["Containers", "Tubs"]);
-    const storage = corpus.list().find((e) => e.name === "Storage")!;
+    const storage = workstreamStore.list().find((e) => e.name === "Storage")!;
     expect(created.parentId).toBe(storage.id);
   });
 
   it("topics edit updates name, description, and aliases atomically", async () => {
-    const { w, corpus, shelves } = await setup();
+    const { w, workstreamStore: workstreamStore, shelves } = await setup();
 
     const editRes = await w.harness.behavior.runCli([
-      "topics",
       "edit",
       shelves.id,
       "--name",
@@ -167,45 +160,42 @@ describe("CLI topics commands", () => {
     ]);
     expect(editRes.exitCode).toBe(0);
 
-    const updated = corpus.getById(shelves.id)!;
+    const updated = workstreamStore.getById(shelves.id)!;
     expect(updated.name).toBe("Custom Shelving");
     expect(updated.description).toBe("Heavy duty shelving");
     expect(updated.aliases).toEqual(["Industrial Racks"]);
   });
 
   it("topics reparent moves an entity under a new parent or to root", async () => {
-    const { w, corpus, shelves } = await setup();
+    const { w, workstreamStore: workstreamStore, shelves } = await setup();
 
     // Reparent shelves to root
     const toRoot = await w.harness.behavior.runCli([
-      "topics",
-      "reparent",
+      "move",
       shelves.id,
       "--to",
-      "root",
+      "top",
     ]);
     expect(toRoot.exitCode).toBe(0);
-    expect(corpus.getById(shelves.id)!.parentId).toBeNull();
+    expect(workstreamStore.getById(shelves.id)!.parentId).toBeNull();
 
     // Reparent back to Storage by name
     const toStorage = await w.harness.behavior.runCli([
-      "topics",
-      "reparent",
+      "move",
       shelves.id,
       "--to",
       "Storage",
     ]);
     expect(toStorage.exitCode).toBe(0);
-    const storage = corpus.list().find((e) => e.name === "Storage")!;
-    expect(corpus.getById(shelves.id)!.parentId).toBe(storage.id);
+    const storage = workstreamStore.list().find((e) => e.name === "Storage")!;
+    expect(workstreamStore.getById(shelves.id)!.parentId).toBe(storage.id);
   });
 
   it("topics merge merges source into target and preserves assignments", async () => {
-    const { w, corpus, shelves, rootThread } = await setup();
-    const other = corpus.create("Legacy Shelves", "Old", null, ["OldRacks"]);
+    const { w, workstreamStore: workstreamStore, shelves, rootThread } = await setup();
+    const other = workstreamStore.create("Legacy Shelves", "Old", null, ["OldRacks"]);
 
     const mergeRes = await w.harness.behavior.runCli([
-      "topics",
       "merge",
       other.id,
       shelves.id,
@@ -213,21 +203,20 @@ describe("CLI topics commands", () => {
     expect(mergeRes.exitCode).toBe(0);
     expect(mergeRes.stdout).toContain('Merged "Legacy Shelves" into "Shelves"');
 
-    expect(corpus.getById(other.id)).toBeNull();
-    expect(corpus.getById(shelves.id)!.aliases).toContain("OldRacks");
-    expect(corpus.assignment(rootThread.id).entityId).toBe(shelves.id);
+    expect(workstreamStore.getById(other.id)).toBeNull();
+    expect(workstreamStore.getById(shelves.id)!.aliases).toContain("OldRacks");
+    expect(workstreamStore.assignment(rootThread.id).workstreamId).toBe(shelves.id);
   });
 
   it("topics edit failure on alias conflict is atomic and rolls back name changes", async () => {
-    const { w, corpus, shelves } = await setup();
+    const { w, workstreamStore: workstreamStore, shelves } = await setup();
 
     // Storage already has alias "Warehouse" in root scope.
     // Shelves is a child of Storage. Let's create an entity with an alias in Shelves' scope.
-    corpus.create("Drawers", "Drawers feature", shelves.parentId, ["Cabinets"]);
+    workstreamStore.create("Drawers", "Drawers feature", shelves.parentId, ["Cabinets"]);
 
     // Attempting to edit Shelves with a name change AND a conflicting alias with Drawers ("Cabinets")
     const failRes = await w.harness.behavior.runCli([
-      "topics",
       "edit",
       shelves.id,
       "--name",
@@ -238,7 +227,7 @@ describe("CLI topics commands", () => {
     expect(failRes.exitCode).not.toBe(0);
 
     // Assert atomic rollback: Shelves must NOT have been renamed to "Modular Shelving"!
-    const current = corpus.getById(shelves.id)!;
+    const current = workstreamStore.getById(shelves.id)!;
     expect(current.name).toBe("Shelves");
     expect(current.aliases).toEqual(["Racks"]);
   });
@@ -250,7 +239,6 @@ describe("CLI topics commands", () => {
 
     // catalog create
     const createRes = await w.harness.behavior.runCli([
-      "topics",
       "create",
       "Pallets",
       "--description",
@@ -266,7 +254,6 @@ describe("CLI topics commands", () => {
 
     // catalog edit
     const editRes = await w.harness.behavior.runCli([
-      "topics",
       "edit",
       shelves.id,
       "--description",
@@ -282,11 +269,10 @@ describe("CLI topics commands", () => {
 
     // catalog reparent
     const reparentRes = await w.harness.behavior.runCli([
-      "topics",
-      "reparent",
+      "move",
       shelves.id,
       "--to",
-      "root",
+      "top",
     ]);
     expect(reparentRes.exitCode).toBe(0);
     expect(w.harness.inspection.realtimeSignals.length).toBeGreaterThan(count2);
@@ -298,7 +284,6 @@ describe("CLI topics commands", () => {
 
     // catalog merge
     const mergeRes = await w.harness.behavior.runCli([
-      "topics",
       "merge",
       shelves.id,
       storage.id,
@@ -325,8 +310,8 @@ describe("CLI thread topic commands", () => {
     expect(rootRes.stdout).toContain(
       `Thread:          Root shelves task (@thread:${rootThread.id})`,
     );
-    expect(rootRes.stdout).toContain("Workstream:      Storage");
-    expect(rootRes.stdout).toContain("Topic:           Storage: Shelves");
+    expect(rootRes.stdout).toContain("Listed in:       Storage");
+    expect(rootRes.stdout).toContain("Workstream:      Storage › Shelves");
     expect(rootRes.stdout).toContain(
       "Source:          chosen automatically from its requests",
     );
@@ -339,7 +324,7 @@ describe("CLI thread topic commands", () => {
     ]);
     expect(childRes.exitCode).toBe(0);
     expect(childRes.stdout).toContain(
-      "Source:          follows parent thread's topic",
+      "Source:          follows its parent thread's workstream",
     );
     expect(childRes.stdout).toContain(
       "Parent source:   chosen automatically from its requests",
@@ -358,80 +343,80 @@ describe("CLI thread topic commands", () => {
     expect(jsonRes.exitCode).toBe(0);
     const parsed = JSON.parse(jsonRes.stdout);
     expect(parsed.threadId).toBe(rootThread.id);
-    expect(parsed.assignment.entityId).toBe(shelves.id);
+    expect(parsed.assignment.workstreamId).toBe(shelves.id);
   });
 
   it("thread assign manually sets identity and updates root for child threads", async () => {
-    const { w, corpus, childThread, rootThread, storage } = await setup();
-    const docks = corpus.create("Docks", "Docks feature", storage.id);
+    const { w, workstreamStore: workstreamStore, childThread, rootThread, storage } = await setup();
+    const docks = workstreamStore.create("Docks", "Docks feature", storage.id);
 
     // Assign via child thread -> must mutate root task!
     const assignRes = await w.harness.behavior.runCli([
       "thread",
-      "assign",
+      "move",
       childThread.id,
       docks.id,
     ]);
     expect(assignRes.exitCode).toBe(0);
     expect(assignRes.stdout).toContain(
-      `Assigned @thread:${childThread.id} to "Docks" (Storage: Docks).`,
+      `Moved @thread:${childThread.id} to "Docks" (Storage › Docks).`,
     );
 
-    const rootAssign = corpus.assignment(rootThread.id);
-    expect(rootAssign.entityId).toBe(docks.id);
+    const rootAssign = workstreamStore.assignment(rootThread.id);
+    expect(rootAssign.workstreamId).toBe(docks.id);
     expect(rootAssign.provenance).toBe("manual");
 
-    const childAssign = corpus.assignment(childThread.id);
-    expect(childAssign.entityId).toBe(docks.id);
+    const childAssign = workstreamStore.assignment(childThread.id);
+    expect(childAssign.workstreamId).toBe(docks.id);
     expect(childAssign.inheritedFrom).toBe(rootThread.id);
   });
 
   it("thread clear clears thread assignment to unresolved and mutates root", async () => {
-    const { w, corpus, childThread, rootThread } = await setup();
+    const { w, workstreamStore: workstreamStore, childThread, rootThread } = await setup();
 
     const clearRes = await w.harness.behavior.runCli([
       "thread",
-      "clear",
-      childThread.id,
+      "move",
+      childThread.id, "none",
     ]);
     expect(clearRes.exitCode).toBe(0);
-    expect(clearRes.stdout).toContain("has no topic now");
+    expect(clearRes.stdout).toContain("to No workstream");
 
-    const rootAssign = corpus.assignment(rootThread.id);
-    expect(rootAssign.status).toBe("unresolved");
-    expect(rootAssign.entityId).toBeNull();
+    const rootAssign = workstreamStore.assignment(rootThread.id);
+    expect(rootAssign.status).toBe("none");
+    expect(rootAssign.workstreamId).toBeNull();
   });
 
   it("thread reclassify re-runs classification against the Catalog", async () => {
-    const { w, corpus, rootThread, shelves } = await setup();
-    corpus.clear(rootThread.id);
+    const { w, workstreamStore: workstreamStore, rootThread, shelves } = await setup();
+    workstreamStore.clear(rootThread.id);
 
     const reclassifyRes = await w.harness.behavior.runCli([
       "thread",
-      "reclassify",
+      "automatic",
       rootThread.id,
     ]);
     expect(reclassifyRes.exitCode).toBe(0);
     expect(reclassifyRes.stdout).toContain(
-      `@thread:${rootThread.id}'s topic is now`,
+      `@thread:${rootThread.id} is now in`,
     );
 
-    const assignment = corpus.assignment(rootThread.id);
+    const assignment = workstreamStore.assignment(rootThread.id);
     expect(assignment.status).toBe("assigned");
-    expect(assignment.entityId).toBe(shelves.id);
-    expect(assignment.provenance).toBe("full");
+    expect(assignment.workstreamId).toBe(shelves.id);
+    expect(assignment.provenance).toBe("automatic");
   });
 
   it("thread mutations notify realtime views", async () => {
-    const { w, corpus, rootThread, storage } = await setup();
-    const docks = corpus.create("Docks", "Docks feature", storage.id);
+    const { w, workstreamStore: workstreamStore, rootThread, storage } = await setup();
+    const docks = workstreamStore.create("Docks", "Docks feature", storage.id);
 
     const count0 = w.harness.inspection.realtimeSignals.length;
 
     // task assign
     const assignRes = await w.harness.behavior.runCli([
       "thread",
-      "assign",
+      "move",
       rootThread.id,
       docks.id,
     ]);
@@ -446,8 +431,8 @@ describe("CLI thread topic commands", () => {
     // task clear
     const clearRes = await w.harness.behavior.runCli([
       "thread",
-      "clear",
-      rootThread.id,
+      "move",
+      rootThread.id, "none",
     ]);
     expect(clearRes.exitCode).toBe(0);
     expect(w.harness.inspection.realtimeSignals.length).toBeGreaterThan(count1);
@@ -460,7 +445,7 @@ describe("CLI thread topic commands", () => {
     // task reclassify
     const reclassRes = await w.harness.behavior.runCli([
       "thread",
-      "reclassify",
+      "automatic",
       rootThread.id,
     ]);
     expect(reclassRes.exitCode).toBe(0);
@@ -472,7 +457,7 @@ describe("CLI thread topic commands", () => {
 
   it("thread reclassify on a child settles its root at once, and organizing asks nothing more", async () => {
     const prompts: string[] = [];
-    const { w, corpus, rootThread, childThread, shelves } = await setup({
+    const { w, workstreamStore: workstreamStore, rootThread, childThread, shelves } = await setup({
       onPrompt: (p) => prompts.push(p),
     });
     w.converse(rootThread.id, ["Design warehouse shelves distribution"]);
@@ -480,7 +465,7 @@ describe("CLI thread topic commands", () => {
 
     const reclassRes = await w.harness.behavior.runCli([
       "thread",
-      "reclassify",
+      "automatic",
       childThread.id,
     ]);
     expect(reclassRes.exitCode).toBe(0);
@@ -490,12 +475,12 @@ describe("CLI thread topic commands", () => {
     )!;
     expect(analysis).toContain("Design warehouse shelves distribution");
     expect(analysis).not.toContain("Fix minor child button styling");
-    const childAssign = corpus.assignment(childThread.id);
-    expect(childAssign.entityId).toBe(shelves.id);
+    const childAssign = workstreamStore.assignment(childThread.id);
+    expect(childAssign.workstreamId).toBe(shelves.id);
     expect(childAssign.inheritedFrom).toBe(rootThread.id);
 
     const before = prompts.length;
-    await w.harness.behavior.callRpc("organization", { action: "rebuild" });
+    await w.harness.behavior.callRpc("organizeStatus", { action: "rebuild" });
     expect(prompts.length).toBe(before);
   });
 
@@ -503,7 +488,7 @@ describe("CLI thread topic commands", () => {
     const { w } = await setup();
 
     // 1. organization read
-    const readRes = await w.harness.behavior.runCli(["organization", "--json"]);
+    const readRes = await w.harness.behavior.runCli(["organize", "--json"]);
     expect(readRes.exitCode).toBe(0);
     const readState = JSON.parse(readRes.stdout);
     expect(readState).toHaveProperty("status");
@@ -511,7 +496,7 @@ describe("CLI thread topic commands", () => {
 
     // 2. organization rebuild
     const retryRes = await w.harness.behavior.runCli([
-      "organization",
+      "organize",
       "--rebuild",
       "--json",
     ]);

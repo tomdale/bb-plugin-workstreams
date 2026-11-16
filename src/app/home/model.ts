@@ -12,7 +12,7 @@ import {
   focusedSections,
   type GroupSort,
   type WorkstreamNode,
-  type WorkstreamTopics,
+  type WorkstreamTree,
 } from "../../domain/groups.ts";
 import type { ManualOrder } from "../../domain/order.ts";
 import type {
@@ -52,7 +52,7 @@ export type HomePlan<T extends WorkstreamThread> = {
   /** The other workstreams with threads, in the chosen order. */
   readonly populated: readonly WorkstreamNode<T>[];
   /** Threads in no workstream; null while there are none. */
-  readonly unfiled: Group<T> | null;
+  readonly other: Group<T> | null;
   /** Workstreams quiet for 30 days. */
   readonly dormant: readonly WorkstreamNode<T>[];
   /**
@@ -66,39 +66,43 @@ export type HomePlan<T extends WorkstreamThread> = {
   /** The counts on the hidden groups' headers. */
   readonly lowerCounts: { readonly needsYou: number; readonly total: number };
   readonly snoozed: readonly Row<T>[];
-  /** Workstreams (and Unfiled) with threads, outside Dormant. */
+  /** Workstreams (and Other) with threads, outside Dormant. */
   readonly populatedCount: number;
   /** Nothing at all would show. */
   readonly isEmpty: boolean;
 };
 
 /** The focused workstreams that still exist. */
-export function prioritizedSet(
+export function focusedSet(
   order: ManualOrder,
   sections: readonly { readonly id: string }[],
 ): Set<string> {
   const known = new Set(sections.map((section) => section.id));
-  return new Set(order.prioritized.filter((id) => known.has(id)));
+  return new Set(order.focused.filter((id) => known.has(id)));
 }
 
 export function planHome<T extends UpNextThread>(
   projection: Projection<T>,
   options: UpNextOptions<T> & {
-    /** Focused section ids (`ManualOrder.prioritized`). */
-    prioritized: ReadonlySet<string>;
+    /** Focused section ids (`ManualOrder.focused`). */
+    focused: ReadonlySet<string>;
     groupSort: GroupSort;
     showUpNext: boolean;
     showSnoozed: boolean;
     /** What nests the workstreams; without it each stands alone. */
-    topics?: WorkstreamTopics;
+    workstreams?: WorkstreamTree;
   },
 ): HomePlan<T> {
-  const arranged = arrangeGroups(projection, options.groupSort, options.topics);
+  const arranged = arrangeGroups(
+    projection,
+    options.groupSort,
+    options.workstreams,
+  );
   // Ranked by the same settings as the sidebar's Up Next, so both list the
   // same threads.
   const selection = selectUpNext(projection, {
     ...options,
-    prioritized: focusedSections(arranged, options.prioritized),
+    focused: focusedSections(arranged, options.focused),
   });
   const upNext =
     options.showUpNext && selection.rows.length > 0
@@ -112,20 +116,20 @@ export function planHome<T extends UpNextThread>(
     groups.filter((group) => group.total > 0);
   const pinned = populated(arranged.pinned);
   const others = populated(arranged.populated);
-  const unfiled = arranged.unfiled.total > 0 ? arranged.unfiled : null;
+  const other = arranged.other.total > 0 ? arranged.other : null;
   const dormant = populated(arranged.dormant);
   const snoozed = options.showSnoozed ? projection.snoozed : [];
-  const populatedCount = pinned.length + others.length + (unfiled ? 1 : 0);
+  const populatedCount = pinned.length + others.length + (other ? 1 : 0);
   return {
     upNext,
     pinnedThreads: projection.pinnedThreads,
     focus: { active: selection.focused },
     pinned,
     populated: others,
-    unfiled,
+    other,
     dormant,
     tiered: pinned.length > 0,
-    hasLower: others.length > 0 || unfiled !== null || dormant.length > 0,
+    hasLower: others.length > 0 || other !== null || dormant.length > 0,
     lowerCounts: arranged.lowerCounts,
     snoozed,
     populatedCount,
@@ -147,7 +151,7 @@ export function startsOpen<T extends WorkstreamThread>(
   plan: HomePlan<T>,
   group: Group<T>,
 ): boolean {
-  return group.prioritized || plan.populatedCount <= 1;
+  return group.focused || plan.populatedCount <= 1;
 }
 
 /**

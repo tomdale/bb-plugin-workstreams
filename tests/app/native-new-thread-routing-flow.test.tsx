@@ -13,7 +13,7 @@ import { useComposer } from "@get-bb/plugin-sdk/app";
 import { NewThreadRouting } from "../../src/app/composer/NewThreadRouting.tsx";
 import { fakeWorld } from "../server/fake-bb.ts";
 import { openDatabase } from "../../src/server/db.ts";
-import { TopicStore } from "../../src/server/topics.ts";
+import { WorkstreamStore } from "../../src/server/topics.ts";
 import { setComposerPreset } from "../../src/app/composer/preset.ts";
 
 let world: Awaited<ReturnType<typeof fakeWorld>> | null = null;
@@ -63,13 +63,13 @@ async function mount(
           ? answer.name === "Billing"
             ? {
                 title: { verb: "Exporting", subject: "invoices" },
-                topic: null,
+                workstream: null,
                 propose: { name: "Billing", description: "", parent: null },
                 scopeShift: false,
               }
             : {
                 title: { verb: "Fixing", subject: "parser tabs" },
-                topic: seededAlphaId && "alpha",
+                workstream: seededAlphaId && "alpha",
                 propose: null,
                 scopeShift: false,
               }
@@ -79,17 +79,17 @@ async function mount(
   const w = world;
   const alpha = w.addSection("Alpha");
   const beta = w.addSection("Beta");
-  const corpus = new TopicStore(openDatabase(w.bb));
-  const alphaTopic = corpus.create("Alpha", "Alpha effort");
-  corpus.edit(alphaTopic.id, { projectId: "proj_1", projectSource: "manual" });
-  corpus.bindGroup(alpha.id, alphaTopic.id);
-  const betaTopic = corpus.create("Beta", "Beta effort");
-  corpus.edit(betaTopic.id, { projectId: "proj_1", projectSource: "manual" });
-  corpus.bindGroup(beta.id, betaTopic.id);
-  seededAlphaId = alphaTopic.id;
+  const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
+  const alphaWorkstream = workstreamStore.create("Alpha", "Alpha effort");
+  workstreamStore.edit(alphaWorkstream.id, { projectId: "proj_1", projectSource: "manual" });
+  workstreamStore.bindGroup(alpha.id, alphaWorkstream.id);
+  const betaWorkstream = workstreamStore.create("Beta", "Beta effort");
+  workstreamStore.edit(betaWorkstream.id, { projectId: "proj_1", projectSource: "manual" });
+  workstreamStore.bindGroup(beta.id, betaWorkstream.id);
+  seededAlphaId = alphaWorkstream.id;
   w.addThread("a1", { sectionId: alpha.id, title: "Alpha task" });
   await w.harness.behavior.callRpc("refresh", null);
-  const methods = ["prefs", "state", "catalog", "preview", "previewCancel"];
+  const methods = ["prefs", "state", "tree", "preview", "previewCancel"];
   const deferredReports: (() => Promise<void>)[] = [];
   const rpc = Object.fromEntries(
     methods.map((method) => [
@@ -110,7 +110,7 @@ async function mount(
       });
     });
   };
-  if (options.inherited) setComposerPreset({ topicId: alphaTopic.id }, "Alpha");
+  if (options.inherited) setComposerPreset({ workstreamId: alphaWorkstream.id }, "Alpha");
   const slot = renderSlot(
     { component: RootComposer },
     {},
@@ -168,9 +168,9 @@ async function mount(
     w,
     alpha,
     beta,
-    alphaTopic,
-    betaTopic,
-    corpus,
+    alphaWorkstream,
+    betaWorkstream,
+    workstreamStore: workstreamStore,
     slot,
     dispatch,
     journal,
@@ -181,52 +181,52 @@ async function mount(
   };
 }
 
-it.each(["Beta", "No topic"] as const)(
+it.each(["Beta", "No workstream"] as const)(
   "files the displayed %s choice when native dispatch has no submit metadata",
   async (choice) => {
-    const { slot, corpus, betaTopic, dispatchNative } = await mount({});
+    const { slot, workstreamStore: workstreamStore, betaWorkstream, dispatchNative } = await mount({});
     fireEvent.click(
-      await screen.findByRole("button", { name: "Topic: Automatic" }),
+      await screen.findByRole("button", { name: "Workstream: Automatic" }),
     );
     fireEvent.click(await screen.findByText(choice));
-    await screen.findByRole("button", { name: `Topic: ${choice}` });
+    await screen.findByRole("button", { name: `Workstream: ${choice}` });
     const prompt = "Improve the parser diagnostics for this request";
     await act(() => slot.behavior.setComposerText(prompt));
     await dispatchNative(prompt);
     expect(slot.inspection.composer.submits).toHaveLength(0);
-    expect(corpus.assignment("composed")).toMatchObject({
-      entityId: choice === "Beta" ? betaTopic.id : null,
+    expect(workstreamStore.assignment("composed")).toMatchObject({
+      workstreamId: choice === "Beta" ? betaWorkstream.id : null,
       provenance: "manual",
     });
   },
 );
 
 it("files an inherited topic when native dispatch has no submit metadata", async () => {
-  const { slot, corpus, alphaTopic, dispatchNative } = await mount(
+  const { slot, workstreamStore: workstreamStore, alphaWorkstream, dispatchNative } = await mount(
     {},
     { inherited: true },
   );
-  await screen.findByRole("button", { name: "Topic: Alpha" });
+  await screen.findByRole("button", { name: "Workstream: Alpha" });
   const prompt = "Improve parser diagnostics in this workstream";
   await act(() => slot.behavior.setComposerText(prompt));
   await dispatchNative(prompt);
-  expect(corpus.assignment("composed")).toMatchObject({
-    entityId: alphaTopic.id,
+  expect(workstreamStore.assignment("composed")).toMatchObject({
+    workstreamId: alphaWorkstream.id,
     provenance: "inherited",
   });
 });
 
 it("files an automatic topic and title when native dispatch has no submit metadata", async () => {
-  const { w, slot, corpus, alphaTopic, dispatchNative } = await mount({});
+  const { w, slot, workstreamStore: workstreamStore, alphaWorkstream, dispatchNative } = await mount({});
   const prompt = "Fix the parser in Alpha so it handles tabs";
   await act(() => slot.behavior.setComposerText(prompt));
-  await screen.findByRole("button", { name: "Topic: Alpha" });
+  await screen.findByRole("button", { name: "Workstream: Alpha" });
   const calls = w.completions.length;
   await dispatchNative(prompt);
   await waitFor(() =>
-    expect(corpus.assignment("composed")).toMatchObject({
-      entityId: alphaTopic.id,
-      provenance: "full",
+    expect(workstreamStore.assignment("composed")).toMatchObject({
+      workstreamId: alphaWorkstream.id,
+      provenance: "automatic",
     }),
   );
   await waitFor(() =>
@@ -236,42 +236,42 @@ it("files an automatic topic and title when native dispatch has no submit metada
 });
 
 it("files a manually proposed topic without submit metadata", async () => {
-  const { slot, corpus, dispatchNative } = await mount({});
+  const { slot, workstreamStore: workstreamStore, dispatchNative } = await mount({});
   fireEvent.click(
-    await screen.findByRole("button", { name: "Topic: Automatic" }),
+    await screen.findByRole("button", { name: "Workstream: Automatic" }),
   );
-  fireEvent.change(screen.getByPlaceholderText("Find a topic"), {
+  fireEvent.change(screen.getByPlaceholderText("Find a workstream"), {
     target: { value: "Billing" },
   });
   fireEvent.click(
-    await screen.findByRole("option", { name: /New topic “Billing”/ }),
+    await screen.findByRole("option", { name: /New workstream “Billing”/ }),
   );
-  await screen.findByRole("button", { name: "Topic: Billing" });
+  await screen.findByRole("button", { name: "Workstream: Billing" });
   const prompt = "Add invoice exports for Billing";
   await act(() => slot.behavior.setComposerText(prompt));
   await dispatchNative(prompt);
-  expect(corpus.assignment("composed").entityId).toBe(
-    corpus.list().find((entity) => entity.name === "Billing")?.id,
+  expect(workstreamStore.assignment("composed").workstreamId).toBe(
+    workstreamStore.list().find((workstream) => workstream.name === "Billing")?.id,
   );
 });
 
 it("does not wait for identity reporting before native dispatch and files a late report", async () => {
-  const { slot, corpus, betaTopic, dispatchNative, releaseReports } =
+  const { slot, workstreamStore: workstreamStore, betaWorkstream, dispatchNative, releaseReports } =
     await mount({}, { deferReports: true });
   fireEvent.click(
-    await screen.findByRole("button", { name: "Topic: Automatic" }),
+    await screen.findByRole("button", { name: "Workstream: Automatic" }),
   );
   fireEvent.click(await screen.findByText("Beta"));
-  await screen.findByRole("button", { name: "Topic: Beta" });
+  await screen.findByRole("button", { name: "Workstream: Beta" });
   const prompt = "Improve parser diagnostics before the preview completes";
   await act(() => slot.behavior.setComposerText(prompt));
   await dispatchNative(prompt);
   // Until the report arrives, the start call files the thread on its own.
-  expect(corpus.assignment("composed").provenance).not.toBe("manual");
+  expect(workstreamStore.assignment("composed").provenance).not.toBe("manual");
   expect(slot.inspection.composer.submits).toHaveLength(0);
   await act(() => releaseReports());
-  expect(corpus.assignment("composed")).toMatchObject({
-    entityId: betaTopic.id,
+  expect(workstreamStore.assignment("composed")).toMatchObject({
+    workstreamId: betaWorkstream.id,
     provenance: "manual",
   });
 });
@@ -284,19 +284,19 @@ it("submits classified automatic identity through host metadata and assigns on s
   });
   const prompt = "Fix the parser in Alpha so it handles tabs";
   await act(() => slot.behavior.setComposerText(prompt));
-  await screen.findByRole("button", { name: "Topic: Alpha" });
+  await screen.findByRole("button", { name: "Workstream: Alpha" });
   fireEvent.click(screen.getByRole("button", { name: "Host submit" }));
   await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
   expect(slot.inspection.composer.submits[0]!.experimental_data).toMatchObject({
     identity: {
-      entityId: expect.any(String),
+      workstreamId: expect.any(String),
       provenance: "automatic",
     },
   });
   await dispatch(prompt);
-  const corpus = new TopicStore(openDatabase(w.bb));
-  const assignment = corpus.assignment("composed");
-  expect(assignment).toMatchObject({ status: "assigned", provenance: "full" });
+  const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
+  const assignment = workstreamStore.assignment("composed");
+  expect(assignment).toMatchObject({ status: "assigned", provenance: "automatic" });
   // The composer's preview titles the thread, with no second call.
   await waitFor(() =>
     expect(w.threads.get("composed")?.title).toBe("Fixing parser tabs"),
@@ -313,20 +313,20 @@ it("submits a picked topic through host metadata", async () => {
   });
   const prompt = "Write docs for Alpha";
   await act(() => slot.behavior.setComposerText(prompt));
-  fireEvent.click(await screen.findByRole("button", { name: /Topic:/ }));
+  fireEvent.click(await screen.findByRole("button", { name: /Workstream:/ }));
   fireEvent.click(await screen.findByText("Beta"));
-  await screen.findByRole("button", { name: "Topic: Beta" });
+  await screen.findByRole("button", { name: "Workstream: Beta" });
   fireEvent.click(screen.getByRole("button", { name: "Host submit" }));
   await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
   expect(slot.inspection.composer.submits[0]!.experimental_data).toMatchObject({
     identity: {
-      entityId: expect.any(String),
+      workstreamId: expect.any(String),
       provenance: "manual",
     },
   });
   await dispatch(prompt);
-  const corpus = new TopicStore(openDatabase(w.bb));
-  expect(corpus.assignment("composed").status).toBe("assigned");
+  const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
+  expect(workstreamStore.assignment("composed").status).toBe("assigned");
   expect(w.spawned).toEqual([]);
 });
 
@@ -337,13 +337,13 @@ it("submits a new topic picked in the UI through host metadata", async () => {
   });
   const prompt = "Add invoice export";
   await act(() => slot.behavior.setComposerText(prompt));
-  fireEvent.click(await screen.findByRole("button", { name: /Topic:/ }));
-  const searchInput = screen.getByPlaceholderText("Find a topic");
+  fireEvent.click(await screen.findByRole("button", { name: /Workstream:/ }));
+  const searchInput = screen.getByPlaceholderText("Find a workstream");
   fireEvent.change(searchInput, { target: { value: "Billing" } });
   fireEvent.click(
-    await screen.findByRole("option", { name: /New topic “Billing”/ }),
+    await screen.findByRole("option", { name: /New workstream “Billing”/ }),
   );
-  await screen.findByRole("button", { name: "Topic: Billing" });
+  await screen.findByRole("button", { name: "Workstream: Billing" });
   fireEvent.click(screen.getByRole("button", { name: "Host submit" }));
   await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
   expect(slot.inspection.composer.submits[0]!.experimental_data).toMatchObject({
@@ -353,10 +353,10 @@ it("submits a new topic picked in the UI through host metadata", async () => {
     },
   });
   await dispatch(prompt);
-  const corpus = new TopicStore(openDatabase(w.bb));
-  const created = corpus.list().find((e) => e.name === "Billing");
+  const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
+  const created = workstreamStore.list().find((e) => e.name === "Billing");
   expect(created).toBeDefined();
-  expect(corpus.assignment("composed").entityId).toBe(created!.id);
+  expect(workstreamStore.assignment("composed").workstreamId).toBe(created!.id);
 });
 
 it("submits a picked No topic through native submission and leaves the thread without one", async () => {
@@ -369,28 +369,28 @@ it("submits a picked No topic through native submission and leaves the thread wi
   await act(() => slot.behavior.setComposerText(prompt));
 
   const identityButton = await screen.findByRole("button", {
-    name: /Topic:/,
+    name: /Workstream:/,
   });
   fireEvent.click(identityButton);
   const unresolvedOption = await screen.findByRole("option", {
-    name: "No topic",
+    name: "No workstream",
   });
   fireEvent.click(unresolvedOption);
   await screen.findByRole("button", {
-    name: "Topic: No topic",
+    name: "Workstream: No workstream",
   });
 
   fireEvent.click(screen.getByRole("button", { name: "Host submit" }));
   await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
   expect(slot.inspection.composer.submits[0]!.experimental_data).toMatchObject({
     identity: {
-      entityId: null,
+      workstreamId: null,
       proposal: null,
       provenance: "manual",
     },
   });
   await dispatch(prompt);
-  const corpus = new TopicStore(openDatabase(w.bb));
-  const assignment = corpus.assignment("composed");
-  expect(assignment.status).toBe("unresolved");
+  const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
+  const assignment = workstreamStore.assignment("composed");
+  expect(assignment.status).toBe("none");
 });

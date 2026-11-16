@@ -29,7 +29,7 @@ async function page(
   const trace: TraceSummary = {
     id: "t",
     at: 1000,
-    kind: "full-analysis",
+    kind: "turn-end",
     status: "ok",
     label: "Fix parser",
     model: "test/model",
@@ -60,8 +60,8 @@ it("labels status and topic, explains review on focus, and hides metrics by defa
     "li",
   )!;
   expect(within(row).getByText("Work status:")).toBeTruthy();
-  expect(within(row).getByText("Topic:").parentElement!.textContent).toBe(
-    "Topic: BB",
+  expect(within(row).getByText("Workstream:").parentElement!.textContent).toBe(
+    "Workstream: BB",
   );
   expect(within(row).getByText("Title:").parentElement!.textContent).toBe(
     "Title: “Fix parser tabs”",
@@ -87,7 +87,7 @@ it("labels status and topic, explains review on focus, and hides metrics by defa
 it("labels a turn the agent reported itself", async () => {
   const slot = await page("reported · goal “Parser complete”");
   await slot.findByText("Reported by the agent");
-  expect(slot.queryByText("Topic:")).toBeNull();
+  expect(slot.queryByText("Workstream:")).toBeNull();
 });
 
 it("shows what a thread's start named a new thread", async () => {
@@ -114,7 +114,7 @@ it("does not rerender settled terms and call rows for an unrelated disclosure", 
   const trace: TraceSummary = {
     id: "settled",
     at: 1000,
-    kind: "full-analysis",
+    kind: "turn-end",
     status: "ok",
     label: "Settled call",
     model: "test/model",

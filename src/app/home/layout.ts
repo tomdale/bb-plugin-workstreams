@@ -22,14 +22,14 @@
 export const COMPACT_HOME_VIEWPORT =
   '[data-testid="root-compose-compact-scroll-viewport"]';
 
-export type Placement = "compact" | "narrow" | "wide";
+export type RowLocation = "compact" | "narrow" | "wide";
 type HomeMode = "takeover" | "inline" | "hidden";
 
 /** Where `probe`, an element inside the section, was mounted. */
 export function detectPlacement(
   probe: Element | null,
   narrowViewport: boolean,
-): Placement {
+): RowLocation {
   if (probe?.closest(COMPACT_HOME_VIEWPORT)) return "compact";
   return narrowViewport ? "narrow" : "wide";
 }
@@ -40,7 +40,7 @@ export function detectPlacement(
  * and on error the section steps aside so BB's list remains.
  */
 export function homeMode(input: {
-  placement: Placement;
+  placement: RowLocation;
   enabled: boolean;
   status: "loading" | "ready" | "error";
   hasContent: boolean;

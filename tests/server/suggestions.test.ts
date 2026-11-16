@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fakeWorld } from "./fake-bb.ts";
-import { TopicStore } from "../../src/server/topics.ts";
+import { WorkstreamStore } from "../../src/server/topics.ts";
 import { getMeta, openDatabase, setMeta } from "../../src/server/db.ts";
 import type { SuggestionsStateWire } from "../../src/server/contract.ts";
 import { Suggestions } from "../../src/server/suggestions.ts";
@@ -15,9 +15,9 @@ afterEach(async () => {
   vi.useRealTimers();
 });
 
-const SPLIT = "Consider whether this first-level topic";
-const REPAIR = "holds threads beside its subgroups";
-const TIDY = "You maintain the topic tree";
+const SPLIT = "Consider whether this top-level workstream";
+const REPAIR = "holds threads of its own beside its workstreams";
+const TIDY = "You maintain the workstreams and groups";
 
 /** A world whose model answers split and tidy prompts with these. */
 async function setup(answers: {
@@ -30,7 +30,7 @@ async function setup(answers: {
         await (prompt.includes(SPLIT) || prompt.includes(REPAIR)
           ? (answers.split?.(prompt) ?? {
               reason: "",
-              subgroups: [],
+              workstreams: [],
               threads: [],
             })
           : prompt.includes(TIDY)
@@ -39,7 +39,7 @@ async function setup(answers: {
       ),
   });
   const w = world;
-  const topics = new TopicStore(openDatabase(w.bb));
+  const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
   const rpc = <T>(method: string, input: unknown = null) =>
     w.harness.behavior.callRpc(method, input) as Promise<T>;
   const run = async () =>
@@ -49,7 +49,7 @@ async function setup(answers: {
       "suggestionsDecide",
       { ids, decision },
     );
-  return { w, topics, rpc, run, decide };
+  return { w, workstreamStore, rpc, run, decide };
 }
 
 const tidyEdit = (fields: Record<string, unknown>) => ({
@@ -57,7 +57,7 @@ const tidyEdit = (fields: Record<string, unknown>) => ({
   reason: "Because",
   from: null,
   into: null,
-  topic: null,
+  workstream: null,
   parent: null,
   name: null,
   description: null,
@@ -68,23 +68,23 @@ const tidyEdit = (fields: Record<string, unknown>) => ({
 
 describe("split suggestions", () => {
   it("previews a lasting topic division on request, and accepting files every thread", async () => {
-    const { w, topics, run, decide, rpc } = await setup({
+    const { w, workstreamStore, run, decide, rpc } = await setup({
       split: () => ({
         reason: "Planning apart from triggers",
-        subgroups: [
+        workstreams: [
           { name: "Planning", description: "Design" },
           { name: "Triggers", description: "Events" },
         ],
         threads: [1, 2, 3, 4, 5, 6].map((n) => ({
           id: `r${n}`,
-          subgroup: n <= 3 ? "Planning" : "Triggers",
+          workstream: n <= 3 ? "Planning" : "Triggers",
         })),
       }),
     });
-    const auto = topics.create("Automations", "The product");
+    const auto = workstreamStore.create("Automations", "The product");
     for (let i = 1; i <= 6; i++) {
       w.addThread(`t${i}`, { title: `Task ${i}` });
-      topics.assign(`t${i}`, auto.id);
+      workstreamStore.assign(`t${i}`, auto.id);
     }
     await rpc("refresh");
     const state = await run();
@@ -119,57 +119,61 @@ describe("split suggestions", () => {
       })),
     });
     // The wire carries it as data too: two new topics, and six threads filed.
-    expect(split!.delta?.topics.map((t) => [t.name, t.parentId])).toEqual([
+    expect(split!.delta?.workstreams.map((t) => [t.name, t.parentId])).toEqual([
       ["Planning", auto.id],
       ["Triggers", auto.id],
     ]);
     expect(split!.delta?.removed).toEqual([]);
     expect(split!.delta?.assignments).toHaveLength(6);
     // Nothing changes until it's accepted.
-    expect(topics.subtopics(auto.id)).toBe(0);
+    expect(workstreamStore.workstreams(auto.id)).toBe(0);
 
     expect((await decide([split!.id], "accept")).applied).toEqual([split!.id]);
-    expect(topics.subtopics(auto.id)).toBe(2);
-    expect(topics.assignment("t1").label).toBe("Automations: Planning");
-    expect(topics.assignment("t6").label).toBe("Automations: Triggers");
+    expect(workstreamStore.workstreams(auto.id)).toBe(2);
+    expect(workstreamStore.assignment("t1").label).toBe(
+      "Automations › Planning",
+    );
+    expect(workstreamStore.assignment("t6").label).toBe(
+      "Automations › Triggers",
+    );
 
     // Undo puts the tree back, even after the organizer has bound the new
     // subgroups' workstreams.
-    await rpc("organization", { action: "rebuild" });
+    await rpc("organizeStatus", { action: "rebuild" });
     const { entries } = await rpc<{
       entries: { id: string; action: string }[];
     }>("journal", {});
-    const entry = entries.find((e) => e.action === "suggestion")!;
+    const entry = entries.find((e) => e.action === "suggestion-accepted")!;
     await rpc("undo", { entryId: entry.id });
-    expect(topics.subtopics(auto.id)).toBe(0);
-    expect(topics.assignment("t1").entityId).toBe(auto.id);
+    expect(workstreamStore.workstreams(auto.id)).toBe(0);
+    expect(workstreamStore.assignment("t1").workstreamId).toBe(auto.id);
   });
 
   it("reviews archived filing choices by name and preserves their provenance", async () => {
-    const { w, topics, run, decide, rpc } = await setup({
+    const { w, workstreamStore, run, decide, rpc } = await setup({
       split: () => ({
         reason: "Separates billing from access control.",
-        subgroups: [
+        workstreams: [
           { name: "Billing", description: "Billing" },
           { name: "Access Control", description: "Permissions" },
         ],
         threads: [
-          { id: "r1", subgroup: "Billing" },
-          { id: "r2", subgroup: "Billing" },
-          { id: "r3", subgroup: "Access Control" },
+          { id: "r1", workstream: "Billing" },
+          { id: "r2", workstream: "Billing" },
+          { id: "r3", workstream: "Access Control" },
         ],
       }),
     });
-    const product = topics.create("Harbor");
+    const product = workstreamStore.create("Harbor");
     for (const id of ["a", "b"]) {
       w.addThread(id, { title: `Billing ${id}` });
-      topics.assign(id, product.id);
+      workstreamStore.assign(id, product.id);
     }
     w.addThread("archived", {
       title: "Archived permissions",
       archivedAt: Date.now(),
     });
-    topics.assign("archived", product.id, {
+    workstreamStore.assign("archived", product.id, {
       provenance: "manual",
       evidence: "original",
     });
@@ -179,8 +183,8 @@ describe("split suggestions", () => {
     )!;
     expect(JSON.stringify(plan.change)).toContain("Archived permissions");
     expect((await decide([plan.id], "accept")).applied).toEqual([plan.id]);
-    expect(topics.assignment("archived")).toMatchObject({
-      label: "Harbor: Access Control",
+    expect(workstreamStore.assignment("archived")).toMatchObject({
+      label: "Harbor › Access Control",
       provenance: "manual",
       evidence: "original",
     });
@@ -188,42 +192,42 @@ describe("split suggestions", () => {
 
   it("still applies after threads move, close, or join, filing newcomers", async () => {
     const prompts: string[] = [];
-    const { w, topics, run, decide, rpc } = await setup({
+    const { w, workstreamStore, run, decide, rpc } = await setup({
       split: (prompt) => {
         prompts.push(prompt);
         if (prompts.length > 1)
           // The newcomer, filed among the proposed subgroups.
           return {
             reason: "",
-            subgroups: [{ name: "Triggers", description: "" }],
-            threads: [{ id: "r1", subgroup: "Triggers" }],
+            workstreams: [{ name: "Triggers", description: "" }],
+            threads: [{ id: "r1", workstream: "Triggers" }],
           };
         return {
           reason: "Planning apart from triggers",
-          subgroups: [
+          workstreams: [
             { name: "Planning", description: "Design" },
             { name: "Triggers", description: "Events" },
           ],
           threads: [1, 2, 3, 4, 5, 6].map((n) => ({
             id: `r${n}`,
-            subgroup: n <= 3 ? "Planning" : "Triggers",
+            workstream: n <= 3 ? "Planning" : "Triggers",
           })),
         };
       },
     });
-    const auto = topics.create("Automations", "The product");
-    const other = topics.create("Other", "");
+    const auto = workstreamStore.create("Automations", "The product");
+    const other = workstreamStore.create("Other", "");
     for (let i = 1; i <= 6; i++) {
       w.addThread(`t${i}`, { title: `Task ${i}` });
-      topics.assign(`t${i}`, auto.id);
+      workstreamStore.assign(`t${i}`, auto.id);
     }
     await rpc("refresh");
     const [split] = (await run()).suggestions;
 
     // One thread moves elsewhere and a new one joins.
-    topics.assign("t6", other.id);
+    workstreamStore.assign("t6", other.id);
     w.addThread("t7", { title: "Task 7" });
-    topics.assign("t7", auto.id);
+    workstreamStore.assign("t7", auto.id);
     await rpc("refresh");
     const { state } = await rpc<{ state: SuggestionsStateWire }>("suggestions");
     expect(state.suggestions[0]).toMatchObject({
@@ -234,41 +238,45 @@ describe("split suggestions", () => {
     expect((await decide([split!.id], "accept")).applied).toEqual([split!.id]);
     expect(prompts[1]).toContain("[planning] Planning");
     expect(prompts[1]).toContain("[triggers] Triggers");
-    expect(topics.assignment("t1").label).toBe("Automations: Planning");
-    expect(topics.assignment("t7").label).toBe("Automations: Triggers");
+    expect(workstreamStore.assignment("t1").label).toBe(
+      "Automations › Planning",
+    );
+    expect(workstreamStore.assignment("t7").label).toBe(
+      "Automations › Triggers",
+    );
     // The thread that moved away stays where it went.
-    expect(topics.assignment("t6").entityId).toBe(other.id);
+    expect(workstreamStore.assignment("t6").workstreamId).toBe(other.id);
   });
 
   it("repairs a topic that holds threads beside subtopics", async () => {
-    const { w, topics, run, decide, rpc } = await setup({
+    const { w, workstreamStore, run, decide, rpc } = await setup({
       split: (prompt) => {
         expect(prompt).toContain("[triggers] Triggers");
         return {
           reason: "Files the loose thread",
-          subgroups: [{ name: "Triggers", description: "" }],
-          threads: [{ id: "r1", subgroup: "Triggers" }],
+          workstreams: [{ name: "Triggers", description: "" }],
+          threads: [{ id: "r1", workstream: "Triggers" }],
         };
       },
     });
     const db = openDatabase(w.bb);
-    const auto = topics.create("Automations", "The product");
-    const triggers = topics.create("Triggers", "Events", auto.id);
+    const auto = workstreamStore.create("Automations", "The product");
+    const triggers = workstreamStore.create("Triggers", "Events", auto.id);
     w.addThread("loose", { title: "Loose task" });
     db.prepare(
-      "INSERT INTO ws_corpus_subject(thread_id, entity_id, source) VALUES ('loose', ?, 'full')",
+      "INSERT INTO ws_thread_workstream(thread_id, workstream_id, source) VALUES ('loose', ?, 'full')",
     ).run(auto.id);
     await rpc("refresh");
     const [repair] = (await run()).suggestions;
     await decide([repair!.id], "accept");
-    expect(topics.assignment("loose").entityId).toBe(triggers.id);
+    expect(workstreamStore.assignment("loose").workstreamId).toBe(triggers.id);
   });
 });
 
 describe("tidy suggestions", () => {
   it("proposes edits with reasons, applies accepted ones, and remembers declined ones", async () => {
     let prompts: string[] = [];
-    const { w, topics, run, decide, rpc } = await setup({
+    const { w, workstreamStore, run, decide, rpc } = await setup({
       tidy: (prompt) => {
         prompts.push(prompt);
         const id = (name: string) =>
@@ -281,20 +289,24 @@ describe("tidy suggestions", () => {
               into: id("Beta"),
               reason: "Same product",
             }),
-            tidyEdit({ op: "rename", topic: id("Gamma"), name: "Gamma Two" }),
+            tidyEdit({
+              op: "rename",
+              workstream: id("Gamma"),
+              name: "Gamma Two",
+            }),
           ],
         };
       },
     });
-    const a = topics.create("Alpha", "");
-    const b = topics.create("Beta", "");
-    const g = topics.create("Gamma", "");
+    const a = workstreamStore.create("Alpha", "");
+    const b = workstreamStore.create("Beta", "");
+    const g = workstreamStore.create("Gamma", "");
     w.addThread("t1", { title: "Alpha task" });
-    topics.assign("t1", a.id);
+    workstreamStore.assign("t1", a.id);
     w.addThread("t2", { title: "Beta task" });
-    topics.assign("t2", b.id);
+    workstreamStore.assign("t2", b.id);
     w.addThread("t3", { title: "Gamma task" });
-    topics.assign("t3", g.id);
+    workstreamStore.assign("t3", g.id);
     await rpc("refresh");
     const state = await run();
     expect(state.suggestions.map((s) => [s.summary, s.reason])).toEqual([
@@ -324,9 +336,9 @@ describe("tidy suggestions", () => {
     });
     await decide([merge!.id], "accept");
     await decide([rename!.id], "decline");
-    expect(topics.getById(a.id)).toBeNull();
-    expect(topics.assignment("t1").entityId).toBe(b.id);
-    expect(topics.getById(g.id)?.name).toBe("Gamma");
+    expect(workstreamStore.getById(a.id)).toBeNull();
+    expect(workstreamStore.assignment("t1").workstreamId).toBe(b.id);
+    expect(workstreamStore.getById(g.id)?.name).toBe("Gamma");
 
     // The next pass hears both decisions and drops the declined edit.
     prompts = [];
@@ -337,12 +349,16 @@ describe("tidy suggestions", () => {
   });
 
   it("drops an edit that would put threads beside subtopics", async () => {
-    const { w, topics, run, rpc } = await setup({
+    const { w, workstreamStore, run, rpc } = await setup({
       tidy: () => ({
         edits: [
-          tidyEdit({ op: "reparent", topic: "alpha", parent: "beta" }),
           tidyEdit({
-            op: "create",
+            op: "move-workstream",
+            workstream: "alpha",
+            parent: "beta",
+          }),
+          tidyEdit({
+            op: "group",
             name: "Plugins",
             description: "BB plugins",
             parent: null,
@@ -351,40 +367,44 @@ describe("tidy suggestions", () => {
         ],
       }),
     });
-    topics.create("Alpha", "");
-    const b = topics.create("Beta", "");
+    workstreamStore.create("Alpha", "");
+    const b = workstreamStore.create("Beta", "");
     w.addThread("t1", { title: "Beta task" });
-    topics.assign("t1", b.id);
+    workstreamStore.assign("t1", b.id);
     await rpc("refresh");
     const state = await run();
     expect(state.suggestions.map((s) => s.summary)).toEqual([
-      "Create Plugins, holding Alpha, Beta",
+      "Group Alpha, Beta under a new group, Plugins",
     ]);
   });
 
   it("applies a create, then an edit that names the created topic", async () => {
-    const { w, topics, run, decide, rpc } = await setup({
+    const { w, workstreamStore, run, decide, rpc } = await setup({
       tidy: () => ({
         edits: [
           tidyEdit({
-            op: "create",
+            op: "group",
             name: "Vercel",
             description: "Work",
             parent: null,
             children: ["alpha"],
           }),
-          tidyEdit({ op: "reparent", topic: "beta", parent: "new:Vercel" }),
+          tidyEdit({
+            op: "move-workstream",
+            workstream: "beta",
+            parent: "new:Vercel",
+          }),
         ],
       }),
     });
-    const a = topics.create("Alpha", "");
-    const b = topics.create("Beta", "");
+    const a = workstreamStore.create("Alpha", "");
+    const b = workstreamStore.create("Beta", "");
     w.addThread("t1", { title: "Alpha task" });
-    topics.assign("t1", a.id);
+    workstreamStore.assign("t1", a.id);
     await rpc("refresh");
     const [create, reparent] = (await run()).suggestions;
-    expect(reparent!.summary).toBe("Move Beta under Vercel");
-    expect(reparent!.headline).toBe("Move Beta under Vercel");
+    expect(reparent!.summary).toBe("Move Beta into Vercel");
+    expect(reparent!.headline).toBe("Move Beta into Vercel");
     // The topic the create would make reads as new until it exists.
     expect(reparent!.change?.moves).toEqual([
       {
@@ -401,85 +421,93 @@ describe("tidy suggestions", () => {
     const early = await decide([reparent!.id], "accept");
     expect(early.failed).toHaveLength(1);
     await decide([create!.id, reparent!.id], "accept");
-    const vercel = topics.resolve("Vercel")!;
+    const vercel = workstreamStore.resolve("Vercel")!;
     expect(vercel).toBeTruthy();
-    expect(topics.getById(a.id)?.parentId).toBe(vercel.id);
-    expect(topics.getById(b.id)?.parentId).toBe(vercel.id);
+    expect(workstreamStore.getById(a.id)?.parentId).toBe(vercel.id);
+    expect(workstreamStore.getById(b.id)?.parentId).toBe(vercel.id);
   });
 });
 
 describe("an edit that needs a declined create", () => {
   it("is retired with the create it needs", async () => {
-    const { topics, run, decide, rpc } = await setup({
+    const { workstreamStore, run, decide, rpc } = await setup({
       tidy: () => ({
         edits: [
           tidyEdit({
-            op: "create",
+            op: "group",
             name: "Vercel",
             description: "Work",
             parent: null,
             children: ["alpha"],
           }),
-          tidyEdit({ op: "reparent", topic: "beta", parent: "new:Vercel" }),
+          tidyEdit({
+            op: "move-workstream",
+            workstream: "beta",
+            parent: "new:Vercel",
+          }),
         ],
       }),
     });
-    topics.create("Alpha", "");
-    topics.create("Beta", "");
+    workstreamStore.create("Alpha", "");
+    workstreamStore.create("Beta", "");
     await rpc("refresh");
     const [create] = (await run()).suggestions;
     await decide([create!.id], "decline");
     const { state } = await rpc<{ state: SuggestionsStateWire }>("suggestions");
     expect(state.suggestions.filter((s) => s.status === "pending")).toEqual([]);
     expect(
-      state.suggestions.find((s) => s.summary === "Move Beta under Vercel"),
+      state.suggestions.find((s) => s.summary === "Move Beta into Vercel"),
     ).toMatchObject({
       status: "stale",
       problem:
-        "Nothing left to change: It needs a topic another suggestion would have created.",
+        "Nothing left to change: It needs a workstream another suggestion would have created.",
     });
   });
 });
 
 describe("retiring", () => {
   it("retires suggestions that would change nothing, and keeps ones blocked for now", async () => {
-    const { w, topics, run, rpc } = await setup({
+    const { w, workstreamStore, run, rpc } = await setup({
       tidy: (prompt) => {
         const id = (name: string) =>
           prompt.match(new RegExp(`\\[([a-z0-9-]+)\\] ${name} `))?.[1] ?? null;
         const thread = prompt.match(/\[(r\d+)\] Gamma task/)?.[1] ?? null;
         return {
           edits: [
-            tidyEdit({ op: "rename", topic: id("Alpha"), name: "Alpha Two" }),
-            tidyEdit({ op: "move", thread, topic: id("Beta") }),
             tidyEdit({
-              op: "reparent",
-              topic: id("Delta"),
+              op: "rename",
+              workstream: id("Alpha"),
+              name: "Alpha Two",
+            }),
+            tidyEdit({ op: "move-thread", thread, workstream: id("Beta") }),
+            tidyEdit({
+              op: "move-workstream",
+              workstream: id("Delta"),
               parent: id("Beta"),
             }),
           ],
         };
       },
     });
-    const a = topics.create("Alpha", "");
-    const b = topics.create("Beta", "");
-    const g = topics.create("Gamma", "");
-    topics.create("Delta", "");
+    const a = workstreamStore.create("Alpha", "");
+    const b = workstreamStore.create("Beta", "");
+    const g = workstreamStore.create("Gamma", "");
+    workstreamStore.create("Delta", "");
     w.addThread("t1", { title: "Gamma task" });
-    topics.assign("t1", g.id);
+    workstreamStore.assign("t1", g.id);
     await rpc("refresh");
     const pending = (await run()).suggestions;
     expect(pending.map((s) => s.summary)).toEqual([
       "Rename Alpha to Alpha Two",
-      "Refile “Gamma task” into Beta",
-      "Move Delta under Beta",
+      "Move “Gamma task” to Beta",
+      "Move Delta into Beta",
     ]);
     // Done by hand since: the rename and the refile change nothing now.
     // Beta now holds a thread, so moving Delta under it is blocked, but only
     // for now.
-    topics.rename(a.id, "Alpha Two");
-    topics.assign("t1", b.id);
-    await rpc("organization", { action: "rebuild" });
+    workstreamStore.rename(a.id, "Alpha Two");
+    workstreamStore.assign("t1", b.id);
+    await rpc("organizeStatus", { action: "rebuild" });
     await new Promise((resolve) => setTimeout(resolve, 0));
     const { state } = await rpc<{ state: SuggestionsStateWire }>("suggestions");
     expect(
@@ -492,12 +520,12 @@ describe("retiring", () => {
         ),
     ).toEqual([
       [
-        "Move Delta under Beta",
+        "Move Delta into Beta",
         "pending",
-        "The new parent holds threads, so it can't take subtopics.",
+        "The new parent holds threads, so it can't hold workstreams.",
       ],
       [
-        "Refile “Gamma task” into Beta",
+        "Move “Gamma task” to Beta",
         "stale",
         "Nothing left to change: The thread is already there.",
       ],
@@ -513,54 +541,52 @@ describe("retiring", () => {
 describe("moves topic names imply", () => {
   it("proposes one without a model call, and applies it with the old name as an alias", async () => {
     let tidyCalls = 0;
-    const { w, topics, run, decide, rpc } = await setup({
+    const { w, workstreamStore, run, decide, rpc } = await setup({
       tidy: () => {
         tidyCalls++;
         return { edits: [] };
       },
     });
-    const agent = topics.create("Vercel Agent", "");
-    const auto = topics.create("Automations", "", agent.id);
-    const review = topics.create("Vercel Agent Code Review", "");
+    const agent = workstreamStore.create("Vercel Agent", "");
+    const auto = workstreamStore.create("Automations", "", agent.id);
+    const review = workstreamStore.create("Vercel Agent Code Review", "");
     w.addThread("t1", { title: "Alert triage" });
-    topics.assign("t1", auto.id);
+    workstreamStore.assign("t1", auto.id);
     w.addThread("t2", { title: "Approve PRs" });
-    topics.assign("t2", review.id);
+    workstreamStore.assign("t2", review.id);
     await rpc("refresh");
     const state = await run();
     const move = state.suggestions.find((s) => s.status === "pending");
     expect(move).toMatchObject({
-      summary:
-        "Move Vercel Agent Code Review under Vercel Agent as Code Review",
-      reason:
-        "Its name begins with Vercel Agent, so it belongs under that topic.",
+      summary: "Move Vercel Agent Code Review into Vercel Agent as Code Review",
+      reason: "Its name begins with Vercel Agent, so it belongs in that group.",
     });
     expect(tidyCalls).toBe(1);
     expect((await decide([move!.id], "accept")).applied).toEqual([move!.id]);
-    const moved = topics.getById(review.id)!;
+    const moved = workstreamStore.getById(review.id)!;
     expect(moved).toMatchObject({ name: "Code Review", parentId: agent.id });
     expect(moved.aliases).toContain("Vercel Agent Code Review");
-    expect(topics.assignment("t2").entityId).toBe(review.id);
+    expect(workstreamStore.assignment("t2").workstreamId).toBe(review.id);
   });
 });
 
 describe("automatic tidy after changes", () => {
   it("runs for topic and root filing changes, but not repeated checks or title changes", async () => {
     let calls = 0;
-    const { w, topics, run, rpc } = await setup({
+    const { w, workstreamStore, run, rpc } = await setup({
       tidy: () => {
         calls++;
         return { edits: [] };
       },
     });
-    const alpha = topics.create("Alpha", "");
+    const alpha = workstreamStore.create("Alpha", "");
     w.addThread("t1", { title: "First" });
-    topics.assign("t1", alpha.id);
+    workstreamStore.assign("t1", alpha.id);
     await rpc("refresh");
     await run();
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     const check = async () => {
-      await rpc("organization", { action: "rebuild" });
+      await rpc("organizeStatus", { action: "rebuild" });
       await vi.advanceTimersByTimeAsync(2_500);
     };
     await check();
@@ -570,13 +596,13 @@ describe("automatic tidy after changes", () => {
     await check();
     expect(calls).toBe(1);
 
-    const beta = topics.create("Beta", "");
+    const beta = workstreamStore.create("Beta", "");
     await check();
     expect(calls).toBe(2);
-    topics.assign("t1", beta.id);
+    workstreamStore.assign("t1", beta.id);
     await check();
     expect(calls).toBe(3);
-    topics.edit(beta.id, { description: "New scope" });
+    workstreamStore.edit(beta.id, { description: "New scope" });
     await check();
     expect(calls).toBe(4);
     w.addThread("t2", { title: "New root" });
@@ -601,7 +627,7 @@ describe("automatic tidy after changes", () => {
     });
     await run();
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
-    await rpc("catalogCreate", {
+    await rpc("workstreamCreate", {
       name: "Alpha",
       description: "",
       parentId: null,
@@ -622,7 +648,7 @@ describe("automatic tidy after changes", () => {
     const entered = new Promise<void>((resolve) => {
       started = resolve;
     });
-    const { topics, run, rpc } = await setup({
+    const { workstreamStore, run, rpc } = await setup({
       tidy: () => {
         calls++;
         if (calls > 1) return { edits: [] };
@@ -632,14 +658,16 @@ describe("automatic tidy after changes", () => {
         });
       },
     });
-    topics.create("Alpha", "");
+    workstreamStore.create("Alpha", "");
     await rpc("refresh");
     const pending = run();
     await entered;
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
-    topics.create("Beta", "");
+    workstreamStore.create("Beta", "");
     release({
-      edits: [tidyEdit({ op: "rename", topic: "alpha", name: "Alpha Two" })],
+      edits: [
+        tidyEdit({ op: "rename", workstream: "alpha", name: "Alpha Two" }),
+      ],
     });
     const state = await pending;
     expect(state.suggestions.filter((s) => s.status === "pending")).toEqual([]);
@@ -649,27 +677,27 @@ describe("automatic tidy after changes", () => {
 
   it("baselines an older memo without making a call on upgrade", async () => {
     let calls = 0;
-    const { w, topics, run, rpc } = await setup({
+    const { w, workstreamStore, run, rpc } = await setup({
       tidy: () => {
         calls++;
         return { edits: [] };
       },
     });
-    topics.create("Alpha", "");
+    workstreamStore.create("Alpha", "");
     await rpc("refresh");
     await run();
     const db = openDatabase(w.bb);
     setMeta(
       db,
       "suggestions_tidy",
-      JSON.stringify({ at: 1, topics: [], roots: [], mess: null }),
+      JSON.stringify({ at: 1, workstreams: [], roots: [], mess: null }),
     );
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
-    await rpc("organization", { action: "rebuild" });
+    await rpc("organizeStatus", { action: "rebuild" });
     await vi.advanceTimersByTimeAsync(2_500);
     expect(calls).toBe(1);
-    topics.create("Beta", "");
-    await rpc("organization", { action: "rebuild" });
+    workstreamStore.create("Beta", "");
+    await rpc("organizeStatus", { action: "rebuild" });
     await vi.advanceTimersByTimeAsync(2_500);
     expect(calls).toBe(2);
   });
@@ -677,28 +705,28 @@ describe("automatic tidy after changes", () => {
   it("retains the last successful fingerprint when inference fails", async () => {
     let calls = 0;
     let fail = false;
-    const { w, topics, run, rpc } = await setup({
+    const { w, workstreamStore, run, rpc } = await setup({
       tidy: () => {
         calls++;
         if (fail) throw new Error("model offline");
         return { edits: [] };
       },
     });
-    topics.create("Alpha", "");
+    workstreamStore.create("Alpha", "");
     await rpc("refresh");
     await run();
     const db = openDatabase(w.bb);
     const before = JSON.parse(getMeta(db, "suggestions_tidy")!);
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
-    topics.create("Beta", "");
+    workstreamStore.create("Beta", "");
     fail = true;
-    await rpc("organization", { action: "rebuild" });
+    await rpc("organizeStatus", { action: "rebuild" });
     await vi.advanceTimersByTimeAsync(2_500);
     expect(calls).toBe(2);
     expect(JSON.parse(getMeta(db, "suggestions_tidy")!).fingerprint).toBe(
       before.fingerprint,
     );
-    await rpc("organization", { action: "rebuild" });
+    await rpc("organizeStatus", { action: "rebuild" });
     await vi.advanceTimersByTimeAsync(2_500);
     expect(calls).toBe(2);
     fail = false;
@@ -708,18 +736,18 @@ describe("automatic tidy after changes", () => {
 
   it("does not run a scheduled pass after suggestions are disabled", async () => {
     let calls = 0;
-    const { topics, run, rpc } = await setup({
+    const { workstreamStore, run, rpc } = await setup({
       tidy: () => {
         calls++;
         return { edits: [] };
       },
     });
-    topics.create("Alpha", "");
+    workstreamStore.create("Alpha", "");
     await rpc("refresh");
     await run();
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
-    topics.create("Beta", "");
-    await rpc("organization", { action: "rebuild" });
+    workstreamStore.create("Beta", "");
+    await rpc("organizeStatus", { action: "rebuild" });
     await rpc("setPrefs", { patch: { organize: { suggestions: false } } });
     await vi.advanceTimersByTimeAsync(2_500);
     expect(calls).toBe(1);
@@ -727,23 +755,29 @@ describe("automatic tidy after changes", () => {
 
   it("waits for pending edits, then catches up after a decline", async () => {
     let calls = 0;
-    const { topics, run, decide, rpc } = await setup({
+    const { workstreamStore, run, decide, rpc } = await setup({
       tidy: () => {
         calls++;
         return {
           edits:
             calls === 1
-              ? [tidyEdit({ op: "rename", topic: "alpha", name: "Alpha Two" })]
+              ? [
+                  tidyEdit({
+                    op: "rename",
+                    workstream: "alpha",
+                    name: "Alpha Two",
+                  }),
+                ]
               : [],
         };
       },
     });
-    topics.create("Alpha", "");
+    workstreamStore.create("Alpha", "");
     await rpc("refresh");
     const [rename] = (await run()).suggestions;
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
-    topics.create("Beta", "");
-    await rpc("organization", { action: "rebuild" });
+    workstreamStore.create("Beta", "");
+    await rpc("organizeStatus", { action: "rebuild" });
     await vi.advanceTimersByTimeAsync(2_500);
     expect(calls).toBe(1);
     await decide([rename!.id], "decline");
@@ -760,7 +794,7 @@ describe("automatic tidy after changes", () => {
 describe("a follow-up tidy pass", () => {
   it("runs once you've decided every suggestion and accepted one", async () => {
     let tidyCalls = 0;
-    const { w, topics, run, decide, rpc } = await setup({
+    const { w, workstreamStore, run, decide, rpc } = await setup({
       tidy: (prompt) => {
         tidyCalls++;
         const id = (name: string) =>
@@ -771,7 +805,7 @@ describe("a follow-up tidy pass", () => {
               ? [
                   tidyEdit({
                     op: "rename",
-                    topic: id("Alpha"),
+                    workstream: id("Alpha"),
                     name: "Alpha Two",
                   }),
                 ]
@@ -779,9 +813,9 @@ describe("a follow-up tidy pass", () => {
         };
       },
     });
-    topics.create("Alpha", "");
+    workstreamStore.create("Alpha", "");
     w.addThread("t1", { title: "Alpha task" });
-    topics.assign("t1", topics.resolve("Alpha")!.id);
+    workstreamStore.assign("t1", workstreamStore.resolve("Alpha")!.id);
     await rpc("refresh");
     const [rename] = (await run()).suggestions;
     expect(tidyCalls).toBe(1);
@@ -791,7 +825,7 @@ describe("a follow-up tidy pass", () => {
     // accepted edit must not schedule a third pass.
     await vi.advanceTimersByTimeAsync(2_500);
     expect(tidyCalls).toBe(2);
-    await rpc("organization", { action: "rebuild" });
+    await rpc("organizeStatus", { action: "rebuild" });
     await vi.advanceTimersByTimeAsync(2_500);
     expect(tidyCalls).toBe(2);
   });
@@ -799,14 +833,16 @@ describe("a follow-up tidy pass", () => {
 
 describe("suggestions CLI", () => {
   it("lists, runs, and accepts suggestions", async () => {
-    const { w, topics, rpc } = await setup({
+    const { w, workstreamStore, rpc } = await setup({
       tidy: () => ({
-        edits: [tidyEdit({ op: "rename", topic: "alpha", name: "Alpha Two" })],
+        edits: [
+          tidyEdit({ op: "rename", workstream: "alpha", name: "Alpha Two" }),
+        ],
       }),
     });
-    const a = topics.create("Alpha", "");
+    const a = workstreamStore.create("Alpha", "");
     w.addThread("t1", { title: "Alpha task" });
-    topics.assign("t1", a.id);
+    workstreamStore.assign("t1", a.id);
     await rpc("refresh");
     const cli = (...args: string[]) => w.harness.behavior.runCli(args);
     expect((await cli("suggestions")).stdout).toBe("No suggestions waiting.");
@@ -816,7 +852,7 @@ describe("suggestions CLI", () => {
     );
     const accepted = await cli("suggestions", "accept", "all");
     expect(accepted.stdout).toBe("Accepted 1 suggestion.");
-    expect(topics.getById(a.id)?.name).toBe("Alpha Two");
+    expect(workstreamStore.getById(a.id)?.name).toBe("Alpha Two");
   });
 });
 
@@ -825,13 +861,13 @@ describe("suggestion checks after organizer passes", () => {
     const host = createTestPluginHost({ pluginId: "suggestion-checks" });
     try {
       const db = openDatabase(host.bb);
-      const topics = new TopicStore(db);
+      const workstreamStore = new WorkstreamStore(db);
       let roots = [{ id: "t1", title: "One" }];
       let enabled = false;
       const suggestions = new Suggestions({
         db,
         inference: null as never,
-        topics,
+        workstreamStore,
         journal: new Journal(db),
         model: async () => null as never,
         enabled: () => enabled,
@@ -841,7 +877,7 @@ describe("suggestion checks after organizer passes", () => {
         onChange: () => {},
         log: () => {},
       });
-      const reads = vi.spyOn(topics, "assignments");
+      const reads = vi.spyOn(workstreamStore, "assignments");
       const checks = () => reads.mock.calls.length;
       suggestions.checkIfChanged();
       const once = checks();
@@ -849,14 +885,14 @@ describe("suggestion checks after organizer passes", () => {
       suggestions.checkIfChanged();
       expect(checks()).toBe(once);
 
-      const topic = topics.create("Lantern");
+      const workstream = workstreamStore.create("Lantern");
       suggestions.checkIfChanged();
       expect(checks()).toBe(once * 2);
-      topics.assign("t1", topic.id);
+      workstreamStore.assign("t1", workstream.id);
       suggestions.checkIfChanged();
       expect(checks()).toBe(once * 3);
       // A deleted thread's assignment is gone, which moves the revision.
-      topics.forget("t1");
+      workstreamStore.forget("t1");
       suggestions.checkIfChanged();
       expect(checks()).toBe(once * 4);
       roots = [...roots, { id: "t2", title: "Two" }];

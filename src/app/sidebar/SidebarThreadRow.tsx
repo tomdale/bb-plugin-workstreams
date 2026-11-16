@@ -8,8 +8,8 @@ import { Row, type RowSnoozeAction } from "./Row.tsx";
 import {
   foldKey,
   foldDefault,
-  PLACEMENT_TRAITS,
-  type Placement,
+  LOCATION_TRAITS,
+  type RowLocation,
 } from "./rows.ts";
 import { RowMenu, type RowMenuHandlers } from "./RowMenu.tsx";
 import { type DragHandle } from "./dnd.tsx";
@@ -30,7 +30,7 @@ export type SidebarThreadRowProps = {
   depth: number;
   active: boolean;
   context?: string;
-  placement: Placement;
+  placement: RowLocation;
   slotWidth: number;
   snoozePrefs: ServerState["snoozePrefs"];
   handlers: RowMenuHandlers;
@@ -95,7 +95,7 @@ export const SidebarThreadRow = memo(function SidebarThreadRow({
   const wakeTime = useClock((now) =>
     snooze ? shortWake(snooze.until, now) : undefined,
   );
-  const traits = PLACEMENT_TRAITS[placement];
+  const traits = LOCATION_TRAITS[placement];
   let snoozeAction: RowSnoozeAction | undefined;
   // The button reads the clock itself for the wake time it names, so a
   // minute passing does not render the row.

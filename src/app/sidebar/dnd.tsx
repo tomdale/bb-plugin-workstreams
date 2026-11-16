@@ -1,6 +1,6 @@
 /**
  * Drag and drop for the sidebar: workstream headers reorder workstreams, and
- * a root thread's row reorders its tree or moves it to another topic's group.
+ * a thread's row reorders its tree or moves it to another workstream's group.
  * Children follow their root and never drag alone.
  *
  * Drags use mouse and touch sensors rather than pointer events so BB's
@@ -116,7 +116,7 @@ const touchSensorOptions = {
 };
 
 /**
- * DndContext props for reordering and topic moves. `containerRef` bounds the
+ * DndContext props for reordering and workstream moves. `containerRef` bounds the
  * list: a drop outside it sideways belongs to BB's split drag, not a reorder.
  */
 export function useSidebarDnd({
@@ -313,5 +313,5 @@ export function DropTarget({
 
 /** The sortable or droppable id of a workstream group. */
 export const groupKey = (id: string) => `ws:${id}`;
-/** The sortable id of a root thread's tree. */
+/** The sortable id of a thread's tree. */
 export const treeKey = (id: string) => `t:${id}`;

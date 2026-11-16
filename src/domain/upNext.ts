@@ -44,7 +44,7 @@
  * settings) none of them fills one: Up Next lists just the threads that are
  * unread or awaiting the user, and can be empty.
  *
- * Nested threads never appear on their own (BB doesn't mark a delegate
+ * Nested threads never appear on their own (BB doesn't mark a child thread
  * unread when its turn ends); they show under their root's row. Parent
  * links decide this even when the parent is absent from the visible tree.
  */
@@ -116,8 +116,8 @@ export type UpNextOptions<T extends UpNextThread> = {
   readonly kindOf: (thread: T) => UpNextKind;
   /** The current time, for aging out stale threads (see `agedKind`). */
   readonly now: number;
-  /** Focused workstream ids (`ManualOrder.prioritized`); none, no focus. */
-  readonly prioritized?: ReadonlySet<string>;
+  /** Focused workstream ids (`ManualOrder.focused`); none, no focus. */
+  readonly focused?: ReadonlySet<string>;
   /**
    * How many rows Up Next shows before Show more, 1 through
    * {@link UP_NEXT_MAX}. {@link UP_NEXT_LIMIT} when absent.
@@ -268,11 +268,7 @@ export function selectUpNext<T extends UpNextThread>(
   const freshWithinMs = options.freshWithinMs ?? 0;
   const fill = options.fill ?? true;
   const includeWaiting = options.includeWaiting ?? false;
-  const ranked = [
-    ...projection.groups,
-    projection.unsorted,
-    ...projection.dormant,
-  ]
+  const ranked = [...projection.groups, projection.other, ...projection.dormant]
     .flatMap((group) => group.rows)
     .filter(
       (row) =>
@@ -297,9 +293,9 @@ export function selectUpNext<T extends UpNextThread>(
           freshWithinMs > 0 &&
           options.now - row.thread.latestAttentionAt <= freshWithinMs,
         tier: tierOf(kind, row.thread.isUnread, unreadFirst),
-        prioritized:
+        focused:
           row.workstreamId !== null &&
-          (options.prioritized?.has(row.workstreamId) ?? false),
+          (options.focused?.has(row.workstreamId) ?? false),
       };
     })
     .filter((entry) => entry !== null)
@@ -310,8 +306,8 @@ export function selectUpNext<T extends UpNextThread>(
         byAttention(a.row, b.row),
     );
 
-  const focused = ranked.some((entry) => entry.prioritized && entry.onYou);
-  const pool = focused ? ranked.filter((entry) => entry.prioritized) : ranked;
+  const focused = ranked.some((entry) => entry.focused && entry.onYou);
+  const pool = focused ? ranked.filter((entry) => entry.focused) : ranked;
   // What the user has to act on: everything else is filler, and with `fill`
   // off none of it fills a row, so Up Next may stop short of `shown`.
   const actionable = pool.filter((entry) => entry.onYou || entry.unread).length;
@@ -340,7 +336,7 @@ export function selectRecent<T extends WorkstreamThread>(
   limit: number,
 ): Row<T>[] {
   const inUpNext = new Set(shown.map((row) => row.thread.id));
-  return [...projection.groups, projection.unsorted, ...projection.dormant]
+  return [...projection.groups, projection.other, ...projection.dormant]
     .flatMap((group) => group.rows)
     .filter((row) => row.depth === 0 && !inUpNext.has(row.thread.id))
     .sort(byAttention)

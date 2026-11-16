@@ -7,57 +7,57 @@ import {
 } from "../../src/domain/tidy.ts";
 
 const state: TreeState = {
-  topics: [
+  workstreams: [
     { id: "bb", name: "bb", parentId: null },
     { id: "todo", name: "Todo", parentId: "bb" },
     { id: "cli", name: "Cli", parentId: null },
   ],
   held: { todo: 1 },
-  threadTopic: { t1: "todo" },
+  threadWorkstream: { t1: "todo" },
 };
 
 describe("mootEdit", () => {
   it("names edits that would change nothing: gone or already done", () => {
-    expect(mootEdit({ op: "move", thread: "gone", topic: "cli" }, state)).toBe(
+    expect(mootEdit({ op: "move-thread", thread: "gone", workstream: "cli" }, state)).toBe(
       "That thread is gone.",
     );
-    expect(mootEdit({ op: "move", thread: "t1", topic: "todo" }, state)).toBe(
+    expect(mootEdit({ op: "move-thread", thread: "t1", workstream: "todo" }, state)).toBe(
       "The thread is already there.",
     );
     expect(
-      mootEdit({ op: "reparent", topic: "todo", parent: "bb" }, state),
-    ).toBe("The topic is already there.");
-    expect(mootEdit({ op: "rename", topic: "cli", name: "Cli" }, state)).toBe(
+      mootEdit({ op: "move-workstream", workstream: "todo", parent: "bb" }, state),
+    ).toBe("The workstream is already there.");
+    expect(mootEdit({ op: "rename", workstream: "cli", name: "Cli" }, state)).toBe(
       "It already has that name.",
     );
     expect(mootEdit({ op: "merge", from: "gone", into: "cli" }, state)).toBe(
-      "A topic it names is gone.",
+      "A workstream it names is gone.",
     );
-    const create = { op: "create" as const, name: "X", description: "" };
+    const create = { op: "group" as const, name: "X", description: "" };
     expect(
       mootEdit({ ...create, parent: null, children: ["gone"] }, state),
-    ).toBe("The topics it would hold are gone.");
+    ).toBe("The workstreams it would hold are gone.");
     // One child left still makes a parent worth creating.
     expect(
       mootEdit({ ...create, parent: null, children: ["gone", "cli"] }, state),
     ).toBeNull();
     expect(
       refusal({ ...create, parent: null, children: ["gone", "cli"] }, state),
-    ).toBe("A topic it names is gone.");
+    ).toBe("A workstream it names is gone.");
   });
 
   it("leaves rule breaks, which may pass later, to refusal", () => {
-    const edit = { op: "reparent" as const, topic: "cli", parent: "todo" };
+    const edit = { op: "move-workstream" as const, workstream: "cli", parent: "todo" };
     expect(mootEdit(edit, state)).toBeNull();
-    expect(refusal(edit, state)).toBe("Topic identity has at most two levels.");
+    expect(refusal(edit, state)).toBe("Workstreams go at most two levels deep.");
   });
 });
 
 describe("prefixMoves", () => {
   const tree = (
-    topics: TreeState["topics"],
+    workstreams: TreeState["workstreams"],
     held: TreeState["held"] = {},
-  ): TreeState => ({ topics, held, threadTopic: {} });
+  ): TreeState => ({ workstreams, held, threadWorkstream: {} });
 
   it("moves a top-level topic under the topic its name begins with", () => {
     const moves = prefixMoves(
@@ -72,13 +72,13 @@ describe("prefixMoves", () => {
     expect(moves).toEqual([
       {
         edit: {
-          op: "reparent",
-          topic: "cr",
+          op: "move-workstream",
+          workstream: "cr",
           parent: "va",
           name: "Code Review",
         },
         reason:
-          "Its name begins with Vercel Agent, so it belongs under that topic.",
+          "Its name begins with Vercel Agent, so it belongs in that group.",
       },
     ]);
   });
@@ -94,7 +94,7 @@ describe("prefixMoves", () => {
       ]),
     );
     expect(moves.map((m) => m.edit)).toEqual([
-      { op: "reparent", topic: "cr", parent: "va", name: "Code Review" },
+      { op: "move-workstream", workstream: "cr", parent: "va", name: "Code Review" },
     ]);
   });
 

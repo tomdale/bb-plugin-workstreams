@@ -1,18 +1,20 @@
-import type { Topic } from "./topics.ts";
+import type { Workstream } from "./topics.ts";
 
-export function topicProject(
-  topicId: string | null | undefined,
-  entities: readonly Topic[],
+export function chosenProject(
+  workstreamId: string | null | undefined,
+  workstreams: readonly Workstream[],
 ): string | null {
-  const byId = new Map(entities.map((topic) => [topic.id, topic]));
+  const byId = new Map(
+    workstreams.map((workstream) => [workstream.id, workstream]),
+  );
   const seen = new Set<string>();
-  let id = topicId;
+  let id = workstreamId;
   while (id && !seen.has(id)) {
     seen.add(id);
-    const topic = byId.get(id);
-    if (!topic || topic.projectSource === "disabled") return null;
-    if (topic.projectId) return topic.projectId;
-    id = topic.parentId;
+    const workstream = byId.get(id);
+    if (!workstream || workstream.projectSource === "disabled") return null;
+    if (workstream.projectId) return workstream.projectId;
+    id = workstream.parentId;
   }
   return null;
 }
@@ -21,28 +23,28 @@ export function topicProject(
 export const NO_PROJECT = "proj_personal";
 
 /**
- * The project a topic's workstream belongs to. A workstream always has one:
+ * The project a workstream's workstream belongs to. A workstream always has one:
  * with none chosen or learned it is No project, never "any project".
  */
 export function workstreamProject(
-  topicId: string | null | undefined,
-  entities: readonly Topic[],
+  workstreamId: string | null | undefined,
+  workstreams: readonly Workstream[],
 ): string {
-  return topicProject(topicId, entities) ?? NO_PROJECT;
+  return chosenProject(workstreamId, workstreams) ?? NO_PROJECT;
 }
 
 /**
  * Whether a new thread would start in a project unrelated to its workstream.
- * Only a destination that names a topic can conflict; a thread with no topic
+ * Only a destination that names a workstream can conflict; a thread with no workstream
  * belongs to no workstream.
  */
 export function workstreamProjectConflict(
-  topicId: string | null | undefined,
-  entities: readonly Topic[],
+  workstreamId: string | null | undefined,
+  workstreams: readonly Workstream[],
   threadProjectId: string | null | undefined,
 ): { workstreamProjectId: string } | null {
-  if (!topicId || !threadProjectId) return null;
-  const workstreamProjectId = workstreamProject(topicId, entities);
+  if (!workstreamId || !threadProjectId) return null;
+  const workstreamProjectId = workstreamProject(workstreamId, workstreams);
   return workstreamProjectId === threadProjectId
     ? null
     : { workstreamProjectId };

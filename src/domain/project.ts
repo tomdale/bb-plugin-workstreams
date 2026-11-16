@@ -8,7 +8,7 @@
  * thread leaves its group, with its descendants, until it wakes. Up Next and
  * Recent (see `upNext.ts`), and Pinned, are overlays that reference the group
  * rows; they never replace them, and never show snoozed threads. Focused
- * workstreams (`prioritized`) lead the groups and never go dormant.
+ * workstreams (`focused`) lead the groups and never go dormant.
  */
 import { applyOrder, type ManualOrder } from "./order.ts";
 import {
@@ -36,7 +36,7 @@ export type Row<T extends WorkstreamThread> = {
   readonly thread: T;
   readonly depth: number;
   readonly hasChildren: boolean;
-  /** The workstream (section id) the row's tree belongs to; null = Unfiled. */
+  /** The workstream (section id) the row's tree belongs to; null = Other. */
   readonly workstreamId: string | null;
   readonly needsYou: boolean;
 };
@@ -50,8 +50,8 @@ export type Group<T extends WorkstreamThread> = {
   readonly needsYou: number;
   /** Latest attention time across the group's threads; 0 when empty. */
   readonly lastActiveAt: number;
-  /** The user focused on this workstream (never Unfiled). */
-  readonly prioritized: boolean;
+  /** The user focused on this workstream (never Other). */
+  readonly focused: boolean;
 };
 
 export type Projection<T extends WorkstreamThread> = {
@@ -73,7 +73,7 @@ export type Projection<T extends WorkstreamThread> = {
    * included; `groups` and `dormant` draw their non-empty ones from it.
    */
   readonly all: readonly Group<T>[];
-  readonly unsorted: Group<T>;
+  readonly other: Group<T>;
   /** Workstreams with nothing active within the window and nothing waiting. */
   readonly dormant: readonly Group<T>[];
   /**
@@ -97,8 +97,8 @@ export type Projection<T extends WorkstreamThread> = {
  * {@link UNFILED_NAME}. Its id keeps its original value because stored
  * manual order is keyed by it.
  */
-export const UNSORTED_ID = "unsorted";
-export const UNFILED_NAME = "Unfiled";
+export const OTHER_ID = "other";
+export const OTHER_NAME = "Other";
 export const DAY_MS = 24 * 60 * 60 * 1000;
 
 type ProjectionOptions<T extends WorkstreamThread> = {
@@ -107,7 +107,7 @@ type ProjectionOptions<T extends WorkstreamThread> = {
   /** Whether a thread needs Tom. Defaults to a live pending interaction. */
   readonly needsYou?: (thread: T) => boolean;
   /**
-   * The user's drag-and-drop order for workstreams and root threads, and the
+   * The user's drag-and-drop order for workstreams and threads, and the
    * focused workstreams.
    */
   readonly order?: ManualOrder;
@@ -164,7 +164,7 @@ function shareGroup<T extends WorkstreamThread>(
     previous.total === next.total &&
     previous.needsYou === next.needsYou &&
     previous.lastActiveAt === next.lastActiveAt &&
-    previous.prioritized === next.prioritized
+    previous.focused === next.focused
     ? previous
     : next;
 }
@@ -214,14 +214,14 @@ export function nextDormancyDeadline<T extends WorkstreamThread>(
   );
   const forest = buildForest(visible);
   const known = new Set(sections.map((section) => section.id));
-  const prioritized = new Set(options.order?.prioritized ?? []);
+  const focused = new Set(options.order?.focused ?? []);
   const wakeOf = options.snoozedUntil ?? (() => undefined);
   const needsYou =
     options.needsYou ?? ((thread: T) => thread.hasPendingInteraction);
   const stats = new Map<string, { lastActiveAt: number; needsYou: boolean }>();
   const visit = (node: TreeNode<T>, key: string) => {
     if (wakeOf(node.thread) !== undefined) return;
-    if (key !== UNSORTED_ID) {
+    if (key !== OTHER_ID) {
       const stat = stats.get(key) ?? { lastActiveAt: 0, needsYou: false };
       stat.lastActiveAt = Math.max(
         stat.lastActiveAt,
@@ -234,13 +234,13 @@ export function nextDormancyDeadline<T extends WorkstreamThread>(
   };
   for (const root of forest.roots) {
     const sectionId = root.thread.sectionId;
-    visit(root, sectionId && known.has(sectionId) ? sectionId : UNSORTED_ID);
+    visit(root, sectionId && known.has(sectionId) ? sectionId : OTHER_ID);
   }
 
   const dormantAfterMs = options.dormantAfterMs ?? 30 * DAY_MS;
   let next = Number.POSITIVE_INFINITY;
   for (const [id, stat] of stats) {
-    if (stat.needsYou || prioritized.has(id)) continue;
+    if (stat.needsYou || focused.has(id)) continue;
     // Dormancy uses a strict age comparison, so wake just after the boundary.
     const deadline = stat.lastActiveAt + dormantAfterMs + 1;
     if (deadline > options.now) next = Math.min(next, deadline);
@@ -265,7 +265,7 @@ export function projectWorkstreams<T extends WorkstreamThread>(
   });
   const known = new Set(sections.map((section) => section.id));
   const groupKeyOf = (root: T) =>
-    root.sectionId && known.has(root.sectionId) ? root.sectionId : UNSORTED_ID;
+    root.sectionId && known.has(root.sectionId) ? root.sectionId : OTHER_ID;
 
   // Snoozed threads leave their trees with their whole subtree; what's left
   // of each tree stays in its group.
@@ -290,7 +290,7 @@ export function projectWorkstreams<T extends WorkstreamThread>(
   const previousGroups = new Map<string, Group<T>>(
     [
       ...(options.previous?.all ?? []),
-      ...(options.previous ? [options.previous.unsorted] : []),
+      ...(options.previous ? [options.previous.other] : []),
     ].map((group) => [group.id, group]),
   );
 
@@ -304,7 +304,7 @@ export function projectWorkstreams<T extends WorkstreamThread>(
   const rowsBySection = new Map<string, Row<T>[]>();
   const rowOf = new Map<string, Row<T>>();
   for (const [key, roots] of rootsBySection) {
-    const workstreamId = key === UNSORTED_ID ? null : key;
+    const workstreamId = key === OTHER_ID ? null : key;
     const rows: Row<T>[] = [];
     const ordered = [
       ...roots.filter((root) => root.thread.isPinned),
@@ -351,7 +351,7 @@ export function projectWorkstreams<T extends WorkstreamThread>(
   }
   const counts = (row: Row<T>) => row.needsYou && !folded.has(row.thread.id);
 
-  const prioritized = new Set(options.order?.prioritized ?? []);
+  const focused = new Set(options.order?.focused ?? []);
   const group = (id: string, name: string): Group<T> => {
     const previous = previousGroups.get(id);
     const rows = shareRowList(previous?.rows, rowsBySection.get(id) ?? []);
@@ -365,7 +365,7 @@ export function projectWorkstreams<T extends WorkstreamThread>(
         0,
         ...rows.map((row) => row.thread.latestAttentionAt),
       ),
-      prioritized: id !== UNSORTED_ID && prioritized.has(id),
+      focused: id !== OTHER_ID && focused.has(id),
     });
   };
 
@@ -386,7 +386,7 @@ export function projectWorkstreams<T extends WorkstreamThread>(
   for (const g of allGroups) {
     if (g.total === 0) continue;
     const quiet = options.now - g.lastActiveAt > dormantAfterMs;
-    if (g.prioritized) pinned.push(g);
+    if (g.focused) pinned.push(g);
     else if (quiet && g.needsYou === 0) dormant.push(g);
     else groups.push(g);
   }
@@ -414,7 +414,7 @@ export function projectWorkstreams<T extends WorkstreamThread>(
         thread: child.thread,
         depth: child.depth - node.depth,
         hasChildren: child.children.length > 0,
-        workstreamId: key === UNSORTED_ID ? null : key,
+        workstreamId: key === OTHER_ID ? null : key,
         needsYou: needsYou(child.thread),
       });
       snoozed.push(row);
@@ -427,7 +427,7 @@ export function projectWorkstreams<T extends WorkstreamThread>(
     pinnedThreads,
     groups: [...pinned, ...groups],
     all: allGroups,
-    unsorted: group(UNSORTED_ID, UNFILED_NAME),
+    other: group(OTHER_ID, OTHER_NAME),
     dormant,
     snoozed,
     rowOf,

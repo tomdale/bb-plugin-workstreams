@@ -1,8 +1,8 @@
 import type { CategoryGeneration } from "./categories.ts";
 import type { LayoutNode } from "./layout.ts";
-import type { TopicColor } from "./workstreamColor.ts";
+import type { WorkstreamColor } from "./workstreamColor.ts";
 
-export type Topic = {
+export type Workstream = {
   id: string;
   name: string;
   description: string;
@@ -14,20 +14,21 @@ export type Topic = {
 };
 
 /**
- * Where a thread's topic came from, in priority order: a topic you set, one
+ * Where a thread's workstream came from, in priority order: a workstream you set, one
  * inherited from the thread or workstream the thread was started from, one
  * chosen automatically from its requests (a thread's start or a turn's end),
  * and one a composer preview showed for earlier text of the draft. A later
  * source never replaces an earlier one, except that an automatic choice
- * replaces an inherited topic when the scope shifts.
+ * replaces an inherited workstream when the scope shifts.
  */
-export type AssignmentProvenance = "manual" | "inherited" | "full" | "quick";
+export type AssignmentProvenance =
+  "manual" | "inherited" | "automatic" | "composer";
 
-type AssignmentStatus = "assigned" | "unresolved";
+type AssignmentStatus = "assigned" | "none";
 
-export type TopicAssignment = {
+export type WorkstreamAssignment = {
   threadId: string;
-  entityId: string | null;
+  workstreamId: string | null;
   status: AssignmentStatus;
   provenance: AssignmentProvenance | null;
   label: string | null;
@@ -36,16 +37,16 @@ export type TopicAssignment = {
   inheritedFrom: string | null;
 };
 
-export type TopicState = {
-  entities: Topic[];
+export type WorkstreamState = {
+  workstreams: Workstream[];
   groups: Record<string, string>;
-  assignments: Record<string, TopicAssignment>;
+  assignments: Record<string, WorkstreamAssignment>;
   revision: number;
   /** The groups the organizer last applied (see `layoutGroups`). */
   layout?: readonly LayoutNode[];
-  categories?: { [topicId: string]: CategoryGeneration };
-  /** Persistent colors for topics that have had a workstream. */
-  colors?: Record<string, TopicColor>;
+  categories?: { [workstreamId: string]: CategoryGeneration };
+  /** Persistent colors for workstreams that have had a workstream. */
+  colors?: Record<string, WorkstreamColor>;
 };
 
 type DraftAncestor = {
@@ -53,7 +54,7 @@ type DraftAncestor = {
   description: string;
 };
 
-export type DraftSubjectProposal = {
+export type DraftWorkstreamProposal = {
   name: string;
   description: string;
   parentId?: string | null;
@@ -61,118 +62,120 @@ export type DraftSubjectProposal = {
 };
 
 /**
- * Whether a topic can hold threads: a topic holds threads or subtopics,
- * never both, so only one without subtopics can be chosen.
+ * Whether a workstream can hold threads: a workstream holds threads or workstreams in a group,
+ * never both, so only one without workstreams in a group can be chosen.
  */
 export const takesThreads = (
   id: string,
-  entities: readonly { parentId: string | null }[],
-) => !entities.some((entity) => entity.parentId === id);
+  workstreams: readonly { parentId: string | null }[],
+) => !workstreams.some((workstream) => workstream.parentId === id);
 
 /** Returns ancestor entity IDs from nearest up to root. */
-export function topicAncestors(
+export function workstreamAncestors(
   id: string,
-  entities: readonly { id: string; parentId: string | null }[],
+  workstreams: readonly { id: string; parentId: string | null }[],
 ): string[] {
   const result: string[] = [];
   let current: string | null = id;
   const seen = new Set<string>();
   while (current) {
-    if (seen.has(current)) throw new Error("Topic tree contains a cycle.");
+    if (seen.has(current)) throw new Error("A workstream is inside itself.");
     seen.add(current);
     result.push(current);
-    const entity = entities.find((e) => e.id === current);
-    if (!entity) throw new Error(`Unknown topic: ${current}`);
-    current = entity.parentId;
+    const workstream = workstreams.find((e) => e.id === current);
+    if (!workstream) throw new Error(`Unknown workstream: ${current}`);
+    current = workstream.parentId;
   }
   return result;
 }
 
-export function assertTopicLevels(
-  entities: readonly { id: string; parentId: string | null }[],
+export function assertWorkstreamLevels(
+  workstreams: readonly { id: string; parentId: string | null }[],
 ): void {
-  for (const entity of entities)
-    if (topicAncestors(entity.id, entities).length > 2)
+  for (const workstream of workstreams)
+    if (workstreamAncestors(workstream.id, workstreams).length > 2)
       throw new Error(
-        "Topic identity has at most two levels. Review the topic migration before applying this tree.",
+        "Workstreams go at most two levels deep. Review the migration preview before applying this.",
       );
 }
 
 export function assertProposalLevels(
-  proposal: DraftSubjectProposal,
-  entities: readonly { id: string; parentId: string | null }[],
+  proposal: DraftWorkstreamProposal,
+  workstreams: readonly { id: string; parentId: string | null }[],
 ): void {
   const depth =
     (proposal.parentId
-      ? topicAncestors(proposal.parentId, entities).length
+      ? workstreamAncestors(proposal.parentId, workstreams).length
       : 0) +
     (proposal.ancestors?.length ?? 0) +
     1;
-  if (depth > 2) throw new Error("Topic identity has at most two levels.");
+  if (depth > 2) throw new Error("Workstreams go at most two levels deep.");
 }
 
-/** A proposal resolved against the topic tree: an existing topic, or a discovery. */
+/** A proposal resolved against the workstreams and groups: an existing workstream, or a discovery. */
 type ResolvedProposal =
-  | { subjectId: string; proposed: null }
-  | { subjectId: null; proposed: DraftSubjectProposal };
+  | { workstreamId: string; proposed: null }
+  | { workstreamId: null; proposed: DraftWorkstreamProposal };
 
 const sameName = (
-  entity: { name: string; aliases: readonly string[] },
+  workstream: { name: string; aliases: readonly string[] },
   name: string,
 ) => {
   const target = name.trim().toLowerCase();
-  return [entity.name, ...entity.aliases].some(
+  return [workstream.name, ...workstream.aliases].some(
     (candidate) => candidate.trim().toLowerCase() === target,
   );
 };
 
 /**
  * Anchors a proposal at its deepest existing ancestor, so `parentId` names that
- * topic and `ancestors` lists only missing parents. Classifiers sometimes
+ * workstream and `ancestors` lists only missing parents. Classifiers sometimes
  * restate existing ancestry in `ancestors` (parent "Subagents" with ancestors
  * ["Subagents"]); taken verbatim, that creates a same-named copy of the parent.
  *
- * Each segment, outermost first and the leaf last, that names an topic on
+ * Each segment, outermost first and the leaf last, that names a workstream on
  * the anchor's own path or an existing child of the anchor (an existing root
  * without one) becomes the anchor; the first other segment starts the missing
- * remainder. Names match by name or alias, ignoring case, as the topic tree's
+ * remainder. Names match by name or alias, ignoring case, as the workstreams and groups's
  * sibling lookup does. When the leaf resolves too, the proposal is that
- * existing topic.
+ * existing workstream.
  */
 export function resolveProposal(
-  proposal: DraftSubjectProposal,
-  entities: readonly {
+  proposal: DraftWorkstreamProposal,
+  workstreams: readonly {
     id: string;
     name: string;
     parentId: string | null;
     aliases: readonly string[];
   }[],
 ): ResolvedProposal {
-  const byId = new Map(entities.map((entity) => [entity.id, entity]));
+  const byId = new Map(
+    workstreams.map((workstream) => [workstream.id, workstream]),
+  );
   const segments = [...(proposal.ancestors ?? []), proposal];
   let anchor = proposal.parentId ?? null;
   let resolved = 0;
   for (const segment of segments) {
     const restated = anchor
-      ? topicAncestors(anchor, entities).find((id) =>
+      ? workstreamAncestors(anchor, workstreams).find((id) =>
           sameName(byId.get(id)!, segment.name),
         )
       : undefined;
     const next =
       restated ??
-      entities.find(
-        (entity) =>
-          entity.parentId === anchor && sameName(entity, segment.name),
+      workstreams.find(
+        (workstream) =>
+          workstream.parentId === anchor && sameName(workstream, segment.name),
       )?.id;
     if (!next) break;
     anchor = next;
     resolved++;
   }
   if (resolved === segments.length && anchor)
-    return { subjectId: anchor, proposed: null };
-  if (resolved === 0) return { subjectId: null, proposed: proposal };
+    return { workstreamId: anchor, proposed: null };
+  if (resolved === 0) return { workstreamId: null, proposed: proposal };
   return {
-    subjectId: null,
+    workstreamId: null,
     proposed: {
       ...proposal,
       parentId: anchor,

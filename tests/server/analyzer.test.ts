@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { makeThreadResponse } from "@get-bb/plugin-sdk/testing";
 import { makePluginAgentConfigurationContext } from "@get-bb/plugin-sdk/testing";
 import { fakeWorld, type FakeCompletion } from "./fake-bb.ts";
-import { TopicStore } from "../../src/server/topics.ts";
+import { WorkstreamStore } from "../../src/server/topics.ts";
 import { openDatabase } from "../../src/server/db.ts";
 import { RECAP_TOOL } from "../../src/domain/recap.ts";
 import { Analyzer } from "../../src/server/analyzer.ts";
@@ -203,18 +203,18 @@ describe("idle analysis", () => {
   });
 
   it("settles a root's title and topic after a new request", async () => {
-    let topicId = "";
+    let workstreamId = "";
     const w = await setup(() =>
       JSON.stringify({
         recap: "Building the viewer.",
         state: "needs-input",
         title: "Markdown viewer themes",
-        subjectId: topicId,
+        workstreamId: workstreamId,
         proposed: null,
       }),
     );
-    const corpus = new TopicStore(openDatabase(w.bb));
-    topicId = corpus.create("Viewer", "Markdown viewer").id;
+    const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
+    workstreamId = workstreamStore.create("Viewer", "Markdown viewer").id;
     w.addThread("t1", { latestAttentionAt: 10, status: "idle" });
     w.converse("t1", ["Add themes to the markdown viewer"]);
     await w.harness.behavior.callRpc("refresh", null);
@@ -222,10 +222,10 @@ describe("idle analysis", () => {
     // One call describes the turn and chooses the topic by its short ID.
     expect(w.completions).toHaveLength(1);
     expect(analyses(w).at(-1)!.prompt).toContain("[viewer] Viewer");
-    expect(analyses(w).at(-1)!.prompt).not.toContain(topicId);
-    expect(corpus.assignment("t1")).toMatchObject({
-      entityId: topicId,
-      provenance: "full",
+    expect(analyses(w).at(-1)!.prompt).not.toContain(workstreamId);
+    expect(workstreamStore.assignment("t1")).toMatchObject({
+      workstreamId: workstreamId,
+      provenance: "automatic",
     });
     expect((await state(w)).analysis.t1?.title).toBe("Markdown viewer themes");
   });
@@ -301,14 +301,14 @@ describe("idle analysis", () => {
 
   it("never asks for the topic of a thread whose topic you set", async () => {
     const w = await setup();
-    const corpus = new TopicStore(openDatabase(w.bb));
-    const mine = corpus.create("Mine", "");
+    const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
+    const mine = workstreamStore.create("Mine", "");
     w.addThread("t1", { latestAttentionAt: 10, status: "idle" });
-    corpus.assign("t1", mine.id, { provenance: "manual" });
+    workstreamStore.assign("t1", mine.id, { provenance: "manual" });
     await w.harness.behavior.callRpc("refresh", null);
     await w.harness.behavior.runCli(["analyze", "t1"]);
     expect(analyses(w).at(-1)!.prompt).not.toContain('"subjectId"');
-    expect(corpus.assignment("t1").provenance).toBe("manual");
+    expect(workstreamStore.assignment("t1").provenance).toBe("manual");
   });
 
   it("gives a delegate a status and title, never a topic of its own", async () => {
@@ -400,7 +400,7 @@ describe("idle analysis", () => {
     });
     // A current result without an independent outcome is backfilled even
     // when the thread's topic is already settled.
-    new TopicStore(openDatabase(w.bb)).assign("t1", null, {
+    new WorkstreamStore(openDatabase(w.bb)).assign("t1", null, {
       provenance: "manual",
     });
     await expect(w.harness.behavior.runCli(["analyze"])).resolves.toMatchObject(
@@ -473,7 +473,7 @@ describe("idle analysis", () => {
     const w = await setup(async ({ prompt }) => {
       // Each run's placement call runs beside its Full analysis call.
       if (!prompt.includes("You describe one agent thread"))
-        return JSON.stringify({ topic: null, propose: null });
+        return JSON.stringify({ workstream: null, propose: null });
       inFlight++;
       peak = Math.max(peak, inFlight);
       await new Promise<void>((resolve) => release.push(resolve));
@@ -534,7 +534,7 @@ describe("idle analysis", () => {
     const release: (() => void)[] = [];
     const w = await setup(async ({ prompt }) => {
       if (!prompt.includes("You describe one agent thread")) {
-        return JSON.stringify({ subjectId: null, proposed: null });
+        return JSON.stringify({ workstreamId: null, proposed: null });
       }
       await new Promise<void>((resolve) => release.push(resolve));
       return JSON.stringify({
@@ -590,7 +590,7 @@ describe("idle analysis", () => {
     const release: (() => void)[] = [];
     const w = await setup(async ({ prompt }) => {
       if (!prompt.includes("You describe one agent thread")) {
-        return JSON.stringify({ subjectId: null, proposed: null });
+        return JSON.stringify({ workstreamId: null, proposed: null });
       }
       await new Promise<void>((resolve) => release.push(resolve));
       return JSON.stringify({ recap: "late", state: "complete" });

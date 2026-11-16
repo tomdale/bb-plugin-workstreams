@@ -7,7 +7,7 @@ export const trace = (
 ): TraceSummary => ({
   id,
   at: 1000,
-  kind: "full-analysis",
+  kind: "turn-end",
   status: "ok",
   label: id,
   model: "test/model",
@@ -22,8 +22,8 @@ export const trace = (
 export const entry: ActivityEntry = {
   id: "e1",
   at: 900,
-  action: "move",
-  source: "user",
+  action: "thread-moved",
+  source: "you",
   status: "applied",
   rationale: "Moved a thread",
   threads: [{ id: "missing-thread", name: "Parser thread" }],

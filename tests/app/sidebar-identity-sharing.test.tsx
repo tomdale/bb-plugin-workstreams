@@ -3,7 +3,7 @@ import { cleanup } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import {
   arrangeGroups,
-  type WorkstreamTopics,
+  type WorkstreamTree,
 } from "../../src/domain/groups.ts";
 import * as groups from "../../src/domain/groups.ts";
 import * as project from "../../src/domain/project.ts";
@@ -132,8 +132,8 @@ it("replaces a row whose depth or status changed, even with the same thread", ()
 });
 
 it("keeps unchanged workstream nodes across an arrangement update", () => {
-  const topics: WorkstreamTopics = {
-    entities: [
+  const tree: WorkstreamTree = {
+    workstreams: [
       { id: "t1", name: "Container", parentId: null },
       { id: "t2", name: "Alpha", parentId: "t1" },
       { id: "t3", name: "Beta", parentId: "t1" },
@@ -141,14 +141,14 @@ it("keeps unchanged workstream nodes across an arrangement update", () => {
     bindings: { sec_a: "t2", sec_b: "t3" },
     layout: [
       {
-        topicId: "t1",
+        workstreamId: "t1",
         prefix: [],
         name: "Container",
         lists: false,
         total: 3,
         children: [
           {
-            topicId: "t2",
+            workstreamId: "t2",
             prefix: ["Container"],
             name: "Alpha",
             lists: true,
@@ -156,7 +156,7 @@ it("keeps unchanged workstream nodes across an arrangement update", () => {
             children: [],
           },
           {
-            topicId: "t3",
+            workstreamId: "t3",
             prefix: ["Container"],
             name: "Beta",
             lists: true,
@@ -171,7 +171,7 @@ it("keeps unchanged workstream nodes across an arrangement update", () => {
   const projection = project.projectWorkstreams(threads, sections, { now });
   const first = shareArrangement(
     undefined,
-    arrangeGroups(projection, "alphabetical", topics),
+    arrangeGroups(projection, "alphabetical", tree),
   );
   // Nothing changed but the clock: every workstream node, the nesting header
   // included, is the same object again.
@@ -183,15 +183,15 @@ it("keeps unchanged workstream nodes across an arrangement update", () => {
         previous: projection,
       }),
       "alphabetical",
-      topics,
+      tree,
     ),
   );
 
   expect(second.pinned).toBe(first.pinned);
   expect(second.populated).toBe(first.populated);
   expect(second.dormant).toBe(first.dormant);
-  expect(second.unfiled).toBe(first.unfiled);
-  expect(second.populated[0]!.subgroups).toBe(first.populated[0]!.subgroups);
+  expect(second.other).toBe(first.other);
+  expect(second.populated[0]!.workstreams).toBe(first.populated[0]!.workstreams);
 
   // A thread in one nested workstream replaces that node and the one heading
   // it, and leaves its sibling alone.
@@ -205,17 +205,17 @@ it("keeps unchanged workstream nodes across an arrangement update", () => {
   );
   const third = shareArrangement(
     second,
-    arrangeGroups(changed, "alphabetical", topics),
+    arrangeGroups(changed, "alphabetical", tree),
   );
-  const subgroups = (arrangement: typeof third) =>
-    arrangement.populated[0]!.subgroups.map((node) => node.id);
-  expect(subgroups(third)).toEqual(subgroups(second));
+  const childIds = (arrangement: typeof third) =>
+    arrangement.populated[0]!.workstreams.map((node) => node.id);
+  expect(childIds(third)).toEqual(childIds(second));
   expect(third.populated[0]).not.toBe(second.populated[0]);
-  expect(third.populated[0]!.subgroups[0]).not.toBe(
-    second.populated[0]!.subgroups[0],
+  expect(third.populated[0]!.workstreams[0]).not.toBe(
+    second.populated[0]!.workstreams[0],
   );
-  expect(third.populated[0]!.subgroups[1]).toBe(
-    second.populated[0]!.subgroups[1],
+  expect(third.populated[0]!.workstreams[1]).toBe(
+    second.populated[0]!.workstreams[1],
   );
 });
 

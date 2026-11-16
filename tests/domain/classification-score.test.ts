@@ -6,7 +6,7 @@ it("accepts capability synonyms while rejecting flattened required ancestry", ()
   const score = (names: string[]) =>
     scoreClassification(
       {
-        subjectId: null,
+        workstreamId: null,
         proposed: {
           name: names.at(-1)!,
           description: "",
@@ -28,7 +28,7 @@ it("accepts capability synonyms while rejecting flattened required ancestry", ()
 it("passes a cold single root proposal on its owner alone", () => {
   const c = cases.find((c) => c.id === "waiting-schema")!;
   const value = {
-    subjectId: null,
+    workstreamId: null,
     proposed: {
       name: "Loom",
       description: "Agent organization",
@@ -54,7 +54,7 @@ it("reports a familiar title's wrong capability as advisory beside a correct own
   const c = cases.find((c) => c.id === "misleading-title")!;
   const result = scoreClassification(
     {
-      subjectId: null,
+      workstreamId: null,
       proposed: {
         name: "Recaps",
         description: "",
@@ -76,7 +76,7 @@ it("expects a new topic outside the app whose pane only looks like the answer", 
   const score = (value: Parameters<typeof scoreClassification>[0]) =>
     scoreClassification(value, c.input, c.expected, false, c.expectNew).pass;
   const proposal = (parentId: string | null, ...ancestors: string[]) => ({
-    subjectId: null,
+    workstreamId: null,
     proposed: {
       name: "Guide plugin",
       description: "",
@@ -85,9 +85,9 @@ it("expects a new topic outside the app whose pane only looks like the answer", 
     },
   });
   // The pane fits the words, but belongs to another product.
-  expect(score({ subjectId: "pane", proposed: null })).toBe(false);
-  expect(score({ subjectId: "app", proposed: null })).toBe(false);
-  expect(score({ subjectId: null, proposed: null })).toBe(false);
+  expect(score({ workstreamId: "pane", proposed: null })).toBe(false);
+  expect(score({ workstreamId: "app", proposed: null })).toBe(false);
+  expect(score({ workstreamId: null, proposed: null })).toBe(false);
   // New topics under the app, however the proposal spells its ancestry.
   expect(score(proposal("app"))).toBe(false);
   expect(score(proposal(null, "Pennant"))).toBe(false);
@@ -101,9 +101,9 @@ it("expects a new topic outside the app whose pane only looks like the answer", 
 it("expects the platform's own plugin topic when it exists beside the lookalike", () => {
   const c = cases.find((c) => c.id === "lookalike-present")!;
   expect(c.expected).toBe("plugin");
-  const score = (subjectId: string) =>
+  const score = (workstreamId: string) =>
     scoreClassification(
-      { subjectId, proposed: null },
+      { workstreamId, proposed: null },
       c.input,
       c.expected,
       false,
@@ -115,7 +115,7 @@ it("expects the platform's own plugin topic when it exists beside the lookalike"
   for (const id of ["lookalike-missing", "lookalike-present"]) {
     const tree = cases.find((c) => c.id === id)!;
     expect(tree.warmOnly).toBe(true);
-    expect(tree.input.entities.find((e) => e.id === "pane")?.parentId).toBe(
+    expect(tree.input.workstreams.find((e) => e.id === "pane")?.parentId).toBe(
       "app",
     );
   }

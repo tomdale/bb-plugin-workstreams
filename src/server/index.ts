@@ -7,7 +7,7 @@ import { randomUUID } from "node:crypto";
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { registerCli } from "./cli.ts";
 import type { ThreadListing } from "../domain/analysis.ts";
-import { topicPath } from "../domain/topic-path.ts";
+import { workstreamPath } from "../domain/topic-path.ts";
 import { displayTitle, listActiveThreads, listSections } from "./inventory.ts";
 import { registerAgentInstructions } from "./agents.ts";
 import { Analyzer } from "./analyzer.ts";
@@ -15,10 +15,10 @@ import { RecapArchive } from "./archive.ts";
 import { Organizer } from "./organizer.ts";
 import { Categories } from "./categories.ts";
 import { categoryEvidence } from "./categoryEvidence.ts";
-import { topicDivisionEvidence } from "./topicDivisionEvidence.ts";
-import { TopicMigration } from "./topicMigration.ts";
+import { workstreamDivisionEvidence } from "./topicDivisionEvidence.ts";
+import { WorkstreamMigration } from "./topicMigration.ts";
 import { buildForest } from "../domain/tree.ts";
-import { Placement } from "./placement.ts";
+import { WorkstreamChoice } from "./placement.ts";
 import { isSubstantiveRequest } from "./requests.ts";
 import { withoutSubagentDeliveries } from "./requestProvenance.ts";
 import { Suggestions } from "./suggestions.ts";
@@ -26,16 +26,16 @@ import { linkSuggestionTraces } from "./suggestionTrace.ts";
 import { ProjectAssociations } from "./projectAssociations.ts";
 import type { ProjectChoice } from "../domain/projectChoice.ts";
 import { workstreamProjectConflict } from "../domain/topicProject.ts";
-import { Reclassification } from "./reclassification.ts";
+import { Repair } from "./reclassification.ts";
 import { sectionMembers } from "./cleanup.ts";
 import { ComposerPreview, type Preview } from "./preview.ts";
-import { TopicStore, topicBasis } from "./topics.ts";
-import { TopicColors } from "./topicColors.ts";
+import { WorkstreamStore, workstreamBasis } from "./topics.ts";
+import { WorkstreamColors } from "./topicColors.ts";
 import { ComposedDrafts, type ComposedIdentity } from "./composed-drafts.ts";
 import {
-  topicAncestors,
+  workstreamAncestors,
   takesThreads,
-  type TopicAssignment,
+  type WorkstreamAssignment,
 } from "../domain/topics.ts";
 import { assignmentEvidence, threadEvidence } from "./evidence.ts";
 import { rpcContract, projectChoiceSchema } from "./contract.ts";
@@ -274,25 +274,29 @@ export default async function plugin(bb: BbPluginApi) {
       bb.log.warn(`Retitling ${threadId} failed: ${String(error)}`);
     }
   };
-  const topics = new TopicStore(db);
-  const topicColors = new TopicColors(db);
-  const catalogWithColors = () => {
-    const catalog = topics.state();
+  const workstreamStore = new WorkstreamStore(db);
+  const workstreamColors = new WorkstreamColors(db);
+  const treeWithColors = () => {
+    const tree = workstreamStore.state();
     return {
-      ...catalog,
-      colors: topicColors.snapshot(catalog.entities, catalog.groups),
+      ...tree,
+      colors: workstreamColors.snapshot(tree.workstreams, tree.groups),
     };
   };
-  const topicMigration = new TopicMigration({ db, topics, journal });
+  const workstreamMigration = new WorkstreamMigration({
+    db,
+    workstreamStore,
+    journal,
+  });
   const projectAssociations = new ProjectAssociations({
     db,
     sdk: () => bb.sdk,
-    topics,
+    workstreamStore,
     journal,
     exclusive: (task) => service.exclusive(task),
-    // Topics' projects, and the project suggestions views list.
+    // Workstreams' projects, and the project suggestions views list.
     onChange: () => {
-      notify({ slices: ["catalog", "suggestions"] });
+      notify({ slices: ["tree", "suggestions"] });
       triggerOrganizer(50);
     },
   });
@@ -327,44 +331,53 @@ export default async function plugin(bb: BbPluginApi) {
     );
   };
   /**
-   * A topic one of the analyses chose, applied under the source priority;
+   * A workstream one of the analyses chose, applied under the source priority;
    * the organizer then files the thread by it.
    */
-  const applyTopic = (
+  const applyWorkstream = (
     threadId: string,
-    answer: Parameters<TopicStore["applyAnalysis"]>[1],
-    kind: "full" | "quick",
+    answer: Parameters<WorkstreamStore["applyAnalysis"]>[1],
+    kind: "automatic" | "composer",
     basis: string | null,
     traceId: string | null,
   ) => {
     try {
-      const revision = topics.revision();
-      const changed = topics.applyAnalysis(threadId, answer, kind, basis);
+      const revision = workstreamStore.revision();
+      const changed = workstreamStore.applyAnalysis(
+        threadId,
+        answer,
+        kind,
+        basis,
+      );
       inference.annotate(traceId, {
-        topic: changed ? "applied" : "not applied: the thread keeps its topic",
+        workstream: changed
+          ? "applied"
+          : "not applied: the thread keeps its workstream",
       });
-      if (changed || topics.revision() !== revision) {
-        notify({ slices: ["catalog"], threadIds: [threadId] });
+      if (changed || workstreamStore.revision() !== revision) {
+        notify({ slices: ["tree"], threadIds: [threadId] });
         triggerOrganizer();
       }
     } catch (error) {
-      bb.log.warn(`Applying a topic to ${threadId} failed: ${String(error)}`);
+      bb.log.warn(
+        `Moving ${threadId} to its workstream failed: ${String(error)}`,
+      );
     }
   };
-  const placement = new Placement({
+  const workstreamChoice = new WorkstreamChoice({
     sdk: () => bb.sdk,
     db,
     inference,
     model: async () => currentPrefs().analysis.newThreadModel,
-    topics,
+    workstreamStore,
     project: projectName,
-    // Only a new request re-places a thread: topic edits and model changes
-    // leave settled topics alone.
-    basisOf: (requests, project) => topicBasis({ requests, project }),
+    // Only a new request re-places a thread: workstream edits and model changes
+    // leave settled workstreams alone.
+    basisOf: (requests, project) => workstreamBasis({ requests, project }),
     log: (message) => bb.log.warn(message),
   });
   /**
-   * Where a thread is listed, for naming it beside that: its root's topic
+   * Where a thread is listed, for naming it beside that: its root's workstream
    * path, and its parent's title when it is a child.
    */
   const listingOf = (thread: {
@@ -384,10 +397,12 @@ export default async function plugin(bb: BbPluginApi) {
       seen.add(at);
       root = at;
     }
-    const entityId = topics.assignment(root).entityId;
+    const workstreamId = workstreamStore.assignment(root).workstreamId;
     const parent = parentId ? byId.get(parentId) : undefined;
     return {
-      group: entityId ? topicPath(entityId, topics.list()) : null,
+      workstream: workstreamId
+        ? workstreamPath(workstreamId, workstreamStore.list())
+        : null,
       parent: parent ? displayTitle(parent) : null,
     };
   };
@@ -404,14 +419,14 @@ export default async function plugin(bb: BbPluginApi) {
         ? { report: agentReport(recap), status: reportedStatus(recap) }
         : null;
     },
-    topics: {
-      entities: () => topics.list(),
-      assignment: (threadId) => topics.assignment(threadId),
+    workstreams: {
+      workstreams: () => workstreamStore.list(),
+      assignment: (threadId) => workstreamStore.assignment(threadId),
       project: projectName,
       apply: (threadId, answer, basis, traceId) =>
-        applyTopic(threadId, answer, "full", basis, traceId),
+        applyWorkstream(threadId, answer, "automatic", basis, traceId),
     },
-    placement,
+    workstreamChoice,
     listing: listingOf,
     onChange: (threadId) =>
       notify({ slices: ["analysis"], threadIds: [threadId] }),
@@ -441,12 +456,12 @@ export default async function plugin(bb: BbPluginApi) {
     title: (threadId, title, revision, traceId) =>
       applyTitle(threadId, title, revision, traceId, "opening"),
     listing: listingOf,
-    question: (thread, request) => placement.question(thread, [request]),
+    question: (thread, request) => workstreamChoice.question(thread, [request]),
     unsettled: (threadId) =>
-      topics.assignment(threadId).provenance !== "manual" &&
-      !topics.basis(threadId),
+      workstreamStore.assignment(threadId).provenance !== "manual" &&
+      !workstreamStore.basis(threadId),
     file: (threadId, answer, basis, traceId) =>
-      applyTopic(threadId, answer, "full", basis, traceId),
+      applyWorkstream(threadId, answer, "automatic", basis, traceId),
     log: (message) => bb.log.warn(message),
   });
   bb.onDispose(() => starts.dispose());
@@ -506,7 +521,7 @@ export default async function plugin(bb: BbPluginApi) {
   const categories: Categories = new Categories({
     db,
     collections: () => {
-      const entities = topics.list();
+      const workstreams = workstreamStore.list();
       const analysis = analyzer.all();
       const snoozed = snoozes.all();
       const now = Date.now();
@@ -518,18 +533,23 @@ export default async function plugin(bb: BbPluginApi) {
             !root.isArchived &&
             !isSnoozed(snoozed[root.id], now),
         );
-      const assignments = topics.assignmentsOf(roots.map((root) => root.id));
-      return entities
+      const assignments = workstreamStore.assignmentsOf(
+        roots.map((root) => root.id),
+      );
+      return workstreams
         .filter(
-          (topic) =>
-            takesThreads(topic.id, entities) &&
-            topicAncestors(topic.id, entities).length <= 2,
+          (workstream) =>
+            takesThreads(workstream.id, workstreams) &&
+            workstreamAncestors(workstream.id, workstreams).length <= 2,
         )
-        .map((topic) => ({
-          topicId: topic.id,
-          label: topicPath(topic.id, entities),
+        .map((workstream) => ({
+          workstreamId: workstream.id,
+          label: workstreamPath(workstream.id, workstreams),
           roots: roots
-            .filter((root) => assignments.get(root.id)?.entityId === topic.id)
+            .filter(
+              (root) =>
+                assignments.get(root.id)?.workstreamId === workstream.id,
+            )
             .map((root) => ({
               id: root.id,
               title: root.title,
@@ -580,26 +600,26 @@ export default async function plugin(bb: BbPluginApi) {
           },
         )
       ).value,
-    changed: (topicId, reason) => {
-      const label = topics.getById(topicId)
-        ? topicPath(topicId, topics.list())
-        : topicId;
-      const current = categories.generations()[topicId];
+    changed: (workstreamId, reason) => {
+      const label = workstreamStore.getById(workstreamId)
+        ? workstreamPath(workstreamId, workstreamStore.list())
+        : workstreamId;
+      const current = categories.generations()[workstreamId];
       const titles = new Map(
         service.threads().map((thread) => [thread.id, thread.title]),
       );
       journal.add({
-        action: "categories",
-        source: "auto",
+        action: "categories-updated",
+        source: "workstreams",
         rationale: reason,
         threads: [],
-        workstreams: [...topics.groups()]
-          .filter(([, id]) => id === topicId)
+        workstreams: [...workstreamStore.groups()]
+          .filter(([, id]) => id === workstreamId)
           .map(([id]) => ({ id, name: label })),
         undo: null,
         detail: `${label}\n${current ? current.categories.map((category) => `${category.name}: ${category.threadIds.map((id) => titles.get(id) ?? id).join(", ")}`).join("\n") : "No active categories"}`,
       });
-      notify({ slices: ["catalog"] });
+      notify({ slices: ["tree"] });
     },
     log: (message) => bb.log.warn(message),
   });
@@ -608,14 +628,14 @@ export default async function plugin(bb: BbPluginApi) {
     sdk: () => bb.sdk,
     db,
     service,
-    topics,
+    workstreamStore,
     analyzer,
     recap: (threadId) => recaps.get(threadId)?.recap,
     members: (sectionId) => sectionMembers(bb.sdk, sectionId),
     journal,
     // A pass writes its layout and status; the organization view re-reads its
     // own state for a change that names no threads.
-    onChange: () => notify({ slices: ["catalog"] }),
+    onChange: () => notify({ slices: ["tree"] }),
     onPass: (rebuild) => {
       void categories
         .reconcile(rebuild)
@@ -632,7 +652,7 @@ export default async function plugin(bb: BbPluginApi) {
   const suggestions = new Suggestions({
     db,
     inference,
-    topics,
+    workstreamStore,
     journal,
     model: async () => currentPrefs().organize.tidyModel,
     enabled: () => currentPrefs().organize.suggestions,
@@ -640,18 +660,18 @@ export default async function plugin(bb: BbPluginApi) {
       buildForest(service.threads())
         .roots.map((root) => root.thread)
         .filter((thread) => !thread.isHidden && !thread.isArchived),
-    checkout: (threadId) => placement.checkoutOf(threadId),
-    coordination: () => placement.coordinationWorkspaces(),
-    splitThreads: (topicId) =>
-      topicDivisionEvidence(bb.sdk, topics, topicId, (id) =>
-        placement.checkoutOf(id),
+    checkout: (threadId) => workstreamChoice.checkoutOf(threadId),
+    coordination: () => workstreamChoice.coordinationWorkspaces(),
+    splitThreads: (workstreamId) =>
+      workstreamDivisionEvidence(bb.sdk, workstreamStore, workstreamId, (id) =>
+        workstreamChoice.checkoutOf(id),
       ),
     // Suggestion views re-read their lists for a change that names no threads.
-    onChange: (topicsChanged) => {
+    onChange: (workstreamsChanged) => {
       notify({
-        slices: topicsChanged ? ["suggestions", "catalog"] : ["suggestions"],
+        slices: workstreamsChanged ? ["suggestions", "tree"] : ["suggestions"],
       });
-      if (topicsChanged) triggerOrganizer(10);
+      if (workstreamsChanged) triggerOrganizer(10);
     },
     log: (message) => bb.log.warn(message),
   });
@@ -660,24 +680,24 @@ export default async function plugin(bb: BbPluginApi) {
   // the debug UI works on what is already waiting.
   const linked = linkSuggestionTraces(db, traces);
   if (linked) bb.log.info(`Linked ${linked} suggestion(s) to their model call`);
-  const reclassification = new Reclassification({
+  const repair = new Repair({
     db,
     sdk: () => bb.sdk,
-    topics,
+    workstreamStore,
     analyzer,
     onChange: (row) => {
       try {
         journal.add({
-          action: "batch",
-          source: "user",
-          rationale: "Applied reviewed topic repair",
+          action: "thread-moved",
+          source: "you",
+          rationale: "Applied a preview of automatic moves",
           threads: [{ id: row.threadId, name: row.title }],
           workstreams: [],
           undo: null,
-          detail: `${row.from ?? "Unfiled"} → ${row.to ?? "Unfiled"}`,
+          detail: `${row.from ?? "No workstream"} → ${row.to ?? "No workstream"}`,
         });
         inference.annotate(row.traceId, {
-          topic: "applied from reviewed preview",
+          workstream: "applied from reviewed preview",
         });
       } finally {
         notify();
@@ -687,20 +707,20 @@ export default async function plugin(bb: BbPluginApi) {
   });
   const previewer = new ComposerPreview({
     sdk: () => bb.sdk,
-    topics,
-    placement,
+    workstreamStore,
+    workstreamChoice,
     inference,
     model: async () => currentPrefs().analysis.newThreadModel,
   });
-  // The topic the New thread composer showed, for threads a plain Enter
+  // The workstream the New thread composer showed, for threads a plain Enter
   // creates without the composer's submit data.
   const drafts = new ComposedDrafts();
   const journaledStarts = new Set<string>();
   /**
-   * Gives a composed thread the topic its composer showed: one you picked,
-   * or the topic of the workstream whose ＋ opened it. Returns what the
+   * Gives a composed thread the workstream its composer showed: one you picked,
+   * or the workstream of the workstream whose ＋ opened it. Returns what the
    * composer's preview already answered for the thread's start: a preview of
-   * exactly the text sent is its start, title and topic both; a preview of
+   * exactly the text sent is its start, title and workstream both; a preview of
    * earlier text files the thread until the start call settles it.
    */
   const fileComposedIdentity = (
@@ -709,49 +729,60 @@ export default async function plugin(bb: BbPluginApi) {
   ): StartPreset | undefined => {
     if (!identity) return;
     const threadId = thread.id;
-    // A topic you picked files the thread in whatever project you chose for
-    // it. An automatic topic never files a thread under a workstream whose
+    // A workstream you picked files the thread in whatever project you chose for
+    // it. An automatic workstream never files a thread under a workstream whose
     // project differs from its own; the start call files it instead.
     const destination = identity.sectionId
-      ? topics.groups().get(identity.sectionId)
-      : (identity.entityId ?? identity.proposal?.parentId);
+      ? workstreamStore.groups().get(identity.sectionId)
+      : (identity.workstreamId ?? identity.proposal?.parentId);
     const conflicting =
       identity.provenance === "automatic" &&
-      !!workstreamProjectConflict(destination, topics.list(), thread.projectId);
+      !!workstreamProjectConflict(
+        destination,
+        workstreamStore.list(),
+        thread.projectId,
+      );
     if (conflicting)
       bb.log.warn(
-        `Composed thread ${threadId} not filed: its project differs from its workstream's.`,
+        `Composed thread ${threadId} not moved: its project differs from its workstream's.`,
       );
     if (identity.provenance === "inherited") {
-      const topicId = identity.sectionId
-        ? topics.groups().get(identity.sectionId)
-        : identity.entityId;
-      if (topicId && topics.inheritTopic(threadId, topicId)) {
-        notify({ slices: ["catalog"], threadIds: [threadId] });
+      const workstreamId = identity.sectionId
+        ? workstreamStore.groups().get(identity.sectionId)
+        : identity.workstreamId;
+      if (
+        workstreamId &&
+        workstreamStore.inheritWorkstream(threadId, workstreamId)
+      ) {
+        notify({ slices: ["tree"], threadIds: [threadId] });
         triggerOrganizer(10);
-      } else if (topicId) placement.hintStart(threadId, topicId, "workstream");
+      } else if (workstreamId)
+        workstreamChoice.hintStart(threadId, workstreamId, "workstream");
       return;
     }
     if (identity.provenance === "manual") {
-      const entity = identity.proposal
-        ? topics.rememberProposal(identity.proposal)
-        : identity.entityId
-          ? topics.getById(identity.entityId)
+      const workstream = identity.proposal
+        ? workstreamStore.rememberProposal(identity.proposal)
+        : identity.workstreamId
+          ? workstreamStore.getById(identity.workstreamId)
           : null;
-      // A picked topic merged or deleted since, or one that has gained
-      // subtopics, leaves the thread to placement rather than failing.
-      if (identity.entityId && !entity) {
-        bb.log.warn(`Composed thread ${threadId} names an unknown topic.`);
+      // A picked workstream merged or deleted since, or one that has gained
+      // workstreams in a group, leaves the thread to placement rather than failing.
+      if (identity.workstreamId && !workstream) {
+        bb.log.warn(`Composed thread ${threadId} names an unknown workstream.`);
         return;
       }
       try {
-        topics.assign(threadId, entity?.id ?? null, { provenance: "manual" });
+        workstreamStore.assign(threadId, workstream?.id ?? null, {
+          provenance: "manual",
+        });
       } catch (error) {
         bb.log.warn(`Composed thread ${threadId}: ${String(error)}`);
-        if (entity) placement.hintStart(threadId, entity.id, "picked");
+        if (workstream)
+          workstreamChoice.hintStart(threadId, workstream.id, "picked");
         return;
       }
-      notify({ slices: ["catalog"], threadIds: [threadId] });
+      notify({ slices: ["tree"], threadIds: [threadId] });
       triggerOrganizer(10);
       return;
     }
@@ -762,21 +793,21 @@ export default async function plugin(bb: BbPluginApi) {
         ...(conflicting
           ? {}
           : {
-              topic: {
-                subjectId: identity.entityId ?? null,
+              workstream: {
+                workstreamId: identity.workstreamId ?? null,
                 proposed: identity.proposal ?? null,
                 scopeShift: false,
               },
             }),
       };
-    if (!conflicting && (identity.entityId || identity.proposal))
-      applyTopic(
+    if (!conflicting && (identity.workstreamId || identity.proposal))
+      applyWorkstream(
         threadId,
         {
-          subjectId: identity.entityId ?? null,
+          workstreamId: identity.workstreamId ?? null,
           proposed: identity.proposal ?? null,
         },
-        "quick",
+        "composer",
         null,
         null,
       );
@@ -786,7 +817,7 @@ export default async function plugin(bb: BbPluginApi) {
     thread: { sourceThreadId?: string | null };
     senderThreadId: string | null;
   }): string | null => ctx.thread.sourceThreadId ?? ctx.senderThreadId ?? null;
-  // A new root gets its first topic here: inherited from the thread
+  // A new root gets its first workstream here: inherited from the thread
   // or workstream it was started from, the one its composer showed, or Quick
   // analysis's from its first request. The hook itself always proceeds.
   bb.experimental_hooks.on("message.dispatch", async (ctx) => {
@@ -881,20 +912,21 @@ export default async function plugin(bb: BbPluginApi) {
     setTimeout(() => {
       try {
         if (journal)
-          service.recordCreated(ctx.thread.id, null, "user", {
+          service.recordCreated(ctx.thread.id, null, "you", {
             title: ctx.thread.title || "New thread",
             rationale: "Started from New thread",
           });
         else service.seeThread(ctx.thread.id, null, ctx.parentThreadId ?? null);
         let preset: StartPreset | undefined;
         // Hidden threads (workflow and subagent workers) are never listed,
-        // so they get no topic and cost no model call.
+        // so they get no workstream and cost no model call.
         if (!ctx.parentThreadId && ctx.thread.visibility !== "hidden") {
-          if (from && topics.inherit(ctx.thread.id, from))
-            notify({ slices: ["catalog"], threadIds: [ctx.thread.id] });
+          if (from && workstreamStore.inherit(ctx.thread.id, from))
+            notify({ slices: ["tree"], threadIds: [ctx.thread.id] });
           else if (from) {
-            const source = topics.assignment(from).entityId;
-            if (source) placement.hintStart(ctx.thread.id, source, "thread");
+            const source = workstreamStore.assignment(from).workstreamId;
+            if (source)
+              workstreamChoice.hintStart(ctx.thread.id, source, "thread");
           }
           if (identity) preset = fileComposedIdentity(ctx.thread, identity);
         }
@@ -949,7 +981,7 @@ export default async function plugin(bb: BbPluginApi) {
       if (thread.visibility === "hidden") return;
       // The thread joins or leaves the seen threads that scope these slices.
       notify({
-        slices: ["analysis", "recaps", "catalog"],
+        slices: ["analysis", "recaps", "tree"],
         threadIds: [thread.id],
       });
       reconcileSoon();
@@ -964,14 +996,14 @@ export default async function plugin(bb: BbPluginApi) {
       thread.title ?? thread.titleFallback ?? undefined,
       true,
     );
-    // A fork starts with the topic of the thread it was forked from, even
+    // A fork starts with the workstream of the thread it was forked from, even
     // before it is sent a message.
     if (
       !thread.parentThreadId &&
       thread.sourceThreadId &&
-      topics.inherit(thread.id, thread.sourceThreadId)
+      workstreamStore.inherit(thread.id, thread.sourceThreadId)
     ) {
-      notify({ slices: ["catalog"], threadIds: [thread.id] });
+      notify({ slices: ["tree"], threadIds: [thread.id] });
       triggerOrganizer();
     }
   });
@@ -1006,10 +1038,10 @@ export default async function plugin(bb: BbPluginApi) {
     snoozes.clear(thread.id);
     analyzer.forget(thread.id);
     starts.forget(thread.id);
-    placement.forget(thread.id);
+    workstreamChoice.forget(thread.id);
     recaps.forget(thread.id);
     service.forget(thread.id);
-    topics.forget(thread.id);
+    workstreamStore.forget(thread.id);
     projectAssociations.forget(thread.id);
   });
   bb.events.on("thread.failed", ({ thread }) => {
@@ -1071,24 +1103,24 @@ export default async function plugin(bb: BbPluginApi) {
   };
 
   /**
-   * Hands a thread's topic back to Workstreams ("Automatic") and settles it
-   * now with Full analysis.
+   * Hands a thread's workstream back to Workstreams ("Automatic") and settles it
+   * now with the turn-end call.
    */
-  const reclassifyTask = async (input: {
+  const chooseAutomatically = async (input: {
     threadId: string;
-  }): Promise<{ assignment: TopicAssignment }> => {
+  }): Promise<{ assignment: WorkstreamAssignment }> => {
     await service.reconcile();
-    const rootId = topics.findRootThread(input.threadId);
-    const current = topics.assignment(rootId);
+    const rootId = workstreamStore.findParentmostThread(input.threadId);
+    const current = workstreamStore.assignment(rootId);
     // Whatever it is now becomes Workstreams' own, to settle afresh.
-    topics.assign(rootId, current.entityId, {
-      provenance: "full",
+    workstreamStore.assign(rootId, current.workstreamId, {
+      provenance: "automatic",
       evidence: null,
     });
     notify();
     await analyzer.analyzeNow(rootId);
     triggerOrganizer();
-    return { assignment: topics.assignment(input.threadId) };
+    return { assignment: workstreamStore.assignment(input.threadId) };
   };
 
   /** The slices of the client snapshot (`state`), each read on its own. */
@@ -1103,16 +1135,16 @@ export default async function plugin(bb: BbPluginApi) {
       snoozes: snoozes.all(),
       snoozePrefs: loadSnoozePrefs(db),
     }),
-    catalog: () => {
-      const entities = topics.list();
-      const groups = Object.fromEntries(topics.groups());
+    tree: () => {
+      const workstreams = workstreamStore.list();
+      const groups = Object.fromEntries(workstreamStore.groups());
       return {
-        catalog: {
-          entities,
+        tree: {
+          workstreams,
           groups,
-          assignments: topics.visibleAssignments(),
-          revision: topics.revision(),
-          colors: topicColors.snapshot(entities, groups),
+          assignments: workstreamStore.visibleAssignments(),
+          revision: workstreamStore.revision(),
+          colors: workstreamColors.snapshot(workstreams, groups),
           layout: organizerInstance.layout(),
           categories: categories.generations(),
         },
@@ -1203,7 +1235,7 @@ export default async function plugin(bb: BbPluginApi) {
         waitingCancelled: stored?.waitingCancelled ?? false,
         capped: capped && thread.status === "idle",
         corrections,
-        assignment: topics.assignment(threadId),
+        assignment: workstreamStore.assignment(threadId),
         files: thread.environmentId
           ? {
               environmentId: thread.environmentId,
@@ -1273,28 +1305,29 @@ export default async function plugin(bb: BbPluginApi) {
         ),
       };
     },
-    reclassificationPreview: async ({ threadIds }) =>
-      reclassification.preview(threadIds),
-    reclassificationApply: async ({ planId }) => reclassification.apply(planId),
-    topicMigrationPreview: (input) => topicMigration.preview(input ?? {}),
-    topicMigrationApply: ({ planId }) =>
+    repairPreview: async ({ threadIds }) => repair.preview(threadIds),
+    repairApply: async ({ planId }) => repair.apply(planId),
+    workstreamMigrationPreview: (input) =>
+      workstreamMigration.preview(input ?? {}),
+    workstreamMigrationApply: ({ planId }) =>
       userFacing(async () => {
         const result = await service.exclusive(async () =>
-          topicMigration.apply(planId),
+          workstreamMigration.apply(planId),
         );
         triggerOrganizer(0);
         notify();
         return result;
       }),
-    topicMigrationBackup: ({ backupId }) => topicMigration.backup(backupId),
-    catalog: async () => ({
-      ...catalogWithColors(),
+    workstreamMigrationBackup: ({ backupId }) =>
+      workstreamMigration.backup(backupId),
+    tree: async () => ({
+      ...treeWithColors(),
       categories: categories.generations(),
       layout: organizerInstance.layout(),
     }),
-    catalogCreate: ({ name, description, parentId, aliases }) =>
+    workstreamCreate: ({ name, description, parentId, aliases }) =>
       userFacing(async () => {
-        const entity = topics.create(
+        const workstream = workstreamStore.create(
           name,
           description ?? "",
           parentId ?? null,
@@ -1302,21 +1335,21 @@ export default async function plugin(bb: BbPluginApi) {
         );
         organizerInstance.trigger();
         notify();
-        return { entity };
+        return { workstream };
       }),
-    catalogRename: ({ entityId, name }) =>
+    workstreamRename: ({ workstreamId, name }) =>
       userFacing(async () => {
-        const entity = topics.rename(entityId, name);
+        const workstream = workstreamStore.rename(workstreamId, name);
         organizerInstance.trigger();
         notify();
-        return { entity };
+        return { workstream };
       }),
-    catalogReparent: ({ entityId, parentId }) =>
+    workstreamMove: ({ workstreamId, parentId }) =>
       userFacing(async () => {
-        const entity = topics.reparent(entityId, parentId);
+        const workstream = workstreamStore.move(workstreamId, parentId);
         organizerInstance.trigger();
         notify();
-        return { entity };
+        return { workstream };
       }),
     projectSuggestions: async () => ({
       suggestions: projectAssociations.state(),
@@ -1325,8 +1358,8 @@ export default async function plugin(bb: BbPluginApi) {
       userFacing(async () => ({
         entry: await projectAssociations.decide(id, decision),
       })),
-    catalogUpdateMetadata: ({
-      entityId,
+    workstreamUpdate: ({
+      workstreamId,
       description,
       aliases,
       projectId,
@@ -1336,8 +1369,8 @@ export default async function plugin(bb: BbPluginApi) {
         const projects = projectId ? await bb.sdk.projects.list({}) : undefined;
         if (projectId && !projects!.some((project) => project.id === projectId))
           throw new Error("Choose an existing BB project.");
-        const entity = projectAssociations.updateMetadata(
-          entityId,
+        const workstream = projectAssociations.updateMetadata(
+          workstreamId,
           {
             description,
             aliases,
@@ -1348,85 +1381,90 @@ export default async function plugin(bb: BbPluginApi) {
         );
         organizerInstance.trigger();
         notify();
-        return { entity };
+        return { workstream };
       }),
-    catalogMerge: ({ sourceEntityId, targetEntityId }) =>
+    workstreamMerge: ({ sourceWorkstreamId, targetWorkstreamId }) =>
       userFacing(async () => {
-        const target = topics.merge(sourceEntityId, targetEntityId);
+        const target = workstreamStore.merge(
+          sourceWorkstreamId,
+          targetWorkstreamId,
+        );
         organizerInstance.trigger();
         notify();
         return { target };
       }),
-    taskMove: ({ threadId, entityId }) =>
+    threadMoveToGroup: ({ threadId, workstreamId }) =>
       userFacing(async () => {
         await service.reconcile();
-        if (topics.findRootThread(threadId) !== threadId)
-          throw new Error("Move the root thread; its delegates follow it.");
-        const definition = topics.definitionKey();
-        const preview = await analyzer.previewTopic(threadId, {
-          within: entityId,
+        if (workstreamStore.findParentmostThread(threadId) !== threadId)
+          throw new Error(
+            "Move its parent thread; child threads go wherever their parent goes.",
+          );
+        const definition = workstreamStore.definitionKey();
+        const preview = await analyzer.previewWorkstream(threadId, {
+          within: workstreamId,
         });
         const live = await bb.sdk.threads.get({ threadId });
         const project = await projectName(live.projectId);
         if (
-          definition !== topics.definitionKey() ||
+          definition !== workstreamStore.definitionKey() ||
           threadEvidence(live) !== preview.evidence ||
-          assignmentEvidence(topics.assignment(threadId)) !==
+          assignmentEvidence(workstreamStore.assignment(threadId)) !==
             preview.assignmentKey ||
           project !== preview.projectHint
         )
           throw new Error(
-            "The thread or topics changed while choosing its topic. Drop it again.",
+            "The thread or its workstreams changed while choosing its workstream. Drop it again.",
           );
-        const chosen = preview.answer.subjectId;
-        const entities = topics.list();
+        const chosen = preview.answer.workstreamId;
+        const workstreams = workstreamStore.list();
         if (
           !chosen ||
-          !takesThreads(chosen, entities) ||
-          !topicAncestors(chosen, entities).includes(entityId)
+          !takesThreads(chosen, workstreams) ||
+          !workstreamAncestors(chosen, workstreams).includes(workstreamId)
         )
           throw new Error(
-            "No topic was chosen within the destination. The thread has not moved.",
+            "No workstream was chosen in that group. The thread has not moved.",
           );
-        const assignment = topics.assign(threadId, chosen, {
+        const assignment = workstreamStore.assign(threadId, chosen, {
           provenance: "manual",
         });
         journal.add({
-          action: "batch",
-          source: "user",
+          action: "thread-moved",
+          source: "you",
           rationale: "Moved thread to chosen workstream",
           threads: [{ id: threadId, name: preview.title }],
           workstreams: [],
           undo: null,
-          detail: `${preview.from ?? "Unfiled"} → ${assignment.label}`,
+          detail: `${preview.from ?? "No workstream"} → ${assignment.label}`,
         });
         inference.annotate(preview.traceId, {
-          topic: "applied within the user's destination group",
+          workstream: "applied within the user's destination group",
           application: "applied",
         });
         organizerInstance.trigger();
         notify();
         return { assignment };
       }),
-    taskAssign: ({ threadId, entityId }) =>
+    threadMove: ({ threadId, workstreamId }) =>
       userFacing(async () => {
         await service.reconcile();
-        const assignment = topics.assign(threadId, entityId, {
+        const assignment = workstreamStore.assign(threadId, workstreamId, {
           provenance: "manual",
         });
         organizerInstance.trigger();
         notify();
         return { assignment };
       }),
-    taskReclassify: ({ threadId }) =>
-      userFacing(async () => reclassifyTask({ threadId })),
+    threadAutomatic: ({ threadId }) =>
+      userFacing(async () => chooseAutomatically({ threadId })),
     state: async () => ({
       changes: changes.stamp(),
       ...readSlice.analysis(),
       ...readSlice.recaps(),
       ...readSlice.order(),
       ...readSlice.snoozes(),
-      ...readSlice.catalog(),
+      ...readSlice.tree(),
       ...readSlice.suggestions(),
     }),
     stateSlices: async ({ slices }) =>
@@ -1575,7 +1613,7 @@ export default async function plugin(bb: BbPluginApi) {
         suggestions.reopen(id);
         return { state: suggestions.state() };
       }),
-    organization: async (input) => {
+    organizeStatus: async (input) => {
       if (input?.action === "rebuild") {
         const state = await organizerInstance.rebuild();
         return { state };
@@ -1592,7 +1630,7 @@ export default async function plugin(bb: BbPluginApi) {
         entries,
         traces: traces.list({
           link: { kind: "thread", ref: threadId },
-          kinds: ["start", "full-analysis", "placement", "category-fit"],
+          kinds: ["start", "turn-end", "workstream-choice", "category-fit"],
           limit: 200,
         }),
       };
@@ -1652,8 +1690,8 @@ export default async function plugin(bb: BbPluginApi) {
       listActiveThreads(bb.sdk),
       listSections(bb.sdk),
     ]);
-    const groups = Object.fromEntries(topics.groups());
-    const entities = topics.list();
+    const groups = Object.fromEntries(workstreamStore.groups());
+    const workstreams = workstreamStore.list();
     return {
       threads,
       sections,
@@ -1663,8 +1701,8 @@ export default async function plugin(bb: BbPluginApi) {
       snoozes: snoozes.all(),
       upNext: currentPrefs().upNext,
       groups,
-      topics: { entities, layout: organizerInstance.layout() },
-      colors: topicColors.snapshot(entities, groups),
+      workstreams: { workstreams, layout: organizerInstance.layout() },
+      colors: workstreamColors.snapshot(workstreams, groups),
       now: Date.now(),
     };
   });
@@ -1674,7 +1712,7 @@ export default async function plugin(bb: BbPluginApi) {
   notify();
 
   registerCli(bb, {
-    topicMigration,
+    workstreamMigration,
     arrangement: {
       load: () => loadOrder(db),
     },
@@ -1683,13 +1721,13 @@ export default async function plugin(bb: BbPluginApi) {
     analyzer,
     recaps,
     organizer: organizerInstance,
-    reclassification,
+    repair,
     traces,
-    topics,
+    workstreamStore,
     currentPrefs,
     snoozes: () => snoozes.all(),
     notify,
-    reclassifyTask,
+    chooseAutomatically,
     suggestions,
   });
 }

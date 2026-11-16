@@ -28,10 +28,10 @@ afterEach(() => {
 const entry = {
   id: "e1",
   at: Date.now(),
-  action: "move",
-  source: "user",
+  action: "thread-moved",
+  source: "you",
   status: "applied",
-  rationale: "Moved from Unfiled to Beta",
+  rationale: "Moved from Other to Beta",
   threads: [{ id: "loose", name: "Loose task" }],
   workstreams: [{ id: "sec_b", name: "Beta" }],
   undo: {
@@ -54,7 +54,7 @@ const analysis = (recap: string, state = "done") => ({
 });
 
 async function mount(
-  catalog?: import("../../src/domain/topics.ts").TopicState,
+  tree?: import("../../src/domain/topics.ts").WorkstreamState,
   extraThreads: ReturnType<typeof sidebarThread>[] = [],
   rpc: Record<string, (input: unknown) => unknown> = {},
   sdk: RenderSlotOptions["sdk"] = {},
@@ -97,7 +97,7 @@ async function mount(
       rpc: {
         state: () => ({
           ...emptyState(),
-          ...(catalog ? { catalog } : {}),
+          ...(tree ? { tree } : {}),
           analysis: { b1: analysis("Asked which API to use") },
           recaps: {
             a1: {
@@ -123,7 +123,9 @@ async function mount(
         threadArchive: () => ({ ok: true }),
         threadUnarchive: () => ({ ok: true }),
         journal: () => ({ entries: [entry] }),
-        undo: () => ({ entry: { ...entry, id: "e2", action: "undo" } }),
+        undo: () => ({
+          entry: { ...entry, id: "e2", action: "change-undone" },
+        }),
         ...rpc,
       },
     },
@@ -155,7 +157,7 @@ it("shows one item at a time, Up Next first, with how many are left", async () =
 
 it("uses the topic color for the queue workstream path", async () => {
   const slot = await mount({
-    entities: [
+    workstreams: [
       {
         id: "beta",
         name: "Beta",
@@ -896,7 +898,7 @@ it.each(["accept", "decline"] as const)(
       headline: "Group the card work",
       arrivals: [],
       change: {
-        op: "refile",
+        op: "move-thread",
         moves: [
           {
             from: null,
@@ -1001,7 +1003,7 @@ it("opens the activity log from the menu, with undo", async () => {
     pointerType: "mouse",
   });
   fireEvent.click(await slot.findByRole("menuitem", { name: "Activity" }));
-  expect(await slot.findByText("Moved from Unfiled to Beta")).toBeTruthy();
+  expect(await slot.findByText("Moved from Other to Beta")).toBeTruthy();
   fireEvent.click(slot.getByRole("button", { name: "Undo" }));
   await waitFor(() =>
     expect(
@@ -1032,7 +1034,7 @@ it("re-reads the queue's suggestions only for writes beyond recaps and analysis"
       recaps: 1,
       order: 0,
       snoozes: 0,
-      catalog: 0,
+      tree: 0,
       suggestions: 0,
     },
   };

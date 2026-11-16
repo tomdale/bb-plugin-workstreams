@@ -44,7 +44,7 @@ export function placementRequests(requests: readonly string[]): string[] {
     .map((index) => substantive[index]!);
 }
 
-/** Request context shared by category assessments and reviewed topic divisions. */
+/** Request context shared by category assessments and reviewed workstream divisions. */
 export async function requestEvidence(
   sdk: Sdk,
   threadId: string,

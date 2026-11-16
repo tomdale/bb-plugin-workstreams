@@ -9,37 +9,44 @@ import {
   type ManualOrder,
 } from "../../domain/order.ts";
 import {
-  UNSORTED_ID,
+  OTHER_ID,
   type Projection,
   type Section,
   type WorkstreamThread,
 } from "../../domain/project.ts";
 import {
   nestGroups,
-  sharedTopicId,
-  type WorkstreamTopics,
+  sharedWorkstreamId,
+  type WorkstreamTree,
 } from "../../domain/groups.ts";
 import { takesThreads } from "../../domain/topics.ts";
 import type { ReorderChange } from "../useWorkstreams.ts";
 import type { Drop } from "./dnd.tsx";
 
-/** A cross-group drop sets the root's topic before saving its destination order. */
+/** A cross-group drop sets the root's workstream before saving its destination order. */
 type DropPlan = {
-  assign?: { threadId: string; entityId: string | null; within?: true };
+  assign?: { threadId: string; workstreamId: string | null; within?: true };
   reorder: ReorderChange | null;
 };
 
 /** Parent groups accept moves by choosing a leaf within them on the server. */
-function destination(groupId: string, topics?: WorkstreamTopics) {
-  if (groupId === UNSORTED_ID) return { entityId: null };
-  const entityId =
-    topics?.bindings[groupId] ??
-    topics?.entities.find((entity) => sharedTopicId(entity.id) === groupId)?.id;
-  if (!entityId || !topics?.entities.some((entity) => entity.id === entityId))
+function destination(groupId: string, workstreams?: WorkstreamTree) {
+  if (groupId === OTHER_ID) return { workstreamId: null };
+  const workstreamId =
+    workstreams?.bindings[groupId] ??
+    workstreams?.workstreams.find(
+      (workstream) => sharedWorkstreamId(workstream.id) === groupId,
+    )?.id;
+  if (
+    !workstreamId ||
+    !workstreams?.workstreams.some(
+      (workstream) => workstream.id === workstreamId,
+    )
+  )
     return null;
   return {
-    entityId,
-    ...(!takesThreads(entityId, topics.entities)
+    workstreamId,
+    ...(!takesThreads(workstreamId, workstreams.workstreams)
       ? { within: true as const }
       : {}),
   };
@@ -48,20 +55,20 @@ function destination(groupId: string, topics?: WorkstreamTopics) {
 export const acceptsThreadDrop = (
   fromGroupId: string,
   toGroupId: string,
-  topics?: WorkstreamTopics,
+  workstreams?: WorkstreamTree,
 ): boolean =>
-  fromGroupId === toGroupId || destination(toGroupId, topics) !== null;
+  fromGroupId === toGroupId || destination(toGroupId, workstreams) !== null;
 
 export function planDrop<T extends WorkstreamThread>(
   drop: Drop,
   projection: Projection<T>,
   sections: readonly Section[],
   order: ManualOrder,
-  topics?: WorkstreamTopics,
+  workstreams?: WorkstreamTree,
 ): DropPlan {
   if (drop.kind === "group") {
     // Headers drag top-level groups, which may stand for several sections
-    // or for a shared topic with none. The stored order stays a list of
+    // or for a shared workstream with none. The stored order stays a list of
     // sections: each group's sections move together, keeping their order.
     const ordered = applyOrder(
       sections,
@@ -77,9 +84,9 @@ export function planDrop<T extends WorkstreamThread>(
         total: 0,
         needsYou: 0,
         lastActiveAt: 0,
-        prioritized: false,
+        focused: false,
       })),
-      topics,
+      workstreams,
     );
     const from = nodes.findIndex((node) => node.id === drop.groupId);
     const to = nodes.findIndex((node) => node.id === drop.overGroupId);
@@ -92,7 +99,7 @@ export function planDrop<T extends WorkstreamThread>(
     };
   }
 
-  const groups = [...projection.all, projection.unsorted];
+  const groups = [...projection.all, projection.other];
   const source = groups.find((g) => g.id === drop.fromGroupId);
   if (
     !source?.rows.some(
@@ -102,8 +109,8 @@ export function planDrop<T extends WorkstreamThread>(
     return { reorder: null };
   const group = groups.find((g) => g.id === drop.toGroupId);
   if (!group) {
-    const target = destination(drop.toGroupId, topics);
-    // A topic-only header has no section order; its chosen leaf determines placement.
+    const target = destination(drop.toGroupId, workstreams);
+    // A workstream-only header has no section order; its chosen leaf determines placement.
     return target &&
       drop.overThreadId === null &&
       drop.fromGroupId !== drop.toGroupId
@@ -116,7 +123,7 @@ export function planDrop<T extends WorkstreamThread>(
   if (drop.overThreadId !== null && !roots.includes(drop.overThreadId))
     return { reorder: null };
   if (drop.fromGroupId !== drop.toGroupId) {
-    const target = destination(drop.toGroupId, topics);
+    const target = destination(drop.toGroupId, workstreams);
     if (!target) return { reorder: null };
     const at =
       drop.overThreadId === null ? -1 : roots.indexOf(drop.overThreadId);
@@ -131,9 +138,9 @@ export function planDrop<T extends WorkstreamThread>(
       },
     };
   }
-  const topicId = topics?.bindings[group.id];
-  const categories = topicId
-    ? topics?.categories?.[topicId]?.categories
+  const workstreamId = workstreams?.bindings[group.id];
+  const categories = workstreamId
+    ? workstreams?.categories?.[workstreamId]?.categories
     : undefined;
   if (categories && drop.overThreadId !== null) {
     const categoryOf = (id: string) =>

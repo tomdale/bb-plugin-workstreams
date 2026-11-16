@@ -6,35 +6,28 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import type { Database } from "./db.ts";
 
-const sourceSchema = z.enum([
-  "user",
-  "external",
-  "router",
-  "handoff",
-  "auto",
-  "bootstrap",
-]);
+/** Who made a change: you, Workstreams, or someone outside Workstreams. */
+const sourceSchema = z.enum(["you", "workstreams", "outside"]);
 export type Source = z.infer<typeof sourceSchema>;
 
+/** What changed, named for its subject and in the past tense. */
 const actionSchema = z.enum([
-  "move",
-  "create-workstream",
-  "rename-workstream",
-  "delete-workstream",
-  "undo",
-  /** Several changes applied and undone together. */
-  "batch",
-  "categories",
-  "edit-workstream",
-  "project-association",
   /** A thread started from the New thread composer. */
-  "route",
-  /** A thread's title kept current by analysis. */
-  "retitle",
-  /** Discovered topics that nothing used any more were removed. */
-  "remove-topic",
-  /** An organizing suggestion you accepted changed the topic tree. */
-  "suggestion",
+  "thread-started",
+  /** One or more threads moved to another workstream. */
+  "thread-moved",
+  /** A thread's title kept current from its requests. */
+  "title-updated",
+  "workstream-created",
+  "workstream-renamed",
+  /** A workstream left: its section was deleted, or nothing used it. */
+  "workstream-removed",
+  "categories-updated",
+  /** An organizing suggestion you accepted. */
+  "suggestion-accepted",
+  /** A workstream's project was learned, set, or kept. */
+  "project-learned",
+  "change-undone",
 ]);
 
 const statusSchema = z.enum([
@@ -42,7 +35,7 @@ const statusSchema = z.enum([
   "partial",
   "undone",
   "failed",
-  "dismissed",
+  "declined",
 ]);
 
 const projectAssociationSchema = z.object({
@@ -53,7 +46,7 @@ const projectAssociationSchema = z.object({
 const stepSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("project-association"),
-    entityId: z.string(),
+    workstreamId: z.string(),
     from: projectAssociationSchema,
     to: projectAssociationSchema.extend({ revision: z.number() }),
     disableLearning: z.boolean().optional(),
@@ -91,11 +84,11 @@ const stepSchema = z.discriminatedUnion("kind", [
     to: z.string(),
   }),
   z.object({
-    /** Puts the topic tree back as a snapshot recorded it. */
-    kind: z.literal("restore-topics"),
+    /** Puts the workstreams and groups back as a backup recorded them. */
+    kind: z.literal("restore-workstreams"),
     snapshotId: z.string(),
     /**
-     * The topic tree and assignments the change left (see
+     * The workstreams and groups and assignments the change left (see
      * `topicsFingerprint`); any later change to them blocks undo.
      */
     fingerprint: z.string(),
@@ -237,7 +230,7 @@ export class Journal {
       .prepare(
         `SELECT * FROM ws_journal
          WHERE at < @before AND at >= @since
-           AND (@external = 1 OR source <> 'external')
+           AND (@external = 1 OR source <> 'outside')
            ${threadFilter}
          ORDER BY at DESC, rowid DESC LIMIT @limitPlusOne`,
       )

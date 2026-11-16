@@ -1,6 +1,6 @@
 /**
- * The Topics view: the organizer's health, the organizing suggestions waiting
- * for a decision, and the topic tree.
+ * The Organize view: the organizing suggestions waiting for a decision, the
+ * threads in no workstream, and every workstream and group.
  *
  * Each suggestion is a block of rows (Thread or Group · Now · After) in one
  * grid, so the columns align down the page: **Threads move** lists those that
@@ -8,8 +8,8 @@
  * and **Out of date** (collapsed) those that can't apply now. Accept and
  * Decline show on the focused or hovered block. A decision applies at once
  * and leaves a line in its place with Undo; `j`/`k` move between blocks and
- * `a`/`d`/`u` accept, decline, and undo. Threads with no topic follow the
- * suggestions, each with a topic picker.
+ * `a`/`d`/`u` accept, decline, and undo. Threads in no workstream follow the
+ * suggestions, each with a workstream picker.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
@@ -43,9 +43,9 @@ import {
 } from "../../../domain/ledger.ts";
 import { ghostButton, primaryButton, secondaryButton } from "../controls.ts";
 import { TaskIdentity } from "../../task/TaskIdentity.tsx";
-import { Reclassification } from "../Reclassification.tsx";
+import { Repair } from "../RepairPreview.tsx";
 import type { useWorkstreams } from "../../useWorkstreams.ts";
-import { TopicTree } from "./TopicTree.tsx";
+import { WorkstreamTree } from "./WorkstreamTree.tsx";
 import { ProjectSuggestions } from "./ProjectSuggestions.tsx";
 import { DebugThreadButton } from "../../debug/DebugThreadButton.tsx";
 import { suggestionSubject } from "../../debug/subjects.ts";
@@ -71,7 +71,7 @@ function useOrganizer(ws: Workstreams) {
   );
   const read = useCallback(async () => {
     const [o, s] = await Promise.allSettled([
-      ws.rpc.call("organization", { action: "get" }),
+      ws.rpc.call("organizeStatus", { action: "get" }),
       ws.rpc.call("suggestions", null),
     ]);
     if (o.status === "fulfilled")
@@ -83,11 +83,7 @@ function useOrganizer(ws: Workstreams) {
     void read();
   }, [read]);
   useUnscopedChanged(() => void read());
-  const working =
-    organizer?.status === "classifying" ||
-    organizer?.status === "deriving" ||
-    organizer?.status === "syncing" ||
-    suggestions?.running === true;
+  const working = suggestions?.running === true;
   useEffect(() => {
     if (!working) return;
     const timer = setInterval(() => void read(), 1000);
@@ -96,7 +92,7 @@ function useOrganizer(ws: Workstreams) {
   return { organizer, suggestions, setSuggestions, read, working };
 }
 
-export function TopicsTab({ ws, query }: { ws: Workstreams; query: string }) {
+export function OrganizeTab({ ws, query }: { ws: Workstreams; query: string }) {
   const { organizer, suggestions, setSuggestions, read } = useOrganizer(ws);
   const [decided, setDecided] = useState<ReadonlyMap<string, Decided>>(
     new Map(),
@@ -224,7 +220,7 @@ export function TopicsTab({ ws, query }: { ws: Workstreams; query: string }) {
   const rebuild = async () => {
     setBusy(true);
     try {
-      const result = await ws.rpc.call("organization", { action: "rebuild" });
+      const result = await ws.rpc.call("organizeStatus", { action: "rebuild" });
       void result;
       void read();
     } catch (cause) {
@@ -265,7 +261,7 @@ export function TopicsTab({ ws, query }: { ws: Workstreams; query: string }) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const unresolved = organizer?.unresolved ?? [];
+  const unresolved = organizer?.noWorkstream ?? [];
   const ledger = (
     title: string,
     note: string | null,
@@ -351,7 +347,7 @@ export function TopicsTab({ ws, query }: { ws: Workstreams; query: string }) {
               >
                 <span className="min-w-0 font-medium">{task.title}</span>
                 <span className="truncate italic text-muted-foreground/70">
-                  Unfiled
+                  No workstream
                 </span>
                 <span className="min-w-0">
                   <TaskIdentity threadId={task.id} />
@@ -366,7 +362,7 @@ export function TopicsTab({ ws, query }: { ws: Workstreams; query: string }) {
           </>
         ) : undefined,
       )}
-      {ledger("Groups change", "no threads move", "Group", groups)}
+      {ledger("Workstreams change", "no threads move", "Workstream", groups)}
       {stale.length ? (
         <div className="mt-4">
           <button
@@ -401,7 +397,7 @@ export function TopicsTab({ ws, query }: { ws: Workstreams; query: string }) {
         </div>
       ) : null}
       <ProjectSuggestions ws={ws} />
-      <TopicTree ws={ws} query={query} />
+      <WorkstreamTree ws={ws} query={query} />
       <p className="mt-7 text-[11px] text-muted-foreground/70 max-md:pointer-coarse:hidden">
         <KeyChip inline>j</KeyChip> <KeyChip inline>k</KeyChip> move ·{" "}
         <KeyChip inline>a</KeyChip> accept · <KeyChip inline>d</KeyChip> decline
@@ -412,7 +408,7 @@ export function TopicsTab({ ws, query }: { ws: Workstreams; query: string }) {
         onOpenChange={setRepairs}
         ws={ws}
         threadIds={[
-          ...(organizer?.groups ?? []).flatMap((g) => g.roots.map((r) => r.id)),
+          ...(organizer?.groups ?? []).flatMap((g) => g.threads.map((r) => r.id)),
           ...unresolved.map((r) => r.id),
         ]}
         onApplied={() => void read()}
@@ -485,7 +481,7 @@ function Block({
           )}
         >
           <DebugThreadButton
-            subject={suggestionSubject(suggestion, "Topics")}
+            subject={suggestionSubject(suggestion, "Workstreams")}
           />
           <button
             type="button"
@@ -524,7 +520,7 @@ function LedgerLine({ row }: { row: LedgerRow }) {
       <span
         className={cn(
           "truncate text-muted-foreground/70",
-          row.unfiled && "italic",
+          row.other && "italic",
         )}
       >
         {row.now}
@@ -599,28 +595,21 @@ function Health({
 }) {
   const portalScope = usePortalScopeProps();
   const status = organizer?.status ?? "idle";
-  const progress = organizer?.progress;
-  const working =
-    status === "classifying" || status === "deriving" || status === "syncing";
   const asking = suggestions?.running === true;
   const at = suggestions?.lastRunAt ?? organizer?.lastUpdatedAt ?? null;
   const text =
-    status === "classifying"
-      ? `Analyzing threads ${progress?.completed ?? 0} of ${progress?.total ?? 0}`
-      : working
-        ? "Updating workstreams"
-        : status === "failed"
-          ? `Organizing stopped${organizer?.error ? `: ${organizer.error}` : ""}`
-          : asking
-            ? "Asking for suggestions…"
-            : `Workstreams up to date${at ? ` · last checked ${relativeAge(at, Date.now())} ago`.replace(" now ago", " just now") : ""}`;
+    status === "failed"
+      ? `Organizing stopped${organizer?.error ? `: ${organizer.error}` : ""}`
+      : asking
+        ? "Suggesting changes…"
+        : `Workstreams up to date${at ? ` · last checked ${relativeAge(at, Date.now())} ago`.replace(" now ago", " just now") : ""}`;
   return (
     <div className="flex flex-wrap items-center gap-2 gap-y-1 text-muted-foreground">
       <StatusDot
         tone={
           status === "failed"
             ? "bg-(--ws-failed)"
-            : working || asking
+            : asking
               ? "animate-pulse bg-(--ws-waiting)"
               : "bg-(--ws-complete)"
         }
@@ -642,10 +631,10 @@ function Health({
       <button
         type="button"
         className={ghostButton}
-        disabled={busy || asking || working}
+        disabled={busy || asking}
         onClick={status === "failed" ? onRebuild : onRerun}
       >
-        {status === "failed" ? "Try again" : "Re-run"}
+        {status === "failed" ? "Try again" : "Suggest now"}
       </button>
       <DropdownMenu.Root>
         <DropdownMenu.Trigger asChild>
@@ -665,7 +654,7 @@ function Health({
             className={menuSurfaceClass("48", "text-[13px]")}
           >
             <DropdownMenu.Item
-              disabled={busy || working}
+              disabled={busy}
               onSelect={onRebuild}
               className="cursor-pointer rounded-md px-2 py-1.5 outline-none data-[highlighted]:bg-accent data-[disabled]:opacity-50"
             >
@@ -675,7 +664,7 @@ function Health({
               onSelect={onRepairs}
               className="cursor-pointer rounded-md px-2 py-1.5 outline-none data-[highlighted]:bg-accent"
             >
-              Review automatic topics…
+              Preview automatic moves…
             </DropdownMenu.Item>
           </DropdownMenu.Content>
         </DropdownMenu.Portal>
@@ -701,12 +690,13 @@ function RepairsDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-xl">
         <DialogHeader>
-          <DialogTitle>Review automatic topics</DialogTitle>
+          <DialogTitle>Preview automatic moves</DialogTitle>
           <DialogDescription>
-            Preview topic repairs for automatically filed threads.
+            See where Workstreams would move the threads it placed itself,
+            then apply the preview.
           </DialogDescription>
         </DialogHeader>
-        <Reclassification
+        <Repair
           rpc={ws.rpc}
           threadIds={threadIds}
           onApplied={onApplied}

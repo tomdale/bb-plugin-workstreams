@@ -21,7 +21,7 @@ import {
 import {
   colorForWorkstream,
   workstreamColorStyle,
-  type TopicColor,
+  type WorkstreamColor,
 } from "../../domain/workstreamColor.ts";
 import { usePrefs } from "../prefs.ts";
 import { useOverviewOpen } from "../page/overview/route.ts";
@@ -31,7 +31,7 @@ import { needYouLabel } from "../../domain/presentation.ts";
 export type GroupProps = {
   group: ThreadNode;
   /**
-   * A subgroup: its block starts one step in, where its parent's name does,
+   * A workstream: its block starts one step in, where its parent's name does,
    * and its name reads as a label, smaller and muted.
    */
   nested?: boolean;
@@ -48,9 +48,9 @@ export type GroupProps = {
   muted?: boolean;
   /** Drag-and-drop wiring: the section moves, the header drags it. */
   sectionRef?: (element: HTMLElement | null) => void;
-  color?: TopicColor;
+  color?: WorkstreamColor;
   /** The color of the container the label's prefix names, when it has one. */
-  prefixColor?: TopicColor;
+  prefixColor?: WorkstreamColor;
   style?: CSSProperties;
   handle?: DragHandle;
   children: ReactNode;
@@ -113,18 +113,18 @@ export function WorkstreamGroup({
   const focusAction = onToggleFocus ? (
     <HoverAction
       compact
-      revealed={group.prioritized}
-      pressed={group.prioritized}
+      revealed={group.focused}
+      pressed={group.focused}
       label={
-        group.prioritized
+        group.focused
           ? `Stop focusing on ${group.name}`
           : `Focus on ${group.name}`
       }
-      hint={group.prioritized ? "Stop focusing" : "Focus"}
+      hint={group.focused ? "Stop focusing" : "Focus"}
       onClick={onToggleFocus}
-      className={group.prioritized ? "text-foreground/70" : undefined}
+      className={group.focused ? "text-foreground/70" : undefined}
     >
-      <FocusIcon filled={group.prioritized} className="size-3.5" />
+      <FocusIcon filled={group.focused} className="size-3.5" />
     </HoverAction>
   ) : null;
   return (
@@ -134,7 +134,7 @@ export function WorkstreamGroup({
           ref={setSection}
           aria-label={group.name}
           data-flip-key={`group:${group.id}`}
-          data-prioritized={group.prioritized ? "" : undefined}
+          data-focused={group.focused ? "" : undefined}
           data-drop-target={incoming ? "" : undefined}
           className={cn(
             "rounded-md",
@@ -152,7 +152,7 @@ export function WorkstreamGroup({
             onOverview={onOpenOverview}
             focus={
               onToggleFocus
-                ? { focused: group.prioritized, toggle: onToggleFocus }
+                ? { focused: group.focused, toggle: onToggleFocus }
                 : undefined
             }
             onNewWork={onNewThread}

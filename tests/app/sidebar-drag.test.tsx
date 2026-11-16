@@ -25,7 +25,7 @@ it("reorders roots by dragging a row", async () => {
       ],
       { settings: { showRecent: false, showForYou: false } },
     );
-    expect(groupRows(slot, "Unfiled")).toEqual([
+    expect(groupRows(slot, "Other")).toEqual([
       "Loose one",
       "Loose two",
       "Loose three",
@@ -55,11 +55,11 @@ it("reorders roots by dragging a row", async () => {
         slot.inspection.rpcCalls.find((c) => c.method === "reorder")?.input,
       ).toEqual({
         kind: "threads",
-        groupId: "unsorted",
+        groupId: "other",
         ids: ["l3", "l1", "l2"],
       }),
     );
-    expect(groupRows(slot, "Unfiled")).toEqual([
+    expect(groupRows(slot, "Other")).toEqual([
       "Loose three",
       "Loose one",
       "Loose two",
@@ -86,7 +86,7 @@ it("does not rerender row content for drag transforms", async () => {
       ],
       { settings: { showRecent: false, showForYou: false } },
     );
-    await waitFor(() => expect(groupRows(slot, "Unfiled")).toHaveLength(2));
+    await waitFor(() => expect(groupRows(slot, "Other")).toHaveLength(2));
     rowRenders.mockClear();
     const row = slot.container
       .querySelector('[data-sidebar-thread-id="l1"]')!
@@ -159,8 +159,8 @@ it("moves a root onto a collapsed workstream header", async () => {
       ],
       {
         settings: { showRecent: false, showForYou: false },
-        catalog: {
-          entities: [
+        tree: {
+          workstreams: [
             {
               id: "a",
               name: "Alpha",
@@ -244,7 +244,7 @@ it.each([false, true])(
           }),
           sidebarThread("child", {
             parentThreadId: "alpha",
-            title: "Delegate",
+            title: "Child",
             latestAttentionAt: Date.now() - 1,
           }),
           sidebarThread("beta", {
@@ -255,8 +255,8 @@ it.each([false, true])(
         ],
         {
           settings: { showRecent: false, showForYou: false },
-          catalog: {
-            entities: [
+          tree: {
+            workstreams: [
               {
                 id: "a",
                 name: "Alpha",
@@ -286,7 +286,7 @@ it.each([false, true])(
         },
       );
       await waitFor(() =>
-        expect(groupRows(slot, "Alpha")).toEqual(["Alpha task", "Delegate"]),
+        expect(groupRows(slot, "Alpha")).toEqual(["Alpha task", "Child"]),
       );
       const row = slot.container
         .querySelector('[data-sidebar-thread-id="alpha"]')!
@@ -302,16 +302,16 @@ it.each([false, true])(
       fireEvent.mouseUp(document, { clientX: 10, clientY: 70 });
       await waitFor(() =>
         expect(
-          slot.inspection.rpcCalls.find((c) => c.method === "taskMove")?.input,
-        ).toEqual({ threadId: "alpha", entityId: "b" }),
+          slot.inspection.rpcCalls.find((c) => c.method === "threadMoveToGroup")?.input,
+        ).toEqual({ threadId: "alpha", workstreamId: "b" }),
       );
       expect(
-        slot.getByText("Choosing a topic in the destination workstream…"),
+        slot.getByText("Choosing a workstream in the destination group…"),
       ).toBeTruthy();
       release();
       if (fails) {
         await slot.findByText("Topic assignment failed");
-        expect(groupRows(slot, "Alpha")).toEqual(["Alpha task", "Delegate"]);
+        expect(groupRows(slot, "Alpha")).toEqual(["Alpha task", "Child"]);
         expect(groupRows(slot, "Beta")).toEqual(["Beta task"]);
         expect(
           slot.inspection.rpcCalls.some((c) => c.method === "reorder"),
@@ -328,7 +328,7 @@ it.each([false, true])(
           expect(groupRows(slot, "Beta")).toEqual([
             "Beta task",
             "Alpha task",
-            "Delegate",
+            "Child",
           ]),
         );
         // Its workstream holds nothing now, so it draws no header.

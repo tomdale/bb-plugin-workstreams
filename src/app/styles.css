@@ -502,9 +502,9 @@ body:has([data-ws-suggestions])
   box-shadow: 0 6px 16px color-mix(in oklab, var(--foreground) 25%, transparent);
 }
 
-/* StatusDot's workstream dot takes the topic's hue (`workstreamColorStyle`
+/* StatusDot's workstream dot takes the workstream's hue (`workstreamColorStyle`
    sets --ws-color-dot or --ws-hue). The hollow dot holds its place for
-   collections that are not workstreams (Unfiled, Dormant, Snoozed), so every
+   collections that are not workstreams (Other, Dormant, Snoozed), so every
    name starts at the same edge. */
 .ws-dot-workstream {
   background: var(--ws-color-dot, oklch(64% 0.15 var(--ws-hue, 250)));
@@ -932,7 +932,7 @@ body:has([data-ws-suggestions])
 [data-ws-hide-title] .bb-thread-title {
   display: none;
 }
-/* Workstream identity colors come from the topic allocation. */
+/* Workstream identity colors come from the workstream allocation. */
 .ws-sticky-goal__workstream {
   position: absolute;
   top: 0;
@@ -954,7 +954,7 @@ body:has([data-ws-suggestions])
   color: var(--ws-color-dark, oklch(79% 0.13 var(--ws-hue, 250)));
 }
 /* A reply block's accent: its thread's workstream identity color, or muted
-   text when the thread is unfiled. Reply components take label color from it. */
+   text when the thread is in no workstream. Reply components take label color from it. */
 .ws-reply-accent {
   --ws-reply-accent: var(--ws-color-light, var(--muted-foreground));
 }
@@ -986,7 +986,7 @@ body:has([data-ws-suggestions])
   font-weight: 600;
   line-height: 1.2;
 }
-/* The owner and area of an "Owner: Area" name inherit the caller's type, so
+/* The owner and area of an "Owner › Area" name inherit the caller's type, so
    Home and the archived groups keep their own; in a sidebar workstream header
    they read lighter than a plain name. */
 .ws-text-workstream > :is(.ws-text-prefix, .ws-text-inline-workstream) {
@@ -1003,7 +1003,7 @@ body:has([data-ws-suggestions])
   font-size: 13px;
 }
 
-/* The parent in an "Owner: Area" name wears its container's own color,
+/* The parent in an "Owner › Area" name wears its container's own color,
    dimmed, so one parent reads alike under every area in the color the
    organizer gave that container, and stays quieter than the area's. */
 .ws-text-prefix {
@@ -1265,7 +1265,7 @@ section[data-testid="plugin-interaction-shell"]:has(.ws-question-portaled) {
   font-size: 0.8rem;
 }
 
-/* Topic control on the Workstreams page: plain text, no outline */
+/* Workstream control on the Workstreams page: plain text, no outline */
 .ws-task-identity {
   display: inline-flex;
   align-items: center;

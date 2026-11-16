@@ -8,13 +8,13 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { renderSlot } from "@get-bb/plugin-sdk/testing/app";
-import { ProjectSuggestions } from "../../src/app/page/topics/ProjectSuggestions.tsx";
+import { ProjectSuggestions } from "../../src/app/page/organize/ProjectSuggestions.tsx";
 
 afterEach(cleanup);
 const suggestion = {
   id: "suggestion",
-  entityId: "topic",
-  topic: "Parser",
+  workstreamId: "workstream",
+  workstream: "Parser",
   fromProject: "One",
   toProject: null,
   reason: "Independent roots use different projects.",
@@ -106,7 +106,7 @@ it("re-reads only for writes beyond recaps, analysis, snoozes and order", async 
       recaps: 1,
       order: 0,
       snoozes: 0,
-      catalog: 0,
+      tree: 0,
       suggestions: 0,
     },
   };

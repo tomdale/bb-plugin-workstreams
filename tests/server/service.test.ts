@@ -89,7 +89,7 @@ describe("reconciler", () => {
     await rpc(w, "refresh", null);
     const created = await log(w);
     expect(created.map((e) => [e.action, e.source])).toEqual([
-      ["create-workstream", "external"],
+      ["workstream-created", "outside"],
     ]);
 
     // Moves made in the built-in sidebar, the CLI, or by agents.
@@ -106,10 +106,10 @@ describe("reconciler", () => {
         .map((e) => e.rationale)
         .sort(),
     ).toEqual([
-      "Moved from Unfiled to Alpha Two outside Workstreams",
+      "Moved from Other to Alpha Two outside Workstreams",
       "Renamed Alpha to Alpha Two outside Workstreams",
     ]);
-    expect(entries.filter((e) => e.action === "move")).toHaveLength(1);
+    expect(entries.filter((e) => e.action === "thread-moved")).toHaveLength(1);
     expect(await log(w, false)).toEqual([]);
   });
 
@@ -120,7 +120,7 @@ describe("reconciler", () => {
     w.sections.splice(w.sections.indexOf(alpha), 1);
     await rpc(w, "refresh", null);
     expect((await log(w))[0]).toMatchObject({
-      action: "delete-workstream",
+      action: "workstream-removed",
       rationale: "Deleted Alpha outside Workstreams",
     });
     const listed = await w.harness.behavior.runCli(["list", "--json"]);
@@ -143,14 +143,14 @@ describe("cli", () => {
     const list = await cli(["list"]);
     expect(list.exitCode).toBe(0);
     expect(list.stdout).toMatch(/Alpha\s+2 threads/);
-    expect(list.stdout).toMatch(/Unfiled\s+1 thread /);
+    expect(list.stdout).toMatch(/Other\s+1 thread /);
 
     const show = await cli(["show", "alpha"]);
     expect(show.stdout).toContain("Root task");
     expect(show.stdout).toMatch(/\n {2}Kid task/);
 
-    expect((await cli(["show", "unfiled"])).stdout).toContain("Loose task");
-    expect((await cli(["show", "unsorted"])).stdout).toContain("Loose task");
+    expect((await cli(["show", "other"])).stdout).toContain("Loose task");
+    expect((await cli(["show", "other"])).stdout).toContain("Loose task");
 
     const logged = await cli(["log"]);
     expect(logged.exitCode).toBe(0);
@@ -202,8 +202,8 @@ describe("cli", () => {
     );
     for (let i = 0; i < 8; i++) {
       journal.add({
-        action: "move",
-        source: "auto",
+        action: "thread-moved",
+        source: "workstreams",
         rationale: `Entry ${i}`,
         threads: [],
         workstreams: [],
@@ -244,8 +244,8 @@ describe("cli", () => {
     await rpc(w, "refresh", null);
     await w.bb.sdk.threads.update({ threadId: "t1", title: "New focus" });
     const entry = new Journal(w.bb.storage.database(), () => now).add({
-      action: "retitle",
-      source: "auto",
+      action: "title-updated",
+      source: "workstreams",
       rationale: "Retitled from Old focus",
       threads: [{ id: "t1", name: "New focus" }],
       workstreams: [],
@@ -261,7 +261,7 @@ describe("cli", () => {
     const result = await cli(["undo", entry.id, "--json"]);
     const parsed = JSON.parse(result.stdout);
     expect(result.exitCode).toBe(0);
-    expect(parsed.entry.action).toBe("undo");
+    expect(parsed.entry.action).toBe("change-undone");
     expect(w.threads.get("t1")?.title).toBe("Old focus");
   });
 
@@ -273,7 +273,7 @@ describe("cli", () => {
           recap: "Finished",
           state,
           title: "Fix parser",
-          subjectId: null,
+          workstreamId: null,
           proposed: null,
         }),
     });
@@ -284,7 +284,7 @@ describe("cli", () => {
     await w.harness.behavior.runCli(["analyze", "t1"]);
     const show = async () =>
       JSON.parse(
-        (await w.harness.behavior.runCli(["show", "unfiled", "--json"])).stdout,
+        (await w.harness.behavior.runCli(["show", "other", "--json"])).stdout,
       );
     const complete = await show();
     expect(complete.needsYou).toBe(0);
@@ -324,7 +324,7 @@ describe("sidebar order", () => {
     expect(empty.order).toEqual({
       workstreams: [],
       threads: {},
-      prioritized: [],
+      focused: [],
     });
 
     const order = await rpc<{ order: unknown }>(w, "reorder", {
@@ -334,7 +334,7 @@ describe("sidebar order", () => {
     expect(order.order).toEqual({
       workstreams: ["b", "a"],
       threads: {},
-      prioritized: [],
+      focused: [],
     });
 
     const threadOrder = await rpc<{ order: unknown }>(w, "reorder", {
@@ -345,7 +345,7 @@ describe("sidebar order", () => {
     expect(threadOrder.order).toEqual({
       workstreams: ["b", "a"],
       threads: { a: ["t2", "t1"] },
-      prioritized: [],
+      focused: [],
     });
   });
 });

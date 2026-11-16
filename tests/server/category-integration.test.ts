@@ -1,9 +1,9 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { makeMessageDispatchHookContext } from "@get-bb/plugin-sdk/testing";
 import { fakeWorld } from "./fake-bb.ts";
-import { TopicStore } from "../../src/server/topics.ts";
+import { WorkstreamStore } from "../../src/server/topics.ts";
 import { openDatabase } from "../../src/server/db.ts";
-import type { TopicState } from "../../src/domain/topics.ts";
+import type { WorkstreamState } from "../../src/domain/topics.ts";
 
 const worlds: Awaited<ReturnType<typeof fakeWorld>>[] = [];
 afterEach(async () => {
@@ -30,11 +30,11 @@ it("exposes persisted categories without changing assignments or native sections
     },
   });
   worlds.push(world);
-  const topics = new TopicStore(openDatabase(world.bb));
-  const topic = topics.create("Vertex");
+  const workstreamStore = new WorkstreamStore(openDatabase(world.bb));
+  const workstream = workstreamStore.create("Vertex");
   for (let i = 0; i < 6; i++) {
     world.addThread(`t${i}`, { title: `Vertex work ${i}` });
-    topics.assign(`t${i}`, topic.id, { provenance: "manual" });
+    workstreamStore.assign(`t${i}`, workstream.id, { provenance: "manual" });
   }
   world.converse("t0", [
     "Build Vertex billing exports",
@@ -43,12 +43,12 @@ it("exposes persisted categories without changing assignments or native sections
   ]);
   const state = async () =>
     (await world.harness.behavior.callRpc("state", null)) as {
-      catalog: TopicState;
+      tree: WorkstreamState;
     };
-  await world.harness.behavior.callRpc("organization", { action: "rebuild" });
+  await world.harness.behavior.callRpc("organizeStatus", { action: "rebuild" });
   await vi.waitFor(async () => {
     expect(
-      (await state()).catalog.categories?.[topic.id]?.categories,
+      (await state()).tree.categories?.[workstream.id]?.categories,
     ).toHaveLength(2);
   });
   expect(calls[0]).toContain(
@@ -60,8 +60,8 @@ it("exposes persisted categories without changing assignments or native sections
   );
   expect(new Set(sections).size).toBe(1);
   for (let i = 0; i < 6; i++)
-    expect(topics.assignment(`t${i}`)).toMatchObject({
-      entityId: topic.id,
+    expect(workstreamStore.assignment(`t${i}`)).toMatchObject({
+      workstreamId: workstream.id,
       provenance: "manual",
     });
   const dispatch = world.harness.registrations.hooks["message.dispatch"]!;
@@ -83,11 +83,11 @@ it("exposes persisted categories without changing assignments or native sections
     threadIds: ["t5"],
     until: null,
   });
-  await world.harness.behavior.callRpc("organization", { action: "rebuild" });
+  await world.harness.behavior.callRpc("organizeStatus", { action: "rebuild" });
   // A departure leaves the categories without asking the model again.
   await vi.waitFor(async () =>
     expect(
-      (await state()).catalog.categories?.[topic.id]?.categories.flatMap(
+      (await state()).tree.categories?.[workstream.id]?.categories.flatMap(
         (category) => category.threadIds,
       ),
     ).not.toContain("t5"),
@@ -97,9 +97,9 @@ it("exposes persisted categories without changing assignments or native sections
     threadIds: ["t3", "t4"],
     until: null,
   });
-  await world.harness.behavior.callRpc("organization", { action: "rebuild" });
+  await world.harness.behavior.callRpc("organizeStatus", { action: "rebuild" });
   await vi.waitFor(async () =>
-    expect((await state()).catalog.categories?.[topic.id]).toBeUndefined(),
+    expect((await state()).tree.categories?.[workstream.id]).toBeUndefined(),
   );
   expect(calls).toHaveLength(2);
   expect([...world.threads.values()].map((thread) => thread.sectionId)).toEqual(

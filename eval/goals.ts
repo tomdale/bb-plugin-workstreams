@@ -1,9 +1,9 @@
 import { writeFile } from "node:fs/promises";
 import {
-  fullAnalysisPrompt,
-  fullAnalysisSchema,
-  parseFullAnalysis,
-  type FullAnalysisInput,
+  descriptionPrompt,
+  descriptionSchema,
+  parseDescription,
+  type DescriptionInput,
 } from "../src/domain/analysis.ts";
 import {
   parseTurnEnd,
@@ -24,7 +24,7 @@ const cases: {
   current?: string;
   keep?: boolean;
   must: string[][];
-  titledBy?: FullAnalysisInput["titledBy"];
+  titledBy?: DescriptionInput["titledBy"];
 }[] = [
   {
     id: "shortcut",
@@ -111,7 +111,7 @@ await Promise.all(
   Array.from({ length: 4 }, async () => {
     while (cursor < jobs.length) {
       const test = jobs[cursor++]!;
-      const input: FullAnalysisInput = {
+      const input: DescriptionInput = {
         title: "Reviewing code",
         titledBy: test.titledBy ?? "workstreams",
         goal: test.current ?? null,
@@ -129,12 +129,12 @@ await Promise.all(
       };
       const turnEnd: TurnEndInput = {
         ...input,
-        placement: {
+        choice: {
           title: null,
           requests: test.requests,
           project: null,
           checkout: null,
-          entities: [
+          workstreams: [
             {
               id: "lumen",
               name: "Lumen",
@@ -158,7 +158,7 @@ await Promise.all(
             },
           ],
           hints: [],
-          current: { label: "Lumen: Review", inherited: false },
+          current: { label: "Lumen › Review", inherited: false },
         },
       };
       const started = Date.now();
@@ -173,18 +173,18 @@ await Promise.all(
           reasoningLevel,
           prompt:
             kind === "full"
-              ? fullAnalysisPrompt(input)
+              ? descriptionPrompt(input)
               : turnEndPrompt(turnEnd),
           outputSchema:
             kind === "full"
-              ? fullAnalysisSchema(input)
+              ? descriptionSchema(input)
               : turnEndSchema(turnEnd),
         });
         response = completion.text;
         usage = completion.usage;
         const output =
           kind === "full"
-            ? parseFullAnalysis(response, input)
+            ? parseDescription(response, input)
             : parseTurnEnd(response, turnEnd);
         goal = output.goal ?? test.current ?? null;
         if (!goal) problems.push("no outcome");

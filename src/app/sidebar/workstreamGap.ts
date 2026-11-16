@@ -4,7 +4,7 @@ import { splitWorkstreamName } from "../WorkstreamName.tsx";
 /**
  * Spacing between two consecutive workstream groups, in pixels. A group is
  * identified by its section id, or by its inline owner when its name is an
- * "Owner: Area" pair (see `splitWorkstreamName`). Siblings of one owner and
+ * "Owner › Area" pair (see `splitWorkstreamName`). Siblings of one owner and
  * standalone workstreams get the item gap; crossing an owner boundary widens
  * to the inline boundary gap. Collapsing the previous group shrinks both to
  * their collapsed values. `prev` is null for a list's first group, which

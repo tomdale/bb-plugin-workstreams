@@ -44,7 +44,7 @@ import { relativeAge } from "../../../domain/presentation.ts";
 import { describeWake, type SnoozeWhen } from "../../../domain/snooze.ts";
 import { colorForWorkstream } from "../../../domain/workstreamColor.ts";
 import type { RecapFiles } from "../../../domain/recap.ts";
-import { prioritizedSet } from "../../home/model.ts";
+import { focusedSet } from "../../home/model.ts";
 import { usePrefs } from "../../prefs.ts";
 import { useRecapPrefs } from "../../recap/prefs.ts";
 import { HashColors } from "../../composer/RecapCard.tsx";
@@ -73,6 +73,7 @@ import { HEADING_BLOCK_MIN_HEIGHT, PAGE_TOP } from "./layout.ts";
 import { useQueueMotion, type Direction } from "./motion.ts";
 import { STACK_WINDOW } from "./stackEngine.ts";
 import { useQueueActions, type Receipt } from "./useQueueActions.ts";
+import { PATH_SEPARATOR } from "../../../domain/topic-path.ts";
 
 type Workstreams = ReturnType<typeof useWorkstreams>;
 type Suggestion = SuggestionsStateWire["suggestions"][number];
@@ -185,40 +186,42 @@ function suggestionMoves(s: Suggestion): SuggestionMove[] {
 }
 
 function groupMoves(s: Suggestion): SuggestionMove[] {
-  const byTopic = new Map<string, SuggestionMove>();
+  const byWorkstream = new Map<string, SuggestionMove>();
   for (const move of s.change?.moves ?? []) {
     const leaf = move.to.at(-1);
     const to = leaf?.name ?? "Top level";
-    const entry = byTopic.get(to) ?? {
+    const entry = byWorkstream.get(to) ?? {
       to,
       created: leaf?.created ?? false,
       threads: [],
     };
-    byTopic.set(to, {
+    byWorkstream.set(to, {
       ...entry,
       threads: [...entry.threads, ...move.threads.map((t) => t.title)],
     });
   }
-  return [...byTopic.values()];
+  return [...byWorkstream.values()];
 }
 
 const movingCount = (s: Suggestion) =>
   s.change?.moves.reduce((n, m) => n + m.threads.length + m.carried, 0) ?? 0;
 
-/** The topic a suggestion reshapes: where its threads come from. */
+/** The workstream a suggestion reshapes: where its threads come from. */
 function suggestionPath(s: Suggestion): string | null {
   const from = s.change?.moves.find((m) => m.from)?.from;
   const place = from ?? s.change?.moves[0]?.to.slice(0, -1);
-  return place?.length ? place.map((part) => part.name).join(": ") : null;
+  return place?.length
+    ? place.map((part) => part.name).join(PATH_SEPARATOR)
+    : null;
 }
 
 export function Queue({
   ws,
-  onTopics,
+  onOrganize,
 }: {
   ws: Workstreams;
-  /** Opens the topic tree, from the workstream line. */
-  onTopics: () => void;
+  /** Opens the workstreams and groups, from the workstream line. */
+  onOrganize: () => void;
 }) {
   const rpc = useRpc<RpcContract>();
   const { prefs } = usePrefs();
@@ -240,9 +243,9 @@ export function Queue({
     () =>
       planFeed(projection, {
         ...ws.upNextOptions,
-        prioritized: prioritizedSet(ws.server.order, ws.sections),
+        focused: focusedSet(ws.server.order, ws.sections),
         groupSort: prefs?.sidebar.groupSort ?? "alphabetical",
-        topics: ws.topics,
+        workstreams: ws.workstreams,
       }),
     [
       projection,
@@ -250,7 +253,7 @@ export function Queue({
       ws.server.order,
       ws.sections,
       prefs?.sidebar.groupSort,
-      ws.topics,
+      ws.workstreams,
     ],
   );
   const rowOf = useMemo(() => {
@@ -606,9 +609,9 @@ export function Queue({
         const row = rowOf.get(thread.id);
         const path = plan.place.get(thread.id)?.path ?? [];
         return {
-          path: path.length ? path.join(": ") : null,
+          path: path.length ? path.join(PATH_SEPARATOR) : null,
           color: row?.workstreamId
-            ? colorForWorkstream(row.workstreamId, ws.server.catalog)
+            ? colorForWorkstream(row.workstreamId, ws.server.tree)
             : null,
           title: thread.displayTitle,
         };
@@ -728,7 +731,7 @@ export function Queue({
                   <div key={current} data-queue-part="heading">
                     <Heading
                       heading={heading}
-                      onPath={heading.path ? onTopics : undefined}
+                      onPath={heading.path ? onOrganize : undefined}
                     />
                   </div>
                 ) : null}

@@ -120,7 +120,7 @@ it("sends a strict output contract for schema-constrained classification", async
   vi.stubGlobal("fetch", fetch);
   const schema = {
     type: "object",
-    properties: { subjectId: { enum: [null, "product"] } },
+    properties: { workstreamId: { enum: [null, "product"] } },
   };
   await gatewayComplete({
     prompt: "classify",
