@@ -46,6 +46,8 @@ it("binds UI surfaces to the components exercised by the SDK harness", async () 
     await import("../../src/app/snooze/SnoozeSettings.tsx");
   const { DebugCommandBridge } =
     await import("../../src/app/debug/DebugCommand.tsx");
+  const { QuickActionsOffer } =
+    await import("../../src/app/snooze/QuickActionsOffer.tsx");
   expect(
     app.threadLists.find((entry) => entry.id === "sidebar")?.component,
   ).toBe(WorkstreamsThreadList);
@@ -98,6 +100,7 @@ it("binds UI surfaces to the components exercised by the SDK harness", async () 
     ["color-tokens", ColorTokenStyle],
     ["debug-command", DebugCommandBridge],
     ["stream-deck", StreamDeckBridge],
+    ["quick-actions-offer", QuickActionsOffer],
   ] as const) {
     expect(app.appOverlays.find((entry) => entry.id === id)?.component).toBe(
       component,

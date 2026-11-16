@@ -1,11 +1,11 @@
 /**
- * Snooze as a BB thread action, so BB's thread menus and plugins that list
- * BB's thread actions (the Quick Actions ring) offer the user's presets and
- * snooze through the same `snoozeThreads` as this plugin's own menus. Its
- * choices are the presets in their order, after Wake now for a snoozed
- * thread. Running it without a choice snoozes with the default preset, which
- * `detail` names while the thread is awake. BB's thread action choices carry
- * only a label, so these show no wake times.
+ * Snooze as a BB thread action, so BB's thread menus and plugins that show
+ * BB's thread actions (the Quick Actions ring, see `QuickActionsOffer.tsx`)
+ * offer the user's presets and snooze through the same `snoozeThreads` as
+ * this plugin's own menus. Its choices are the presets in their order, after
+ * Wake now for a snoozed thread. Running it without a choice snoozes with the
+ * default preset, which `detail` names while the thread is awake. BB's thread
+ * action choices carry only a label, so these show no wake times.
  *
  * The SDK this plugin builds against predates thread action registrations,
  * so the slot's shape is declared here, and BB builds without the slot skip
@@ -63,6 +63,9 @@ type SlotsWithThreadAction = {
 
 /** The choice that wakes a snoozed thread now. */
 export const WAKE_NOW_CHOICE = "wake-now";
+
+/** The registration id; BB keys the action `<plugin id>/snooze`. */
+export const SNOOZE_ACTION_ID = "snooze";
 
 /** BB's state group, beside Pin and Mark read. */
 const STATE_GROUP = "1_state";
@@ -140,7 +143,7 @@ function useSnoozeActionData({
 /** Registers Snooze on BB builds that take plugin thread actions. */
 export function registerSnoozeThreadAction(app: { slots: object }): void {
   (app.slots as SlotsWithThreadAction).experimental_threadAction?.({
-    id: "snooze",
+    id: SNOOZE_ACTION_ID,
     title: "Snooze",
     icon: "Clock",
     group: STATE_GROUP,
