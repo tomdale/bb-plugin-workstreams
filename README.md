@@ -679,9 +679,10 @@ Stream Deck plugin gets that token from the `bb` CLI.
 - **Snooze in BB's thread menus:** On BB builds that take plugin thread actions,
   BB's thread menus (a sidebar row's menu and right-click menu, and the thread
   header's menu) list **Snooze** with your presets, after **Wake now** while
-  snoozed. With the Quick Actions plugin installed, its hold-Option ring shows
-  Snooze right after Archive, with the same choices as a band and your default
-  lit. These menus show preset names without wake times and have no **Custom…**.
+  snoozed. Add **Snooze** to the Quick Actions plugin's ring under its
+  **Actions** settings, and the ring shows the same choices as a band with your
+  default lit. These menus show preset names without wake times and have no
+  **Custom…**.
 
 ### Agent recap card (`WorkstreamsRecap`)
 

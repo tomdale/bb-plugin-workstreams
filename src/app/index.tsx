@@ -40,7 +40,6 @@ import {
 } from "./snooze/SnoozeHeaderAction.tsx";
 import { SnoozeSettings } from "./snooze/SnoozeSettings.tsx";
 import { registerSnoozeThreadAction } from "./snooze/threadAction.ts";
-import { QuickActionsOffer } from "./snooze/QuickActionsOffer.tsx";
 import { AdvanceAfterLeaving } from "./upNext/AdvanceAfterLeaving.tsx";
 import {
   NextUpCommandBridge,
@@ -158,10 +157,6 @@ export default definePluginApp((app) => {
     component: ArchiveHeaderAction,
   });
   registerSnoozeThreadAction(app);
-  app.slots.experimental_appOverlay({
-    id: "quick-actions-offer",
-    component: QuickActionsOffer,
-  });
   app.commands.register({
     id: "snooze-thread",
     title: "Workstreams: snooze this thread",
