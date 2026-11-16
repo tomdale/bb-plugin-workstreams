@@ -19,9 +19,3 @@ export const TAG_ICON = "workstreams/tag";
  * sparkles; declared in the manifest like the marks above.
  */
 export const SPARKLES_ICON = "workstreams/sparkles";
-
-/**
- * A table, for a workstream's Overview. BB's icon set has no verified table;
- * declared in the manifest like the marks above.
- */
-export const OVERVIEW_ICON = "workstreams/overview";

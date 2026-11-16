@@ -26,7 +26,6 @@ import {
   type TopicColor,
 } from "../../domain/workstreamColor.ts";
 import { GroupSnooze, RenderRow, ThreadNode, ThreadRow } from "./types.ts";
-import { OverviewRow } from "./OverviewRow.tsx";
 import { WorkstreamGroup } from "./WorkstreamGroup.tsx";
 
 /** The groups drawn inline under `group`, in order, theirs included. */
@@ -290,21 +289,9 @@ export function NestedGroup(
 /** A group's own rows and nested groups, isolated from header and drag updates. */
 export const GroupBody = memo(
   function GroupBody(props: GroupBodyProps) {
-    const { group, openOverview } = props;
-    const onOpenOverview = useMemo(
-      () => openOverview?.(group),
-      [openOverview, group],
-    );
+    const { group } = props;
     return (
       <>
-        {onOpenOverview ? (
-          <OverviewRow
-            groupId={group.id}
-            groupName={group.name}
-            slotWidth={props.groupSlot}
-            onOpen={onOpenOverview}
-          />
-        ) : null}
         <CategorizedTrees {...props} />
         {inlineGroups(group).map((sub) => (
           <CategorizedTrees

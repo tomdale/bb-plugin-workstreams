@@ -474,10 +474,9 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
      its empty section is deleted on the next organizing pass. Threads and
      topics are kept, so a later thread on that topic gets a workstream again.
      Focusing an empty workstream keeps it no longer than any other.
-   - Each expanded group starts with an **Overview** row, which opens the
-     workstream's Overview on the Workstreams page and is highlighted while that
-     Overview is open. A collapsed group hides the row; its header's menu still
-     offers **Overview**.
+   - Click a workstream's name to open its **Overview** on the Workstreams page.
+     The header is highlighted while its Overview is open. Dragging the header
+     by its name still reorders the workstream and opens nothing.
    - Press the chevron beside a workstream's name to collapse or expand its
      threads. The group closes and opens its height over `260 ms` with a fade,
      like rows and bands, so what follows slides rather than jumps, and the
@@ -976,15 +975,15 @@ Each opens as its own view with **Back**. Deep links still work:
 
 #### Overview
 
-Click the **Overview** row at the top of a workstream's group in the sidebar, or
-choose **Overview** from its header's menu, to see that workstream's open
-threads as a table at `/plugins/workstreams/home/overview/<group>`. It lists the
-root threads the header lists in the sidebar: a header that gathers several
-workstreams lists all of theirs, and **Unfiled** has an Overview too. Archived
-and snoozed threads are left out, and delegates get no rows of their own. The
-heading shows the workstream's name in its color and how many threads need you
-or are ready for review. **New work** starts a thread in the workstream, and the
-**⋯** menu holds **Focus / Stop focusing** and **Snooze \<N\> threads**.
+Click a workstream's name in the sidebar, or choose **Overview** from its
+header's menu, to see that workstream's open threads as a table at
+`/plugins/workstreams/home/overview/<group>`. It lists the root threads the
+header lists in the sidebar: a header that gathers several workstreams lists all
+of theirs, and **Unfiled** has an Overview too. Archived and snoozed threads are
+left out, and delegates get no rows of their own. The heading shows the
+workstream's name in its color and how many threads need you or are ready for
+review. **New work** starts a thread in the workstream, and the **⋯** menu holds
+**Focus / Stop focusing** and **Snooze \<N\> threads**.
 
 Rows are ordered by status, then newest turn first:
 

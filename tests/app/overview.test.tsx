@@ -287,31 +287,24 @@ it("goes back to the queue", async () => {
   slot.lifecycle.unmount();
 });
 
-it("opens from a group's Overview row and its header's menu in the sidebar", async () => {
+it("opens from a workstream's name and menu in the sidebar", async () => {
   const slot = await mountSidebar(
     [sidebarThread("a1", { sectionId: "sec_a", title: "Alpha task" })],
     { settings: { showRecent: false, showForYou: false } },
   );
   const name = await slot.findByRole("button", { name: "Overview of Alpha" });
-  // The row leads the group's threads.
-  expect(
-    slot.getByRole("region", { name: "Alpha" }).querySelector("ul > li")!
-      .textContent,
-  ).toBe("Overview");
   fireEvent.click(name);
   expect(slot.inspection.navigateCalls).toContainEqual({
     method: "toPluginPanel",
     path: "home",
     options: { subPath: "overview/sec_a" },
   });
-  // The row is the active one while the page shows its Overview.
+  // The header marks itself while the page shows its Overview.
   expect(name.getAttribute("aria-current")).toBeNull();
   act(() => setOpenOverview("sec_a"));
   expect(name.getAttribute("aria-current")).toBe("page");
   act(() => setOpenOverview(null));
-  fireEvent.contextMenu(
-    slot.getByRole("region", { name: "Alpha" }).querySelector(".group\\/row")!,
-  );
+  fireEvent.contextMenu(name);
   expect(await slot.findByRole("menuitem", { name: "Overview" })).toBeTruthy();
   slot.lifecycle.unmount();
 });
