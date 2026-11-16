@@ -158,6 +158,9 @@ export class Categories {
       status: "settled",
       error: null,
       work: { ...previous?.work, [threadId]: { basis, key } },
+      // The work the arrangement settled from still tells this request's
+      // thread apart as changed.
+      arranged: previous?.arranged,
     });
     this.save(records);
     this.settled = null;

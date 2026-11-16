@@ -177,6 +177,22 @@ describe("persisted collection categories", () => {
     expect(classify).toHaveBeenCalledTimes(2);
   });
 
+  it("checks a dispatched request's thread against the categories, again on the next one", async () => {
+    const { engine, classify, fit } = setup();
+    await engine.reconcile();
+    const home = engine
+      .generations()
+      ["topic-a"]!.categories.find((c) => c.threadIds.includes("t0"))!;
+    fit.mockImplementation(async () => ({ t0: home.id }));
+    await engine.requestChanged("t0", "Fix invoice rounding for euros");
+    await engine.requestChanged("t0", "Also fix rounding for yen");
+    expect(fit.mock.calls.map(([input]) => input.changed)).toEqual([
+      ["t0"],
+      ["t0"],
+    ]);
+    expect(classify).toHaveBeenCalledTimes(1);
+  });
+
   it("rechecks updated analyzed work after a dispatched request and releases its temporary text", async () => {
     const { engine, classify, state } = setup();
     await engine.reconcile();
