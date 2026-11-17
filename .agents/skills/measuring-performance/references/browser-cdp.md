@@ -3,15 +3,16 @@
 Measure a page through CDP: script, style, layout, paint, frames, React commits,
 and read-site attribution.
 
-Harnesses: `npm run profile:shimmer -- --baseline <styles.css>` alternates two
-stylesheets in one session (`scripts/profile-shimmer.mjs`).
-`scripts/profile-sidebar.mjs` builds `gallery/sidebar-profile` with 64 rows,
-runs `--runs` samples (default 3, at most 20, so pass ten or more for a
-duration), and compares them against a saved `--baseline <sidebar.json>` report.
-Its five scenarios are `initial-render`, `hover`, `expand-collapse`,
-`animation`, and `react-commits`, and it mounts a build that imports
-`react-dom/profiling`, so use its numbers for before/after deltas within one
-build; a profiling React inflates their absolute values.
+Harnesses: `npm run perf` measures a fixture page in headless Chrome and prints
+each metric's median, minimum, and maximum over ten samples. `npm run perf --
+--help` is the manual, `npm run perf -- list` prints the pages, scenarios,
+switches, and metrics without running anything, and `--without <switch>`
+alternates the page against the same page with one suspect off, which is how to
+attribute a cost. Add a page by adding its entry to `gallery/perf/main.tsx` and
+to the `pages` table in `scripts/perf.mjs`. The perf pages run React's profiling
+build, so read their absolute timings as an upper bound and compare arms or
+before-and-after runs. `npm run profile:shimmer -- --baseline <styles.css>`
+alternates two stylesheets in one session (`scripts/profile-shimmer.mjs`), and
 `prototypes/queue-motion/capture/record.mjs` captures screencast frames.
 
 For the running app, open `$BB_SERVER_URL` in `playwright-core` (a devDependency
@@ -45,7 +46,7 @@ trace's `Paint` events, and sample per frame on a thread switch, where the
 aggregate window hides a transcript that paints before its heading.
 
 React: commits and durations exist only on a profiling or development build
-(`gallery/sidebar-profile`, the jsdom tests). The live app runs the host's
+(`npm run perf`'s fixture pages, the jsdom tests). The live app runs the host's
 production React, where `Profiler.onRender` never fires, so zero commits there
 means the instrument is missing; report the missing instrument in place of a
 zero. A commit count misses work when a portal, row menu, or provider sits

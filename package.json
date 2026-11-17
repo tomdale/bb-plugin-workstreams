@@ -84,6 +84,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:benchmark": "node scripts/benchmark-tests.mjs",
+    "perf": "node scripts/perf.mjs",
     "profile:shimmer": "node scripts/profile-shimmer.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check ."

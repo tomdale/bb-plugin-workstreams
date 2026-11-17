@@ -1537,6 +1537,72 @@ an isolated card and does not load BB thread data. Browser regressions also
 check the gradient trajectory, light and dark rendering, compositor activity,
 and reduced motion.
 
+### Browser performance harness
+
+`npm run perf` measures what a piece of the UI costs the browser. It builds a
+fixture page from `gallery/perf.html`, opens it in headless Chrome, runs each
+scenario ten times after a discarded warm-up, and prints each metric's median,
+minimum, and maximum. A full run takes about two minutes and writes every sample
+to `.perf/report.json`. The command draws fixtures and does not read the running
+BB app. The page runs React's profiling build so the Profiler can report
+commits, which raises absolute timings: read them as an upper bound and compare
+arms or before-and-after runs. Set `CHROME_PATH` if Chrome is not installed in a
+standard location.
+
+| Scenario  | What it does                                                |
+| --------- | ----------------------------------------------------------- |
+| `render`  | Loads the page and draws it for the first time              |
+| `hover`   | Crosses up to 16 hover targets, then opens a tooltip        |
+| `fold`    | Collapses and expands the first two folds, 350 ms apart     |
+| `idle`    | Leaves the page untouched for two seconds                   |
+| `updates` | Re-renders the page from its root 20 times, one frame apart |
+
+| Page       | What it draws                                                                            |
+| ---------- | ---------------------------------------------------------------------------------------- |
+| `sidebar`  | The production thread list: 64 threads in eight workstreams, with Up Next and Recent     |
+| `question` | The production question card with eight options. It has no folds, so `fold` does not run |
+
+With no arguments the command runs every scenario on `sidebar`. Name scenarios
+to run only those, and pass `--page`, `--size`, or `--samples` to change the
+page, its item count, or the sample count. Each scenario reports main-thread
+task, script, style, and layout time; the number of style recalculations,
+layouts, and paints; React commits and render time; and the machine's load
+average. `npm run perf -- --help` describes every option with examples, and
+`npm run perf -- list` prints the scenarios, pages, switches, and metrics.
+
+To learn what one suspect costs, switch it off with `--without`. The command
+then alternates two arms in one session, the page as it is and the page with the
+suspect off, and prints the change between their medians. This run measures what
+the spinners cost while the sidebar is at rest:
+
+```sh
+npm run perf -- idle --without spinners
+```
+
+```text
+idle on sidebar, 10 samples: Two seconds untouched: what animations cost at rest
+  metric                         current          min to max    without spinners          min to max              change
+  task ms                            9.0         8.0 to 10.2                 3.2          2.9 to 3.4                -5.8        ranges apart
+  style ms                           2.1          1.9 to 2.5                 0.1          0.1 to 0.2                -2.0        ranges apart
+  style recalcs                       11            10 to 13                   2              2 to 3                  -9        ranges apart
+  layouts                              0              0 to 0                   0              0 to 0                   0
+  load average                     30.37         20.53 to 50               33.16         20.53 to 50               +2.79      ranges overlap
+```
+
+In that run the spinners accounted for about 6 ms of main-thread time and 9
+style recalculations in each two idle seconds, and neither arm ran a layout.
+"ranges apart" means the two arms' minimum-to-maximum ranges do not intersect.
+"ranges overlap" means they do, so the change may be chance.
+
+`--without` takes a switch (`animations`, `spinners`, `shimmer`, or `nothing`,
+which runs the same arm twice to show how far equal runs differ) or CSS of your
+own, as in `--without '.ws-row-actions { transition: none }'`. To measure a code
+change, save a report with `--output` before the change and pass that file to
+`--baseline` after it.
+
+To add a scenario, page, switch, or metric, add an entry to its table at the top
+of `scripts/perf.mjs`. A new page also needs a fixture in `gallery/perf/`.
+
 ### Queue motion lab
 
 The [queue motion lab](prototypes/queue-motion/README.md) tests the queue's

@@ -3,7 +3,11 @@ import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
-const pages = { gallery: "./index.html", sidebar: "./sidebar.html" } as const;
+const pages = {
+  gallery: "./index.html",
+  sidebar: "./sidebar.html",
+  perf: "./perf.html",
+} as const;
 type Page = keyof typeof pages;
 
 /**
