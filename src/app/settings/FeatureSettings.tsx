@@ -269,6 +269,48 @@ export function WorkingIndicatorSettings() {
   );
 }
 
+/** How the large title hands off to the minimized one, and what each looks like. */
+const TITLE_TRANSITIONS = [
+  {
+    value: "fade",
+    label: "Fade",
+    description:
+      "The large heading gently moves back as the minimized title rises into place.",
+  },
+  {
+    value: "scroll",
+    label: "Scroll",
+    description: "Both copies slide past each other as you scroll.",
+  },
+  {
+    value: "morph",
+    label: "Morph",
+    description: "One title travels to the title bar, shrinking as it goes.",
+  },
+  {
+    value: "stagger",
+    label: "Stagger",
+    description: "Each line slides away, then the next slides in behind it.",
+  },
+  {
+    value: "flip",
+    label: "Flip",
+    description: "Each line turns edge-on and the minimized lines turn in.",
+  },
+  {
+    value: "rack",
+    label: "Rack focus",
+    description:
+      "The large title blurs out as the minimized title sharpens in.",
+  },
+  {
+    value: "cascade",
+    label: "Cascade",
+    description:
+      "Letters rise away one after another and the new title follows.",
+  },
+] as const;
+
 export function ThreadsSettings() {
   const { prefs, update, error } = useFeaturePrefs();
   if (!prefs) return <Loading />;
@@ -311,15 +353,16 @@ export function ThreadsSettings() {
         {minimizing ? (
           <SettingRow
             label="Title transition"
-            description="Fade the compact title into place, or scroll both copies as they cross."
+            description={
+              TITLE_TRANSITIONS.find(
+                (option) => option.value === prefs.threads.headingTransition,
+              )?.description
+            }
             control={
-              <SegmentedControl
+              <SettingsPicker
                 label="Title transition"
                 value={prefs.threads.headingTransition}
-                options={[
-                  { value: "fade", label: "Fade" },
-                  { value: "scroll", label: "Scroll" },
-                ]}
+                options={TITLE_TRANSITIONS}
                 onChange={(headingTransition) =>
                   update({ threads: { headingTransition } })
                 }

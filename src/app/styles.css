@@ -1152,6 +1152,36 @@ body:has([data-ws-suggestions])
   color: var(--muted-foreground);
   line-height: 1.4;
 }
+/* The choreographed transitions (Morph, Stagger, Flip, Rack focus, Cascade) shade
+   each expanded line on its own: a gradient the heading draws, from solid to
+   clear, under every line, so the plate is not one block. */
+.ws-goal-shadow {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  pointer-events: none;
+}
+[data-ws-choreographed].ws-goal-background::before,
+[data-ws-choreographed].ws-goal-background::after {
+  content: none;
+}
+/* Cascade moves the title letter by letter. Its box reaches above the text so
+   rising letters fade out in open space, and clips instead of ending in an
+   ellipsis the moving letters would leave behind. */
+.ws-sticky-goal__title--cascade {
+  padding-top: 24px;
+  text-overflow: clip;
+}
+.ws-sticky-goal__word {
+  display: inline-block;
+  white-space: nowrap;
+}
+.ws-sticky-goal__letter {
+  display: inline-block;
+  white-space: pre;
+  will-change: transform, opacity;
+}
 /* Off-screen copy of the title, wrapped, to count its lines. */
 .ws-sticky-goal__probe {
   white-space: normal;

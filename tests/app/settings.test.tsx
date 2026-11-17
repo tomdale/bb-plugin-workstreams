@@ -355,41 +355,43 @@ it("describes title locking accurately", async () => {
   ).toBeTruthy();
 });
 
-it("chooses between fade and scroll title transitions", async () => {
+it("chooses any of the title transitions", async () => {
   const slot = await mount("threads");
-  const group = await slot.findByRole("radiogroup", {
-    name: "Title transition",
+  const picker = await slot.findByRole("button", { name: "Title transition" });
+  expect(picker.textContent).toContain("Fade");
+  const patches = () =>
+    slot.inspection.rpcCalls
+      .filter((call) => call.method === "setPrefs")
+      .map((call) => call.input);
+  fireEvent.click(picker);
+  const options = await slot.findAllByRole("option");
+  expect(
+    options.map((option) => option.textContent?.split(/(?=[A-Z][a-z])/)[0]),
+  ).toHaveLength(7);
+  for (const name of [
+    "Scroll",
+    "Morph",
+    "Stagger",
+    "Flip",
+    "Rack focus",
+    "Cascade",
+  ]) {
+    expect(
+      slot.getByRole("option", { name: new RegExp(`^${name}`) }),
+    ).toBeTruthy();
+  }
+  fireEvent.click(slot.getByRole("option", { name: /^Rack focus/ }));
+  await waitFor(() => expect(patches()).toHaveLength(1));
+  expect(patches()[0]).toEqual({
+    patch: { threads: { headingTransition: "rack" } },
   });
-  const fade = within(group).getByRole("radio", {
-    name: "Fade",
-  }) as HTMLInputElement;
-  const scroll = within(group).getByRole("radio", {
-    name: "Scroll",
-  }) as HTMLInputElement;
-  expect(fade.checked).toBe(true);
-  fireEvent.click(scroll);
-  await waitFor(() => expect(scroll.checked).toBe(true));
-  await waitFor(() =>
-    expect(
-      slot.inspection.rpcCalls.filter((call) => call.method === "setPrefs"),
-    ).toHaveLength(1),
-  );
-  expect(
-    slot.inspection.rpcCalls.filter((call) => call.method === "setPrefs")[0]
-      ?.input,
-  ).toEqual({ patch: { threads: { headingTransition: "scroll" } } });
-  fireEvent.click(fade);
-  await waitFor(() => expect(fade.checked).toBe(true));
-  await waitFor(() =>
-    expect(
-      slot.inspection.rpcCalls.filter((call) => call.method === "setPrefs"),
-    ).toHaveLength(2),
-  );
-  expect(
-    slot.inspection.rpcCalls.filter((call) => call.method === "setPrefs")[1]
-      ?.input,
-  ).toEqual({ patch: { threads: { headingTransition: "fade" } } });
-  expect(within(group).getAllByRole("radio")).toHaveLength(2);
+  await waitFor(() => expect(picker.textContent).toContain("Rack focus"));
+  fireEvent.click(picker);
+  fireEvent.click(await slot.findByRole("option", { name: /^Fade/ }));
+  await waitFor(() => expect(patches()).toHaveLength(2));
+  expect(patches()[1]).toEqual({
+    patch: { threads: { headingTransition: "fade" } },
+  });
 });
 
 it("chooses between minimizing the title and letting it float", async () => {
@@ -432,22 +434,21 @@ it("shows the minimized title's settings only while the title minimizes", async 
   const slot = await mount("threads");
   const scrollRow = () =>
     slot.getByRole("radiogroup", { name: "Title on scroll" });
-  const row = (name: string) => slot.queryAllByRole("radiogroup", { name });
+  const transition = () =>
+    slot.queryAllByRole("button", { name: "Title transition" });
+  const alignment = () =>
+    slot.queryAllByRole("radiogroup", { name: "Title alignment" });
   await slot.findByRole("radiogroup", { name: "Title on scroll" });
-  await waitFor(() => expect(row("Title transition")).toHaveLength(1));
-  expect(row("Title alignment")).toHaveLength(1);
+  await waitFor(() => expect(transition()).toHaveLength(1));
+  expect(alignment()).toHaveLength(1);
   fireEvent.click(within(scrollRow()).getByRole("radio", { name: "Float" }));
-  await waitFor(() => expect(row("Title transition")).toHaveLength(0));
-  expect(row("Title alignment")).toHaveLength(0);
+  await waitFor(() => expect(transition()).toHaveLength(0));
+  expect(alignment()).toHaveLength(0);
   // Their stored choices survive: floating only hides the settings.
   fireEvent.click(within(scrollRow()).getByRole("radio", { name: "Minimize" }));
-  await waitFor(() => expect(row("Title transition")).toHaveLength(1));
-  expect(row("Title alignment")).toHaveLength(1);
-  expect(
-    within(row("Title transition")[0]!).getByRole<HTMLInputElement>("radio", {
-      name: "Fade",
-    }).checked,
-  ).toBe(true);
+  await waitFor(() => expect(transition()).toHaveLength(1));
+  expect(alignment()).toHaveLength(1);
+  expect(transition()[0]!.textContent).toContain("Fade");
 });
 
 it("chooses between left aligned and centered titles", async () => {

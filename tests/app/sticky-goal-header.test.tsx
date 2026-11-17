@@ -78,7 +78,7 @@ function paneFixture({ recap }: { recap: boolean }) {
 }
 
 async function mountHeading(
-  headingTransition: "fade" | "scroll" = "scroll",
+  headingTransition: Prefs["threads"]["headingTransition"] = "scroll",
   goal: string | null = null,
   onRender?: ProfilerOnRenderCallback,
   threads: Partial<Prefs["threads"]> = {},
@@ -789,6 +789,132 @@ it("moves the two fixed-size headings together as the reader scrolls", async () 
   );
   slot.lifecycle.unmount();
 });
+
+/** BB's pane with a title bar roomy enough for the minimized heading, scrolled `scrollTop` from the top. */
+function barFixture(scrollTop: number) {
+  paneFixture({ recap: false });
+  const scroller = document.querySelector<HTMLElement>(
+    '[data-test="messages"]',
+  )!;
+  Object.defineProperties(scroller, {
+    scrollHeight: { configurable: true, value: 1000 },
+    clientHeight: { configurable: true, value: 400 },
+    scrollTop: { configurable: true, writable: true, value: scrollTop },
+  });
+  vi.spyOn(scroller, "getBoundingClientRect").mockReturnValue(
+    new DOMRect(0, 48, 900, 672),
+  );
+  const header = document.querySelector("header")!;
+  vi.spyOn(header, "getBoundingClientRect").mockReturnValue(
+    new DOMRect(0, 0, 900, 48),
+  );
+  vi.spyOn(
+    header.querySelector(".bb-thread-title")!,
+    "getBoundingClientRect",
+  ).mockReturnValue(new DOMRect(0, 0, 80, 48));
+  vi.spyOn(header.lastElementChild!, "getBoundingClientRect").mockReturnValue(
+    new DOMRect(700, 0, 100, 48),
+  );
+  return scroller;
+}
+
+it("draws a choreographed transition from the scroll position", async () => {
+  const scroller = barFixture(600);
+  const slot = await mountHeading("rack", "Ship it", undefined, {});
+  scroller.scrollTop = 600;
+  scroller.dispatchEvent(new Event("scroll"));
+  await waitFor(() =>
+    expect(overlay()!.querySelectorAll(".ws-goal-overlay__clip")).toHaveLength(
+      2,
+    ),
+  );
+  await act(() => vi.advanceTimersByTimeAsync(550));
+  const background = () =>
+    overlay()!.querySelector<HTMLElement>(".ws-goal-background")!;
+  const title = (which: "expanded" | "compact") =>
+    overlay()!.querySelector<HTMLElement>(
+      `[data-ws-heading="${which}"] .ws-sticky-goal__title:not(.ws-sticky-goal__probe)`,
+    )!;
+  // Its own shadows, not the plate the other transitions share.
+  expect(background().hasAttribute("data-ws-choreographed")).toBe(true);
+  expect(background().querySelectorAll(".ws-goal-shadow")).toHaveLength(3);
+  expect(background().querySelector(".ws-sticky-goal__plate")).toBeNull();
+  // At the newest message only the expanded heading is drawn.
+  expect(title("expanded").style.opacity).toBe("1");
+  expect(title("compact").style.opacity).toBe("0");
+
+  // Part-way through, the lines are in different poses: the large title blurs
+  // out as the minimized one sharpens in.
+  scroller.scrollTop = 450;
+  scroller.dispatchEvent(new Event("scroll"));
+  await waitFor(() =>
+    expect(Number(title("expanded").style.opacity)).toBeLessThan(1),
+  );
+  expect(Number(title("expanded").style.opacity)).toBeGreaterThan(0);
+  expect(title("expanded").style.filter).toContain("blur(");
+  expect(Number(title("compact").style.opacity)).toBeGreaterThan(0);
+  expect(title("compact").style.filter).toContain("blur(");
+
+  // Past the runway the minimized title stands alone and the shadows are gone.
+  scroller.scrollTop = 100;
+  scroller.dispatchEvent(new Event("scroll"));
+  await waitFor(() => expect(title("expanded").style.opacity).toBe("0"));
+  expect(title("compact").style.opacity).toBe("1");
+  expect(title("compact").style.filter).toBe("");
+  for (const shadow of background().querySelectorAll<HTMLElement>(
+    ".ws-goal-shadow",
+  ))
+    expect(shadow.style.opacity).toBe("0");
+  expect((root() as HTMLElement).dataset.collapsed).toBe("true");
+  slot.lifecycle.unmount();
+});
+
+it("shows each choreographed title as separate letters in Cascade", async () => {
+  barFixture(600);
+  const slot = await mountHeading("cascade");
+  await waitFor(() =>
+    expect(
+      overlay()!.querySelectorAll(".ws-sticky-goal__letter").length,
+    ).toBeGreaterThan(0),
+  );
+  const letters = (which: "expanded" | "compact") =>
+    overlay()!.querySelectorAll(
+      `[data-ws-heading="${which}"] .ws-sticky-goal__letter:not(.ws-sticky-goal__probe *)`,
+    );
+  expect(letters("expanded").length).toBe(letters("compact").length);
+  expect(
+    [...letters("expanded")].map((letter) => letter.textContent).join(""),
+  ).toBe("Ship the mobile polish".replaceAll(" ", ""));
+  slot.lifecycle.unmount();
+});
+
+it.each(["float", "reduced"] as const)(
+  "keeps the shared plate for a choreographed transition when %s",
+  async (mode) => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: mode === "reduced" && query === REDUCED_MOTION_QUERY,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+    barFixture(600);
+    const slot = await mountHeading(
+      "rack",
+      null,
+      undefined,
+      mode === "float" ? { headingScroll: "float" } : {},
+    );
+    await waitFor(() =>
+      expect(overlay()!.querySelector(".ws-sticky-goal__plate")).not.toBeNull(),
+    );
+    expect(overlay()!.querySelector("[data-ws-choreographed]")).toBeNull();
+    slot.lifecycle.unmount();
+  },
+);
 
 it("eases fixed headings through a gentle handoff and switches modes", async () => {
   paneFixture({ recap: false });

@@ -36,6 +36,8 @@ import {
   titleExitDistance,
 } from "./goalHeading.ts";
 import { WorkstreamIcon } from "./WorkstreamIcon.tsx";
+import { ChoreographedHeading } from "./ChoreographedHeading.tsx";
+import { isChoreographed, runway } from "./headingChoreography.ts";
 import {
   changedSubtreesMatch,
   mutationTargetElement,
@@ -453,7 +455,14 @@ type HeadingPlacement = {
   /** The timeline is too short to spare room for the expanded heading. */
   short: boolean;
   /** In the title bar, after the thread title; null when there is no room. */
-  bar: { x: number; centerY: number; width: number } | null;
+  bar: {
+    x: number;
+    centerY: number;
+    width: number;
+    /** The title bar's own box. */
+    top: number;
+    height: number;
+  } | null;
 };
 
 /**
@@ -539,6 +548,8 @@ function measurePlacement(
           x: headerRect.left + slot.x - origin.left,
           centerY: (headerRect.top + headerRect.bottom) / 2 - origin.top,
           width: slot.width,
+          top: headerRect.top - origin.top,
+          height: headerRect.height,
         };
       }
     }
@@ -574,6 +585,8 @@ const samePlacement = (
     b.bar === null ||
     (Math.abs(a.bar.x - b.bar.x) < 0.5 &&
       Math.abs(a.bar.centerY - b.bar.centerY) < 0.5 &&
+      Math.abs(a.bar.top - b.bar.top) < 0.5 &&
+      Math.abs(a.bar.height - b.bar.height) < 0.5 &&
       Math.abs(a.bar.width - b.bar.width) < 0.5));
 
 /**
@@ -683,11 +696,15 @@ export function StickyGoalHeader(): React.ReactElement | null {
   const context = useGoalContext(threadId);
   const { prefs } = usePrefs();
   const reduceMotion = usePrefersReducedMotion();
-  const fadeOnly =
-    reduceMotion || (prefs?.threads.headingTransition ?? "fade") === "fade";
+  const transition = prefs?.threads.headingTransition ?? "fade";
+  const fadeOnly = reduceMotion || transition === "fade";
   // Floating keeps the large heading over the thread instead of minimizing it.
   const floating = (prefs?.threads.headingScroll ?? "minimize") === "float";
   const centered = (prefs?.threads.headingAlign ?? "left") === "center";
+  const choreoKind =
+    !reduceMotion && !floating && isChoreographed(transition)
+      ? transition
+      : null;
   const attached = useAttachedScroller(threadId);
   const mount = attached?.threadId === threadId ? attached : null;
   const filled = useColumnFilled(mount);
@@ -749,6 +766,11 @@ export function StickyGoalHeader(): React.ReactElement | null {
   );
   const exitDistance = titleExitDistance(base, eyebrow, titleLines);
   const anchored = !!placement && placement.bar === null;
+  // The choreographed transitions draw in the title bar. Anchored in the
+  // timeline, or in a short pane, the heading uses the layouts every
+  // transition shares.
+  const choreographed =
+    choreoKind !== null && !!placement?.bar && !placement.short;
   // Before the heading settles, while it floats, and in a short pane, the
   // scroll position moves nothing; anchored, it moves only at one threshold.
   const step =
@@ -759,7 +781,12 @@ export function StickyGoalHeader(): React.ReactElement | null {
         : null;
   const { fromBottom, limit, fade, measured } = useScrollState(
     filled ? mount!.scroller : null,
-    headingScrollLimit(exitDistance, anchored || fadeOnly ? "fade" : "scroll"),
+    choreographed
+      ? runway(base)
+      : headingScrollLimit(
+          exitDistance,
+          anchored || fadeOnly ? "fade" : "scroll",
+        ),
     step,
   );
   const titleBlock = base * TITLE_SIZE * TITLE_LINE * titleLines;
@@ -773,20 +800,26 @@ export function StickyGoalHeader(): React.ReactElement | null {
   const anchoredAt = anchored ? anchoredStep(scrolled, exitDistance) : 0;
   const { moved, remaining, progress } = floating
     ? { moved: 0, remaining: exitDistance, progress: 0 }
-    : placement?.short
-      ? { moved: exitDistance, remaining: 0, progress: 1 }
-      : anchored
-        ? {
-            moved: exitDistance * anchoredAt,
-            remaining: exitDistance * (1 - anchoredAt),
-            progress: anchoredAt,
-          }
-        : headingScroll(
-            scrolled,
-            exitDistance,
-            fadeOnly ? "fade" : "scroll",
-            limit,
-          );
+    : choreographed
+      ? {
+          moved: 0,
+          remaining: exitDistance,
+          progress: limit <= 0 ? 1 : Math.min(1, scrolled / limit),
+        }
+      : placement?.short
+        ? { moved: exitDistance, remaining: 0, progress: 1 }
+        : anchored
+          ? {
+              moved: exitDistance * anchoredAt,
+              remaining: exitDistance * (1 - anchoredAt),
+              progress: anchoredAt,
+            }
+          : headingScroll(
+              scrolled,
+              exitDistance,
+              fadeOnly ? "fade" : "scroll",
+              limit,
+            );
   const collapsed = progress === 1;
   const scaleAnchored = anchored && !floating;
   const fadeMotion = headingFade(progress, !reduceMotion);
@@ -827,7 +860,7 @@ export function StickyGoalHeader(): React.ReactElement | null {
   // drops the heading's frames while the timeline scrolls smoothly.
   const restingProgress = Number(collapsed);
   const scrollPadding =
-    fadeOnly && !anchored
+    (fadeOnly && !anchored) || choreographed
       ? height * (1 - restingProgress)
       : plateAt(restingProgress);
   // Fade holds the expanded heading in place. Start the shadow under the goal
@@ -874,6 +907,36 @@ export function StickyGoalHeader(): React.ReactElement | null {
   }, [attached, replacesTitle]);
 
   if (!mount || !context || !placement || !measured) return null;
+
+  if (choreoKind && choreographed && placement.bar) {
+    return createPortal(
+      <ChoreographedHeading
+        kind={choreoKind}
+        title={context.title}
+        goal={context.goal}
+        workstream={context.workstream}
+        placement={{
+          pane: { x: placement.pane.x, width: placement.pane.width },
+          background: {
+            x: placement.background.x,
+            width: placement.background.width,
+          },
+          paneTop: placement.pane.y - base * PAD_TOP,
+          bar: placement.bar,
+        }}
+        base={base}
+        eyebrow={eyebrow}
+        narrow={narrow}
+        titleLines={titleLines}
+        goalLines={goal ? goalLines : 0}
+        progress={progress}
+        centered={centered}
+        titleProbe={setTitleProbe}
+        goalRef={setGoalElement}
+      />,
+      mount.overlay,
+    );
+  }
 
   const inBar = placement.bar !== null;
   const eyebrowBlock = eyebrow?.expandedBlock ?? 0;

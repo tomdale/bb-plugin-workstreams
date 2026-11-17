@@ -104,6 +104,11 @@ export function eyebrowMetrics(base: number, phone: boolean): Eyebrow {
   };
 }
 
+/** Height of the workstream line's box, which its icon sets a floor on. */
+export function eyebrowHeight(eyebrow: Eyebrow): number {
+  return Math.max(EYEBROW_ICON_PX, eyebrow.size * EYEBROW_LINE);
+}
+
 /** Expanded heading height in px for a body font size. */
 export function headingHeight(
   base: number,

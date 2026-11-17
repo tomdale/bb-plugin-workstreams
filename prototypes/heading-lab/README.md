@@ -15,7 +15,9 @@ colored independently so either one can carry the contrast, and with controls
 for the states that change it:
 
 - **Layout** — anchored in the timeline, or minimized into a title bar.
-- **Transition** — `Fade` and `Scroll`, the same two the settings offer.
+- **Transition** — `Fade` and `Scroll`, the two it ports. The settings offer
+  five more (Morph, Stagger, Flip, Rack focus, Cascade), which
+  `src/app/headingChoreography.ts` defines and this page does not port.
 - **Title** — a short title, one that fills a line, and one that wraps, since
   wrapping changes the heading's height and the anchored block's threshold.
 - **Align** — the compact heading left-aligned or centered in the title bar.

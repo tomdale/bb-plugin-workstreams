@@ -172,7 +172,10 @@ const GROUPS = {
     /** Title untitled threads with their goal and retitle them as work moves on. */
     autoTitle: [z.boolean(), true],
     /** How the large and compact goal headings change as the timeline scrolls. */
-    headingTransition: [z.enum(["fade", "scroll"]), "fade"],
+    headingTransition: [
+      z.enum(["fade", "scroll", "morph", "stagger", "flip", "rack", "cascade"]),
+      "fade",
+    ],
     /** Whether the heading minimizes into the title bar on scroll or stays over the thread. */
     headingScroll: [z.enum(["minimize", "float"]), "minimize"],
     /** Where the heading's text sits: aligned with the messages, or centered. */
