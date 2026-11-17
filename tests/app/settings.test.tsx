@@ -451,6 +451,43 @@ it("shows the minimized title's settings only while the title minimizes", async 
   expect(transition()[0]!.textContent).toContain("Fade");
 });
 
+it("chooses a direct or latching scroll style, except for Fade", async () => {
+  const slot = await mount("threads");
+  const patches = () =>
+    slot.inspection.rpcCalls
+      .filter((call) => call.method === "setPrefs")
+      .map((call) => call.input);
+  // Fade has one behavior, so it offers no choice.
+  await slot.findByRole("button", { name: "Title transition" });
+  expect(
+    slot.queryAllByRole("radiogroup", { name: "Scroll style" }),
+  ).toHaveLength(0);
+  fireEvent.click(slot.getByRole("button", { name: "Title transition" }));
+  fireEvent.click(await slot.findByRole("option", { name: /^Morph/ }));
+  const group = await slot.findByRole("radiogroup", { name: "Scroll style" });
+  const latch = within(group).getByRole("radio", {
+    name: "Latch",
+  }) as HTMLInputElement;
+  const direct = within(group).getByRole("radio", {
+    name: "Direct",
+  }) as HTMLInputElement;
+  expect(latch.checked).toBe(true);
+  fireEvent.click(direct);
+  await waitFor(() => expect(direct.checked).toBe(true));
+  await waitFor(() =>
+    expect(patches()).toContainEqual({
+      patch: { threads: { headingHandoff: "direct" } },
+    }),
+  );
+  fireEvent.click(latch);
+  await waitFor(() => expect(latch.checked).toBe(true));
+  await waitFor(() =>
+    expect(patches()).toContainEqual({
+      patch: { threads: { headingHandoff: "latch" } },
+    }),
+  );
+});
+
 it("chooses between left aligned and centered titles", async () => {
   const slot = await mount("threads");
   const group = await slot.findByRole("radiogroup", {

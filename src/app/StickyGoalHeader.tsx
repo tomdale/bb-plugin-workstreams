@@ -703,6 +703,7 @@ export function StickyGoalHeader(): React.ReactElement | null {
   // layouts every transition shares (floating, a short pane, a heading
   // anchored in the timeline), use the heading's plate.
   const choreoKind = floating ? null : choreographyOf(transition);
+  const scrollStyle = prefs?.threads.headingHandoff ?? "latch";
   const attached = useAttachedScroller(threadId);
   const mount = attached?.threadId === threadId ? attached : null;
   const filled = useColumnFilled(mount);
@@ -779,11 +780,16 @@ export function StickyGoalHeader(): React.ReactElement | null {
         : null;
   // How the scroll position becomes progress. The scroll measures only as far
   // as that handoff reads it: its runway, or its latch point.
-  const handoff = handoffFor(choreoKind ?? "current", base, exitDistance);
+  const handoff = handoffFor(
+    choreoKind ?? "current",
+    base,
+    exitDistance,
+    scrollStyle,
+  );
   const { fromBottom, limit, fade, measured } = useScrollState(
     filled ? mount!.scroller : null,
     choreographed
-      ? handoff.drive === "scroll"
+      ? handoff.drive === "direct"
         ? handoff.runway
         : handoff.latchAt
       : headingScrollLimit(exitDistance),
@@ -924,7 +930,7 @@ export function StickyGoalHeader(): React.ReactElement | null {
         titleLines={titleLines}
         goalLines={goal ? goalLines : 0}
         progress={progress}
-        scrollDriven={handoff.drive === "scroll"}
+        scrollDriven={handoff.drive === "direct"}
         reduced={reduceMotion}
         centered={centered}
         mount={mount}

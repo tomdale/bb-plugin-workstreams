@@ -248,17 +248,25 @@ it("keeps the heading's height above the first message while it shows, then a fi
   );
 });
 
-it("hands off Rack focus by scroll and the rest as hybrids", () => {
-  const rack = handoffFor("rack", 14, 57);
-  expect(rack).toMatchObject({
-    drive: "scroll",
-    follow: "direct",
-    runway: 360,
+it("sets each transition's runway and latch for the scroll style", () => {
+  const direct = handoffFor("morph", 14, 57, "direct");
+  expect(direct).toMatchObject({ drive: "direct", runway: 360 });
+  expect(handoffFor("morph", 14, 57, "latch")).toMatchObject({
+    drive: "latch",
+    latchAt: 48,
+    settle: 700,
   });
-  const morph = handoffFor("morph", 14, 57);
-  expect(morph).toMatchObject({ drive: "hybrid", latchAt: 48, settle: 700 });
-  // Scroll's runway is 2.5 times the title's exit distance, and the distances grow with the type.
-  expect(handoffFor("current", 14, 57).runway).toBeCloseTo(142.5);
-  expect(handoffFor("rack", 16, 57).runway).toBeCloseTo((360 * 16) / 14);
-  expect(handoffFor("flip", 16, 57).latchAt).toBeCloseTo((48 * 16) / 14);
+  // Rack focus latches later and settles more slowly.
+  expect(handoffFor("rack", 14, 57, "latch")).toMatchObject({
+    latchAt: 64,
+    settle: 860,
+  });
+  // Scroll's direct runway is 2.5 times the title's exit distance, and the distances grow with the type.
+  expect(handoffFor("current", 14, 57, "direct").runway).toBeCloseTo(142.5);
+  expect(handoffFor("rack", 16, 57, "direct").runway).toBeCloseTo(
+    (360 * 16) / 14,
+  );
+  expect(handoffFor("flip", 16, 57, "latch").latchAt).toBeCloseTo(
+    (48 * 16) / 14,
+  );
 });

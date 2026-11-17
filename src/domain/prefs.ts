@@ -177,6 +177,12 @@ const GROUPS = {
       z.enum(["fade", "scroll", "morph", "stagger", "flip", "rack", "cascade"]),
       "fade",
     ],
+    /**
+     * How the scroll carries the choreographed title transitions: direct
+     * follows the scroll position; latch follows it for a short way, then a
+     * spring finishes the handoff.
+     */
+    headingHandoff: [z.enum(["direct", "latch"]), "latch"],
     /** Whether the heading minimizes into the title bar on scroll or stays over the thread. */
     headingScroll: [z.enum(["minimize", "float"]), "minimize"],
     /** Where the heading's text sits: aligned with the messages, or centered. */

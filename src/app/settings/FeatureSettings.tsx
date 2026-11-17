@@ -280,8 +280,7 @@ const TITLE_TRANSITIONS = [
   {
     value: "scroll",
     label: "Scroll",
-    description:
-      "Both copies slide past each other; a short scroll starts it and it finishes on its own.",
+    description: "Both copies slide past each other as you scroll.",
   },
   {
     value: "morph",
@@ -366,6 +365,29 @@ export function ThreadsSettings() {
                 options={TITLE_TRANSITIONS}
                 onChange={(headingTransition) =>
                   update({ threads: { headingTransition } })
+                }
+              />
+            }
+          />
+        ) : null}
+        {minimizing && prefs.threads.headingTransition !== "fade" ? (
+          <SettingRow
+            label="Scroll style"
+            description={
+              prefs.threads.headingHandoff === "direct"
+                ? "The title changes as far as you scroll."
+                : "A short scroll starts the change and it finishes on its own."
+            }
+            control={
+              <SegmentedControl
+                label="Scroll style"
+                value={prefs.threads.headingHandoff}
+                options={[
+                  { value: "direct", label: "Direct" },
+                  { value: "latch", label: "Latch" },
+                ]}
+                onChange={(headingHandoff) =>
+                  update({ threads: { headingHandoff } })
                 }
               />
             }

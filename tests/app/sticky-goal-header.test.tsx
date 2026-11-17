@@ -732,7 +732,9 @@ function barFixture(scrollTop: number) {
 
 it("draws a choreographed transition from the scroll position", async () => {
   const scroller = barFixture(600);
-  const slot = await mountHeading("rack", "Ship it", undefined, {});
+  const slot = await mountHeading("rack", "Ship it", undefined, {
+    headingHandoff: "direct",
+  });
   scroller.scrollTop = 600;
   scroller.dispatchEvent(new Event("scroll"));
   await waitFor(() =>
@@ -824,9 +826,46 @@ it("follows the scroll to the latch point, then springs the rest of the way on i
   slot.lifecycle.unmount();
 });
 
+it("follows the scroll position all the way when the scroll style is direct", async () => {
+  const scroller = barFixture(600);
+  const slot = await mountHeading("morph", "Ship it", undefined, {
+    headingHandoff: "direct",
+  });
+  scroller.scrollTop = 600;
+  scroller.dispatchEvent(new Event("scroll"));
+  await waitFor(() =>
+    expect(overlay()!.querySelector("[data-ws-choreographed]")).not.toBeNull(),
+  );
+  await act(() => vi.advanceTimersByTimeAsync(550));
+  const scale = () => {
+    const title = overlay()!.querySelector<HTMLElement>(
+      '[data-ws-heading="expanded"] .ws-sticky-goal__title:not(.ws-sticky-goal__probe)',
+    )!;
+    return Number(/scale\(([\d.]+)\)/.exec(title.style.transform)?.[1] ?? 1);
+  };
+  // Past where a latch would have caught, direct has not finished: it moves
+  // with the scroll and stops when the scroll does.
+  scroller.scrollTop = 600 - 120;
+  scroller.dispatchEvent(new Event("scroll"));
+  await waitFor(() => expect(scale()).toBeLessThan(1));
+  const held = scale();
+  for (let frame = 0; frame < 40; frame++) await nextFrame();
+  expect(scale()).toBe(held);
+  expect(held).toBeGreaterThan(0.95 / 1.5);
+  expect((root() as HTMLElement).dataset.collapsed).toBe("false");
+  scroller.scrollTop = 600 - 400;
+  scroller.dispatchEvent(new Event("scroll"));
+  await waitFor(() =>
+    expect((root() as HTMLElement).dataset.collapsed).toBe("true"),
+  );
+  slot.lifecycle.unmount();
+});
+
 it("keeps the heading's height above the first message until it has gone into the bar", async () => {
   const scroller = barFixture(600);
-  const slot = await mountHeading("rack", "Ship it");
+  const slot = await mountHeading("rack", "Ship it", undefined, {
+    headingHandoff: "direct",
+  });
   scroller.scrollTop = 600;
   scroller.dispatchEvent(new Event("scroll"));
   await waitFor(() =>
@@ -1034,6 +1073,10 @@ it("eases fixed headings through a gentle handoff and switches modes", async () 
   await slot.behavior.emitRealtime("prefs", {
     prefs: parsePrefs({ threads: { headingTransition: "fade" } }),
   });
+  // A choreographed heading moves the scroll position as it changes its gap
+  // above the first message, so return to where the fade was measured.
+  scroller.scrollTop = 550;
+  scroller.dispatchEvent(new Event("scroll"));
   await waitFor(() =>
     expect(groups().map((group) => group.style.transform)).toEqual(fadeAt50),
   );

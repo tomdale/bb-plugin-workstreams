@@ -610,33 +610,28 @@ export function reserveGap(base: number, height: number, pose: Pose): number {
   return lerp(base * COLLAPSED_GAP, height, smooth(clamp(visible)));
 }
 
+/** How the scroll carries a transition: straight through, or to a latch a spring finishes. */
+export type ScrollStyle = "direct" | "latch";
+
 /**
- * How a transition turns the scroll into progress, at body size `base`.
- * Rack focus follows the scroll over its runway. The others are hybrids: the
- * scroll carries them to a latch point and a spring finishes the handoff. The
- * current Scroll transition slides its copies over 2.5 times the title's exit
- * distance.
+ * How a transition turns the scroll into progress at body size `base`. Direct
+ * follows the scroll over a runway. Latch follows it to a latch point, where a
+ * spring takes over; Rack focus latches later and settles more slowly than the
+ * rest. The current Scroll transition slides its copies over 2.5 times the
+ * title's exit distance when driven directly.
  */
 export function handoffFor(
   kind: Choreographed,
   base: number,
   exit: number,
+  style: ScrollStyle,
 ): HandoffConfig {
   const scale = base / RUNWAY_BASE;
-  if (kind === "rack") {
-    return {
-      drive: "scroll",
-      follow: "direct",
-      runway: RUNWAY * scale,
-      latchAt: 64 * scale,
-      settle: 860,
-    };
-  }
+  const rack = kind === "rack";
   return {
-    drive: "hybrid",
-    follow: "direct",
+    drive: style,
     runway: kind === "current" ? 2.5 * exit : RUNWAY * scale,
-    latchAt: LATCH_AT * scale,
-    settle: 700,
+    latchAt: (rack ? 64 : LATCH_AT) * scale,
+    settle: rack ? 860 : 700,
   };
 }

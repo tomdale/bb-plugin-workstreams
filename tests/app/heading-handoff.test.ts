@@ -1,14 +1,13 @@
 import { expect, it } from "vitest";
 import {
-  HYBRID_FRACTION,
+  LATCH_FRACTION,
   Handoff,
   LATCH_GAP,
   type HandoffConfig,
 } from "../../src/app/headingHandoff.ts";
 
 const config = (over: Partial<HandoffConfig> = {}): HandoffConfig => ({
-  drive: "hybrid",
-  follow: "direct",
+  drive: "latch",
   runway: 360,
   latchAt: 48,
   settle: 700,
@@ -20,8 +19,8 @@ function run(handoff: Handoff, ms: number) {
   for (let left = ms; left > 0; left -= 16) handoff.tick(Math.min(16, left));
 }
 
-it("follows the scroll over its runway when driven directly", () => {
-  const handoff = new Handoff(config({ drive: "scroll" }));
+it("follows the scroll over its runway when direct", () => {
+  const handoff = new Handoff(config({ drive: "direct" }));
   handoff.reset(0);
   expect(handoff.progress).toBe(0);
   handoff.scroll(90);
@@ -31,27 +30,13 @@ it("follows the scroll over its runway when driven directly", () => {
   expect(handoff.moving).toBe(false);
 });
 
-it("chases the scroll through a spring when eased", () => {
-  const handoff = new Handoff(config({ drive: "scroll", follow: "eased" }));
-  handoff.reset(0);
-  handoff.scroll(180);
-  expect(handoff.progress).toBe(0);
-  expect(handoff.moving).toBe(true);
-  run(handoff, 100);
-  expect(handoff.progress).toBeGreaterThan(0);
-  expect(handoff.progress).toBeLessThan(0.5);
-  run(handoff, 3000);
-  expect(handoff.progress).toBeCloseTo(0.5);
-  expect(handoff.moving).toBe(false);
-});
-
 it("tracks the scroll to the latch point, drawn the moment it moves", () => {
   const handoff = new Handoff(config());
   handoff.reset(0);
   handoff.scroll(24);
-  expect(handoff.progress).toBeCloseTo(HYBRID_FRACTION / 2);
+  expect(handoff.progress).toBeCloseTo(LATCH_FRACTION / 2);
   handoff.scroll(47);
-  expect(handoff.progress).toBeCloseTo((HYBRID_FRACTION * 47) / 48);
+  expect(handoff.progress).toBeCloseTo((LATCH_FRACTION * 47) / 48);
 });
 
 it("springs to 1 from the latch point without overshooting", () => {
@@ -122,7 +107,7 @@ it("reverses at the release point, a few pixels below the latch", () => {
   expect(handoff.moving).toBe(true);
   run(handoff, 4000);
   expect(handoff.progress).toBeCloseTo(
-    HYBRID_FRACTION * ((48 - LATCH_GAP) / 48),
+    LATCH_FRACTION * ((48 - LATCH_GAP) / 48),
   );
   handoff.scroll(0);
   run(handoff, 4000);
@@ -134,18 +119,4 @@ it("starts latched when it begins past the latch point", () => {
   handoff.reset(500);
   expect(handoff.progress).toBe(1);
   expect(handoff.moving).toBe(false);
-});
-
-it("latches to 1 and back with the latch drive", () => {
-  const handoff = new Handoff(config({ drive: "latch" }));
-  handoff.reset(0);
-  handoff.scroll(30);
-  run(handoff, 1000);
-  expect(handoff.progress).toBe(0);
-  handoff.scroll(48);
-  run(handoff, 2000);
-  expect(handoff.progress).toBe(1);
-  handoff.scroll(48 - LATCH_GAP);
-  run(handoff, 2000);
-  expect(handoff.progress).toBe(0);
 });

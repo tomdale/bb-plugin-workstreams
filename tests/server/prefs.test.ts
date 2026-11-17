@@ -110,13 +110,39 @@ describe("Workstreams prefs", () => {
       prefsPatchSchema.safeParse({ threads: { headingTransition: "hybrid" } })
         .success,
     ).toBe(false);
-    for (const headingTransition of ["scroll", "fade"] as const) {
+    for (const headingTransition of [
+      "scroll",
+      "morph",
+      "stagger",
+      "flip",
+      "rack",
+      "cascade",
+      "fade",
+    ] as const) {
       savePrefs(db, { threads: { headingTransition } });
       expect(loadPrefs(db).threads).toMatchObject({
         headingTransition,
         showParentLink: true,
       });
     }
+    await world.harness.lifecycle.dispose();
+  });
+
+  it("defaults the scroll style to latch and persists a validated choice", async () => {
+    expect(parsePrefs({}).threads.headingHandoff).toBe("latch");
+    expect(
+      parsePrefs({
+        threads: { headingHandoff: "hybrid", showParentLink: true },
+      }).threads,
+    ).toMatchObject({ headingHandoff: "latch", showParentLink: true });
+    expect(
+      prefsPatchSchema.safeParse({ threads: { headingHandoff: "hybrid" } })
+        .success,
+    ).toBe(false);
+    const world = await fakeWorld();
+    const db = openDatabase(world.bb);
+    savePrefs(db, { threads: { headingHandoff: "direct" } });
+    expect(loadPrefs(db).threads.headingHandoff).toBe("direct");
     await world.harness.lifecycle.dispose();
   });
 
