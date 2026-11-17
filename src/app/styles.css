@@ -783,9 +783,9 @@ body:has([data-ws-suggestions])
 /* A zero-height anchor reserves the heading's space in the message column.
    The plate, fades, and text share a layer in BB's sliding app surface, so
    they stay together as the timeline scrolls or a phone's pane slides aside.
-   Scrolling away from the newest message hands off between the two fixed-size
-   headings without reflow; the feathered fade follows the plate or sits below
-   the bar. */
+   Fade hands off between the two fixed-size headings without reflow; the
+   feathered fade follows the plate or sits below the bar. The choreographed
+   transitions draw their own shadows and set the reserved gap themselves. */
 .ws-sticky-goal-root {
   position: sticky;
   top: 0;

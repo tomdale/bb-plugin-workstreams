@@ -1,20 +1,24 @@
 /**
- * The choreographed title transitions (Morph, Stagger, Flip, Rack focus and
- * Cascade), kept pure so the poses they draw can be tested without a browser.
+ * The choreographed title transitions (Scroll, Morph, Stagger, Flip, Rack focus
+ * and Cascade), kept pure so the poses they draw can be tested without a
+ * browser.
  *
- * Fade and Scroll (goalHeading.ts) hand the expanded heading to the minimized
- * one as two copies that move together. These transitions give each line its
- * own timing: every frame is a pose for the expanded lines (workstream, title,
- * summary) and the minimized ones (workstream, title), taken from one progress
- * that follows the scroll over `RUNWAY` px at the 14px body size.
+ * Fade (goalHeading.ts) hands the expanded heading to the minimized one as two
+ * copies that move together. These transitions give each line its own timing:
+ * every frame is a pose for the expanded lines (workstream, title, summary) and
+ * the minimized ones (workstream, title), taken from one progress that
+ * headingHandoff.ts derives from the scroll position.
  *
  * Coordinates are in one frame: x from the heading's left text edge, y from the
  * top of the message scroller, so the title bar lies above zero.
  */
 
+import type { HandoffConfig } from "./headingHandoff.ts";
+
 export type Curve = "product" | "linear" | "smooth" | "quick" | "slow";
 
 export const CHOREOGRAPHED = [
+  "current",
   "morph",
   "stagger",
   "flip",
@@ -27,9 +31,17 @@ export function isChoreographed(value: string): value is Choreographed {
   return (CHOREOGRAPHED as readonly string[]).includes(value);
 }
 
+/** The choreography a Title transition setting draws; Fade has none. */
+export function choreographyOf(setting: string): Choreographed | null {
+  if (setting === "scroll") return "current";
+  return isChoreographed(setting) ? setting : null;
+}
+
 /** Scroll distance of the handoff, in px at the 14px body size. */
 export const RUNWAY = 360;
 export const RUNWAY_BASE = 14;
+/** Scroll distance of the latch point, in px at the 14px body size. */
+export const LATCH_AT = 48;
 
 const clamp = (v: number, lo = 0, hi = 1) => Math.min(hi, Math.max(lo, v));
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -170,8 +182,12 @@ export type HeadingLayout = {
 
 export type Letter = { y: number; opacity: number };
 
-/** Where a line's shadow starts to end: the line's bottom edge, from the scroller's top. */
-export type Shadow = { bottom: number };
+/**
+ * Where a line's shadow starts to end (the line's bottom edge, from the
+ * scroller's top) and how visible the line still is. A line that has slid under
+ * the title bar counts as invisible.
+ */
+export type Shadow = { bottom: number; visible: number };
 
 export type Pose = {
   /** The handoff's own progress, 0 to 1. */
@@ -183,6 +199,8 @@ export type Pose = {
   shadows: Partial<Record<Line, Shadow>>;
 };
 
+/** How far into the title bar a line slides before it counts as gone, in px. */
+const SLIDE_UNDER = 40;
 /** Space Cascade's title box reaches above its text, so rising letters fade in open space. */
 export const CASCADE_REACH = 24;
 
@@ -214,11 +232,19 @@ export function choreograph(
   t: number,
   layout: HeadingLayout,
   rack: RackTuning = RACK,
+  scrollDriven = false,
 ): Pose {
   const L = layout;
   const shadows: Pose["shadows"] = {};
-  const see = (line: Line, y: number, height: number, scale: number) => {
-    shadows[line] = { bottom: y + height * scale };
+  const see = (
+    line: Line,
+    y: number,
+    height: number,
+    scale: number,
+    visible: number,
+  ) => {
+    const bottom = y + height * scale;
+    shadows[line] = { bottom, visible: visible * clamp(bottom / SLIDE_UNDER) };
   };
   const expanded: Pose["expanded"] = {
     eyebrow: L.hasEyebrow ? face(0, L.rest.eyebrow) : null,
@@ -237,11 +263,15 @@ export function choreograph(
   let letters: Pose["letters"] = null;
 
   /** Put an expanded line in `face` and record the shadow it casts. */
-  const place = (line: Line, f: Face) => {
+  const place = (
+    line: Line,
+    f: Face,
+    visible = f.opacity * Math.cos((f.rotateX * Math.PI) / 180),
+  ) => {
     const target = expanded[line];
     if (!target) return;
     Object.assign(target, f);
-    see(line, f.y, L.heights[line], f.scale);
+    see(line, f.y, L.heights[line], f.scale, visible);
   };
   const out = (line: Line, f: Partial<Face> & { x: number; y: number }) =>
     place(line, face(f.x, f.y, f));
@@ -251,6 +281,31 @@ export function choreograph(
   };
 
   switch (kind) {
+    case "current": {
+      // Both heading copies slide through the exit distance together. Driven
+      // straight from the scroll, progress starts quickly and eases to a stop
+      // at the shared endpoint.
+      const p = scrollDriven ? t * (0.5 + t * (2 - 1.5 * t)) : t;
+      const moved = L.exit * p;
+      const remaining = L.exit - moved;
+      const leaving = 1 - p * p;
+      const arriving = 1 - (1 - p) * (1 - p);
+      out("goal", { x: 0, y: L.rest.goal - moved, opacity: leaving });
+      out("title", { x: 0, y: L.rest.title - moved, opacity: leaving });
+      out("eyebrow", { x: 0, y: L.rest.eyebrow - moved, opacity: leaving });
+      arrive(
+        "title",
+        face(L.slot.titleX, L.bar.title + remaining, { opacity: arriving }),
+      );
+      arrive(
+        "eyebrow",
+        face(L.slot.eyebrowX, L.bar.eyebrow + remaining, {
+          opacity: arriving,
+          scale: L.eyebrowScale,
+        }),
+      );
+      return { progress: p, expanded, compact, letters, shadows };
+    }
     case "morph": {
       const p = smooth(t);
       // Sideways travel leads, so the path arcs.
@@ -406,9 +461,11 @@ export function choreograph(
       const barLine = (L.base * 0.95 * 4) / 3;
       const leaving: Letter[] = [];
       const arriving: Letter[] = [];
+      let titleVisible = 0; // the brightest letter still on screen
       for (let i = 0; i < n; i++) {
         const a = span(t, (i / last) * 0.4, (i / last) * 0.4 + 0.35);
         leaving.push({ y: -22 * smooth(a), opacity: 1 - a });
+        titleVisible = Math.max(titleVisible, 1 - a);
         const b = span(
           t,
           0.25 + (i / last) * 0.4,
@@ -420,7 +477,7 @@ export function choreograph(
         });
       }
       letters = { expanded: leaving, compact: arriving };
-      see("title", L.rest.title, L.heights.title, 1);
+      see("title", L.rest.title, L.heights.title, 1, titleVisible);
       return { progress: t, expanded, compact, letters, shadows };
     }
   }
@@ -497,3 +554,89 @@ export function shadowBackground(
 
 /** Scroll distance of the handoff at body size `base`, in px. */
 export const runway = (base: number) => (RUNWAY * base) / RUNWAY_BASE;
+
+/**
+ * The reduced-motion pose: every line stays put and the expanded lines cross
+ * to the minimized ones in place, each shadow following its line's opacity.
+ */
+export function crossfade(t: number, layout: HeadingLayout): Pose {
+  const L = layout;
+  const e = smooth(t);
+  const shadows: Pose["shadows"] = {};
+  const see = (line: Line, y: number) => {
+    const bottom = y + L.heights[line];
+    shadows[line] = { bottom, visible: (1 - e) * clamp(bottom / SLIDE_UNDER) };
+  };
+  see("goal", L.rest.goal);
+  see("title", L.rest.title);
+  see("eyebrow", L.rest.eyebrow);
+  return {
+    progress: e,
+    expanded: {
+      eyebrow: L.hasEyebrow
+        ? face(0, L.rest.eyebrow, { opacity: 1 - e })
+        : null,
+      title: face(0, L.rest.title, { opacity: 1 - e }),
+      goal: L.hasGoal ? face(0, L.rest.goal, { opacity: 1 - e }) : null,
+    },
+    compact: {
+      eyebrow: L.hasEyebrow
+        ? face(L.slot.eyebrowX, L.bar.eyebrow, {
+            opacity: e,
+            scale: L.eyebrowScale,
+          })
+        : null,
+      title: face(L.slot.titleX, L.bar.title, { opacity: e }),
+    },
+    letters: null,
+    shadows,
+  };
+}
+
+/** Room kept above the first message once the heading has gone into the bar, in em. */
+export const COLLAPSED_GAP = 1.5;
+
+/**
+ * The room above the first message follows the old heading's visibility: its
+ * own height while it shows, so the space below its last line is the same for
+ * a one-, two- or three-line summary or a title alone, and a fixed gap once it
+ * has gone into the bar.
+ */
+export function reserveGap(base: number, height: number, pose: Pose): number {
+  const visible = Math.max(
+    0,
+    ...Object.values(pose.shadows).map((shadow) => shadow.visible),
+  );
+  return lerp(base * COLLAPSED_GAP, height, smooth(clamp(visible)));
+}
+
+/**
+ * How a transition turns the scroll into progress, at body size `base`.
+ * Rack focus follows the scroll over its runway. The others are hybrids: the
+ * scroll carries them to a latch point and a spring finishes the handoff. The
+ * current Scroll transition slides its copies over 2.5 times the title's exit
+ * distance.
+ */
+export function handoffFor(
+  kind: Choreographed,
+  base: number,
+  exit: number,
+): HandoffConfig {
+  const scale = base / RUNWAY_BASE;
+  if (kind === "rack") {
+    return {
+      drive: "scroll",
+      follow: "direct",
+      runway: RUNWAY * scale,
+      latchAt: 64 * scale,
+      settle: 860,
+    };
+  }
+  return {
+    drive: "hybrid",
+    follow: "direct",
+    runway: kind === "current" ? 2.5 * exit : RUNWAY * scale,
+    latchAt: LATCH_AT * scale,
+    settle: 700,
+  };
+}

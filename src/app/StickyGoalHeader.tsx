@@ -25,19 +25,18 @@ import {
   headingBackdropOpacity,
   headingFade,
   headingHeight,
-  headingOpacity,
   headingScroll,
   headingScrollLimit,
   anchoredHeight,
   anchoredStep,
   anchoredTitleScale,
-  plateFadeScale,
   titleBarSlot,
   titleExitDistance,
 } from "./goalHeading.ts";
 import { WorkstreamIcon } from "./WorkstreamIcon.tsx";
 import { ChoreographedHeading } from "./ChoreographedHeading.tsx";
-import { isChoreographed, runway } from "./headingChoreography.ts";
+import { choreographyOf, handoffFor } from "./headingChoreography.ts";
+import { useHandoff } from "./useHandoff.ts";
 import {
   changedSubtreesMatch,
   mutationTargetElement,
@@ -697,14 +696,13 @@ export function StickyGoalHeader(): React.ReactElement | null {
   const { prefs } = usePrefs();
   const reduceMotion = usePrefersReducedMotion();
   const transition = prefs?.threads.headingTransition ?? "fade";
-  const fadeOnly = reduceMotion || transition === "fade";
   // Floating keeps the large heading over the thread instead of minimizing it.
   const floating = (prefs?.threads.headingScroll ?? "minimize") === "float";
   const centered = (prefs?.threads.headingAlign ?? "left") === "center";
-  const choreoKind =
-    !reduceMotion && !floating && isChoreographed(transition)
-      ? transition
-      : null;
+  // Every transition but Fade is choreographed in the title bar. Fade, and the
+  // layouts every transition shares (floating, a short pane, a heading
+  // anchored in the timeline), use the heading's plate.
+  const choreoKind = floating ? null : choreographyOf(transition);
   const attached = useAttachedScroller(threadId);
   const mount = attached?.threadId === threadId ? attached : null;
   const filled = useColumnFilled(mount);
@@ -779,14 +777,16 @@ export function StickyGoalHeader(): React.ReactElement | null {
       : anchored
         ? exitDistance
         : null;
+  // How the scroll position becomes progress. The scroll measures only as far
+  // as that handoff reads it: its runway, or its latch point.
+  const handoff = handoffFor(choreoKind ?? "current", base, exitDistance);
   const { fromBottom, limit, fade, measured } = useScrollState(
     filled ? mount!.scroller : null,
     choreographed
-      ? runway(base)
-      : headingScrollLimit(
-          exitDistance,
-          anchored || fadeOnly ? "fade" : "scroll",
-        ),
+      ? handoff.drive === "scroll"
+        ? handoff.runway
+        : handoff.latchAt
+      : headingScrollLimit(exitDistance),
     step,
   );
   const titleBlock = base * TITLE_SIZE * TITLE_LINE * titleLines;
@@ -798,42 +798,40 @@ export function StickyGoalHeader(): React.ReactElement | null {
   // animates that one move.
   const scrolled = settled ? fromBottom : 0;
   const anchoredAt = anchored ? anchoredStep(scrolled, exitDistance) : 0;
-  const { moved, remaining, progress } = floating
-    ? { moved: 0, remaining: exitDistance, progress: 0 }
+  // A short thread ends its handoff at the oldest reachable message.
+  const handoffProgress = useHandoff(
+    {
+      ...handoff,
+      runway: Math.min(handoff.runway, limit),
+      latchAt: Math.min(handoff.latchAt, limit),
+    },
+    scrolled,
+    mount,
+    choreographed,
+  );
+  const progress = floating
+    ? 0
     : choreographed
-      ? {
-          moved: 0,
-          remaining: exitDistance,
-          progress: limit <= 0 ? 1 : Math.min(1, scrolled / limit),
-        }
+      ? limit <= 0
+        ? 1
+        : handoffProgress
       : placement?.short
-        ? { moved: exitDistance, remaining: 0, progress: 1 }
+        ? 1
         : anchored
-          ? {
-              moved: exitDistance * anchoredAt,
-              remaining: exitDistance * (1 - anchoredAt),
-              progress: anchoredAt,
-            }
-          : headingScroll(
-              scrolled,
-              exitDistance,
-              fadeOnly ? "fade" : "scroll",
-              limit,
-            );
+          ? anchoredAt
+          : headingScroll(scrolled, exitDistance, limit).progress;
   const collapsed = progress === 1;
   const scaleAnchored = anchored && !floating;
   const fadeMotion = headingFade(progress, !reduceMotion);
-  const opacity = fadeOnly
-    ? {
-        expanded: fadeMotion.expanded.opacity,
-        compact: fadeMotion.compact.opacity,
-      }
-    : headingOpacity(progress);
+  const opacity = {
+    expanded: fadeMotion.expanded.opacity,
+    compact: fadeMotion.compact.opacity,
+  };
   // A anchored title scales in place instead of handing off between two copies.
   const expandedOpacity = scaleAnchored ? 1 : opacity.expanded;
   const compactOpacity = scaleAnchored
     ? 0
-    : fadeOnly && anchored
+    : anchored
       ? Math.max(0, opacity.compact * 2 - 1)
       : opacity.compact;
   const plateAnchoredHeight = anchoredHeight(
@@ -845,29 +843,23 @@ export function StickyGoalHeader(): React.ReactElement | null {
   // plate can instead fade away without moving under the large heading. The
   // anchored plate changes in one step, which styles.css animates.
   const plateAt = (at: number) =>
-    fadeOnly || scaleAnchored
-      ? anchored
-        ? height * (1 - at) + plateAnchoredHeight * at
-        : height
-      : Math.max(height * (1 - at), anchored ? plateAnchoredHeight * at : 0);
+    anchored ? height * (1 - at) + plateAnchoredHeight * at : height;
   const plateHeight = plateAt(progress);
-  const plateOpacity =
-    fadeOnly && !anchored ? headingBackdropOpacity(progress) : 1;
+  const plateOpacity = anchored ? 1 : headingBackdropOpacity(progress);
   // The padding that scrolling to an element keeps clear of the heading. It
   // follows the heading's resting states, never its in-between frames: the
   // scroller is a container, and a style write to it restyles and lays out the
   // whole message column, so a per-frame write costs tens of milliseconds and
   // drops the heading's frames while the timeline scrolls smoothly.
   const restingProgress = Number(collapsed);
-  const scrollPadding =
-    (fadeOnly && !anchored) || choreographed
-      ? height * (1 - restingProgress)
-      : plateAt(restingProgress);
+  const scrollPadding = anchored
+    ? plateAt(restingProgress)
+    : height * (1 - restingProgress);
   // Fade holds the expanded heading in place. Start the shadow under the goal
   // instead of leaving a separate solid band below it, without changing the
   // reserved heading height, scroll padding, or the other transition modes.
   const plateOverlap =
-    fadeOnly && !anchored && !floating ? Math.min(base * 1.5, plateHeight) : 0;
+    !anchored && !floating ? Math.min(base * 1.5, plateHeight) : 0;
   const solidPlateHeight = plateHeight - plateOverlap;
   const fadeAnchor = solidPlateHeight;
   // Room the plate's own edge fades out over, kept inside the block's padding.
@@ -877,8 +869,10 @@ export function StickyGoalHeader(): React.ReactElement | null {
     if (mount.root.dataset.collapsed !== String(collapsed))
       mount.root.dataset.collapsed = String(collapsed);
     // Wrapped text changes the reserved space, but must not detach a reader
-    // who is following the newest message.
-    const gapChanged = mount.root.style.marginBottom !== `${height}px`;
+    // who is following the newest message. A choreographed heading sets the
+    // gap itself, frame by frame.
+    const gapChanged =
+      !choreographed && mount.root.style.marginBottom !== `${height}px`;
     if (gapChanged) {
       const wasAtBottom =
         mount.scroller.scrollHeight -
@@ -890,7 +884,7 @@ export function StickyGoalHeader(): React.ReactElement | null {
     }
     if (mount.scroller.style.scrollPaddingTop !== `${scrollPadding}px`)
       mount.scroller.style.scrollPaddingTop = `${scrollPadding}px`;
-  }, [mount, collapsed, height, scrollPadding]);
+  }, [mount, collapsed, choreographed, height, scrollPadding]);
 
   // The heading replaces BB's own thread title in the title bar. The title
   // stays hidden while the heading waits for the incoming thread's column and
@@ -930,7 +924,11 @@ export function StickyGoalHeader(): React.ReactElement | null {
         titleLines={titleLines}
         goalLines={goal ? goalLines : 0}
         progress={progress}
+        scrollDriven={handoff.drive === "scroll"}
+        reduced={reduceMotion}
         centered={centered}
+        mount={mount}
+        height={height}
         titleProbe={setTitleProbe}
         goalRef={setGoalElement}
       />,
@@ -983,8 +981,7 @@ export function StickyGoalHeader(): React.ReactElement | null {
     );
   };
 
-  // The scroll transition carries both copies through the full exit distance;
-  // the fade uses a small retreat and rise within their fixed layouts.
+  // The fade uses a small retreat and rise within the two fixed layouts.
   const text = (
     <>
       <div
@@ -1002,9 +999,7 @@ export function StickyGoalHeader(): React.ReactElement | null {
           style={{
             transform: scaleAnchored
               ? `translateY(${base * PAD_TOP}px)`
-              : fadeOnly
-                ? `translateY(${base * PAD_TOP + fadeMotion.expanded.y}px) scale(${fadeMotion.expanded.scale})`
-                : `translateY(${base * PAD_TOP - moved}px)`,
+              : `translateY(${base * PAD_TOP + fadeMotion.expanded.y}px) scale(${fadeMotion.expanded.scale})`,
             opacity: expandedOpacity,
             width: placement.pane.width,
           }}
@@ -1067,16 +1062,14 @@ export function StickyGoalHeader(): React.ReactElement | null {
           width: compactSpot.width,
           height: Math.max(
             inBar ? Math.max(barBlock, paneTop - compactSpot.y) : barBlock,
-            fadeOnly ? barBlock + FADE_COMPACT_RISE : 0,
+            barBlock + FADE_COMPACT_RISE,
           ),
         }}
       >
         <div
           className="ws-goal-overlay__group"
           style={{
-            transform: fadeOnly
-              ? `translateY(${fadeMotion.compact.y}px) scale(${fadeMotion.compact.scale})`
-              : `translateY(${remaining}px)`,
+            transform: `translateY(${fadeMotion.compact.y}px) scale(${fadeMotion.compact.scale})`,
             opacity: compactOpacity,
             width: compactSpot.width,
           }}
@@ -1106,20 +1099,9 @@ export function StickyGoalHeader(): React.ReactElement | null {
             transform: `translate(${placement.background.x}px, ${placement.background.y}px)`,
             width: placement.background.width,
             "--ws-plate-height": `${fadeAnchor}px`,
-            // In scroll mode, the plate's shadow shrinks to the bar fade's
-            // length, never shorter than that much of its own.
-            "--ws-plate-fade-scale": anchored
-              ? ANCHORED_FEATHER
-              : fadeOnly
-                ? 1
-                : plateFadeScale(progress),
+            "--ws-plate-fade-scale": anchored ? ANCHORED_FEATHER : 1,
             "--ws-fade-below-plate": fade && plateHeight > 0 ? plateOpacity : 0,
-            "--ws-fade-below-bar":
-              fade && inBar
-                ? fadeOnly
-                  ? opacity.compact
-                  : Number(collapsed)
-                : 0,
+            "--ws-fade-below-bar": fade && inBar ? opacity.compact : 0,
           } as React.CSSProperties
         }
       >

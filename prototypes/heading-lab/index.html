@@ -564,7 +564,6 @@
       const ANCHORED_PAD = 0.5;
       const ANCHORED_EDGE = 0.9;
       const PLATE_FADE_REM = 12;
-      const BAR_FADE_RATIO = 3 / PLATE_FADE_REM;
       const ANCHORED_FEATHER = 1.875 / PLATE_FADE_REM;
       const DESKTOP_EYEBROW_SIZE = 0.8;
       const DESKTOP_COMPACT_SCALE = 0.82;
@@ -573,8 +572,7 @@
       const EYEBROW_ICON_PX = 16;
       const COMPACT_GAP = 0.2;
       const FADE_COMPACT_RISE = 4;
-      const HEADING_SCROLL_RATIO = 0.4;
-      const HEADING_FADE_SCROLL_RATIO = 1 / 3.5;
+      const HEADING_SCROLL_RATIO = 1 / 3.5;
       const MIN_TITLE_BAR_WIDTH = 140;
       const TITLE_BAR_GAP = 16;
       /* From StickyGoalHeader. */
@@ -614,30 +612,20 @@
         );
       }
 
-      function headingScrollLimit(exitDistance, transition = "scroll") {
-        return (
-          exitDistance /
-          (transition === "fade"
-            ? HEADING_FADE_SCROLL_RATIO
-            : HEADING_SCROLL_RATIO)
-        );
+      function headingScrollLimit(exitDistance) {
+        return exitDistance / HEADING_SCROLL_RATIO;
       }
 
       function headingScroll(
         fromBottom,
         exitDistance,
-        transition = "scroll",
-        limit,
+        scrollLimit = headingScrollLimit(exitDistance),
       ) {
-        const scrollLimit =
-          limit ?? headingScrollLimit(exitDistance, transition);
         const t =
           scrollLimit <= 0
             ? 1
             : Math.min(Math.max(0, fromBottom) / scrollLimit, 1);
-        const progress = t * (0.5 + t * (2 - 1.5 * t));
-        const moved = exitDistance * progress;
-        return { moved, remaining: exitDistance - moved, progress };
+        return { progress: t * (0.5 + t * (2 - 1.5 * t)) };
       }
 
       function headingFade(progress, motion = true) {
@@ -660,14 +648,7 @@
       const anchoredTitleScale = (progress) =>
         1 + (TITLE_BAR_TITLE_SIZE / TITLE_SIZE - 1) * progress;
 
-      const headingOpacity = (progress) => ({
-        expanded: 1 - progress * progress,
-        compact: 1 - (1 - progress) * (1 - progress),
-      });
-
       const headingBackdropOpacity = (progress) => 1 - progress ** 12;
-
-      const plateFadeScale = (progress) => 1 - progress * (1 - BAR_FADE_RATIO);
 
       const compactBlock = (base, eyebrow) =>
         (eyebrow ? eyebrow.compactBlock : 0) +
@@ -712,7 +693,6 @@
 
       const state = {
         layout: "anchored",
-        transition: "fade",
         float: false,
         reducedMotion: false,
         phone: false,
@@ -794,14 +774,6 @@
             ["bar", "Title bar"],
           ],
           key: "layout",
-        },
-        {
-          name: "Transition",
-          options: [
-            ["fade", "Fade"],
-            ["scroll", "Scroll"],
-          ],
-          key: "transition",
         },
         {
           name: "Title",
@@ -1108,12 +1080,8 @@
         // --- scroll state ---------------------------------------------------
         const height = headingHeight(base, hasEyebrow, lines, goalLines);
         const exitDistance = titleExitDistance(base, eyebrow, lines);
-        const fadeOnly = state.reducedMotion || state.transition === "fade";
         const floating = state.float;
-        const scrollLimit = headingScrollLimit(
-          exitDistance,
-          anchored || fadeOnly ? "fade" : "scroll",
-        );
+        const scrollLimit = headingScrollLimit(exitDistance);
         const range = Math.max(
           0,
           scroller.scrollHeight - scroller.clientHeight,
@@ -1127,37 +1095,25 @@
         const fade = scroller.scrollTop > 1;
         const fromBottom = Math.min(fromBottomRaw, limit);
         const stepped = anchored ? anchoredStep(fromBottom, exitDistance) : 0;
-        const scroll = headingScroll(
-          fromBottom,
-          exitDistance,
-          fadeOnly ? "fade" : "scroll",
-          limit,
-        );
-        const { moved, remaining, progress } = floating
-          ? { moved: 0, remaining: exitDistance, progress: 0 }
+        const progress = floating
+          ? 0
           : short
-            ? { moved: exitDistance, remaining: 0, progress: 1 }
+            ? 1
             : anchored
-              ? {
-                  moved: exitDistance * stepped,
-                  remaining: exitDistance * (1 - stepped),
-                  progress: stepped,
-                }
-              : scroll;
+              ? stepped
+              : headingScroll(fromBottom, exitDistance, limit).progress;
 
         const collapsed = progress === 1;
         const scaleAnchored = anchored && !floating;
         const fadeMotion = headingFade(progress, !state.reducedMotion);
-        const opacity = fadeOnly
-          ? {
-              expanded: fadeMotion.expanded.opacity,
-              compact: fadeMotion.compact.opacity,
-            }
-          : headingOpacity(progress);
+        const opacity = {
+          expanded: fadeMotion.expanded.opacity,
+          compact: fadeMotion.compact.opacity,
+        };
         const expandedOpacity = scaleAnchored ? 1 : opacity.expanded;
         const compactOpacity = scaleAnchored
           ? 0
-          : fadeOnly && anchored
+          : anchored
             ? Math.max(0, opacity.compact * 2 - 1)
             : opacity.compact;
         const plateAnchoredHeight = anchoredHeight(
@@ -1165,29 +1121,18 @@
           eyebrow,
           scaleAnchored ? lines : 1,
         );
-        const plateHeight =
-          anchored && (fadeOnly || scaleAnchored)
-            ? height * (1 - progress) + plateAnchoredHeight * progress
-            : Math.max(
-                height * (1 - progress),
-                anchored ? plateAnchoredHeight * progress : 0,
-              );
-        // In the title bar the plate and its shadow rise out of the way as the
-        // heading leaves. Fade dissolves both with the expanded title. Scroll
-        // keeps the plate opaque while it slides away, so the shadow stays at
-        // the plate's own strength (dimming it would show the plate's edge as
-        // a step) and shrinks to nothing instead of fading.
-        const plateOpacity = fadeOnly && !anchored ? opacity.expanded : 1;
+        const plateAt = (at) =>
+          anchored ? height * (1 - at) + plateAnchoredHeight * at : height;
+        const plateHeight = plateAt(progress);
+        // In the title bar the plate dissolves with the expanded title; a
+        // heading anchored in the timeline keeps its plate opaque.
+        const plateOpacity = anchored ? 1 : headingBackdropOpacity(progress);
         const shadowOpacity = plateOpacity;
-        const shadowScale = anchored
-          ? ANCHORED_FEATHER
-          : fadeOnly
-            ? plateFadeScale(progress)
-            : 1 - progress;
-        const scrollPadding =
-          fadeOnly && !anchored ? height * (1 - progress) : plateHeight;
-        // The shadow starts under the goal, not below the plate, in both
-        // transitions, so the expanded state looks the same in each.
+        const shadowScale = anchored ? ANCHORED_FEATHER : 1;
+        const scrollPadding = anchored
+          ? plateAt(Number(collapsed))
+          : height * (1 - Number(collapsed));
+        // The shadow starts under the goal, not below the plate.
         const plateOverlap =
           !anchored && !floating ? Math.min(base * 1.5, plateHeight) : 0;
         // A whole pixel, so the plate and the shadow that starts where it ends
@@ -1236,9 +1181,7 @@
         clipExpanded.style.height = `${height}px`;
         groupExpanded.style.transform = scaleAnchored
           ? `translateY(${base * PAD_TOP}px)`
-          : fadeOnly
-            ? `translateY(${base * PAD_TOP + fadeMotion.expanded.y}px) scale(${fadeMotion.expanded.scale})`
-            : `translateY(${base * PAD_TOP - moved}px)`;
+          : `translateY(${base * PAD_TOP + fadeMotion.expanded.y}px) scale(${fadeMotion.expanded.scale})`;
         groupExpanded.style.opacity = String(expandedOpacity);
         groupExpanded.style.width = `${paneSpot.width}px`;
 
@@ -1299,11 +1242,9 @@
           slot
             ? Math.max(barBlock, paneSpot.y - base * PAD_TOP - compactSpot.y)
             : barBlock,
-          fadeOnly ? barBlock + FADE_COMPACT_RISE : 0,
+          barBlock + FADE_COMPACT_RISE,
         )}px`;
-        groupCompact.style.transform = fadeOnly
-          ? `translateY(${fadeMotion.compact.y}px) scale(${fadeMotion.compact.scale})`
-          : `translateY(${remaining}px)`;
+        groupCompact.style.transform = `translateY(${fadeMotion.compact.y}px) scale(${fadeMotion.compact.scale})`;
         groupCompact.style.opacity = String(compactOpacity);
         groupCompact.style.width = `${compactSpot.width}px`;
         if (eyebrow) {

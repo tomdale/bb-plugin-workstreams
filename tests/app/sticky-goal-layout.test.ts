@@ -1,6 +1,5 @@
 import { readFileSync } from "node:fs";
 import { expect } from "vitest";
-import { BAR_FADE_RATIO } from "../../src/app/goalHeading.ts";
 import { browserTest, browserUnavailable } from "./browser-fixture.ts";
 const styles = readFileSync(
   new URL("../../src/app/styles.css", import.meta.url),
@@ -66,9 +65,7 @@ browserTest.skipIf(browserUnavailable)(
     // One gradient in two lengths: the bar's shadow is the plate's, shortened.
     expect(result.plateFadeHeight).toBe(192);
     expect(result.barFadeHeight).toBe(48);
-    expect(result.barFadeHeight / result.plateFadeHeight).toBeCloseTo(
-      BAR_FADE_RATIO,
-    );
+    expect(result.barFadeHeight / result.plateFadeHeight).toBeCloseTo(3 / 12);
     // The bar's shadow starts one pixel higher, over the title bar's hairline,
     // so the two surfaces meet in the shadow instead of along a rule.
     expect(result.barFadeTop).toBe("-1px");

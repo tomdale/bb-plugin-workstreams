@@ -139,36 +139,24 @@ export function titleExitDistance(
   );
 }
 
-// The sliding copies travel over 2.5 times their exit distance. The fade's
-// smaller gestures need a longer handoff to remain legible: 3.5 times.
-const HEADING_SCROLL_RATIO = 0.4;
-const HEADING_FADE_SCROLL_RATIO = 1 / 3.5;
+// The fade's small gestures need a handoff of 3.5 times the exit distance to
+// remain legible.
+const HEADING_SCROLL_RATIO = 1 / 3.5;
 
-type HeadingTransition = "fade" | "scroll";
-
-export function headingScrollLimit(
-  exitDistance: number,
-  transition: HeadingTransition = "scroll",
-): number {
-  return (
-    exitDistance /
-    (transition === "fade" ? HEADING_FADE_SCROLL_RATIO : HEADING_SCROLL_RATIO)
-  );
+export function headingScrollLimit(exitDistance: number): number {
+  return exitDistance / HEADING_SCROLL_RATIO;
 }
 
-/** The compact copy starts one exit distance below its final position. */
+/** The fade's progress through its handoff at a scroll position. */
 export function headingScroll(
   fromBottom: number,
   exitDistance: number,
-  transition: HeadingTransition = "scroll",
-  scrollLimit = headingScrollLimit(exitDistance, transition),
+  scrollLimit = headingScrollLimit(exitDistance),
 ) {
   const t =
     scrollLimit <= 0 ? 1 : Math.min(Math.max(0, fromBottom) / scrollLimit, 1);
   // Start responsively and ease to zero velocity at the shared endpoint.
-  const progress = t * (0.5 + t * (2 - 1.5 * t));
-  const moved = exitDistance * progress;
-  return { moved, remaining: exitDistance - moved, progress };
+  return { progress: t * (0.5 + t * (2 - 1.5 * t)) };
 }
 
 /**
@@ -200,36 +188,9 @@ export function anchoredTitleScale(progress: number): number {
   return 1 + (TITLE_BAR_TITLE_SIZE / TITLE_SIZE - 1) * progress;
 }
 
-/** Keep the outgoing heading readable longer and let the incoming one brighten early. */
-export function headingOpacity(progress: number) {
-  return {
-    expanded: 1 - progress * progress,
-    compact: 1 - (1 - progress) * (1 - progress),
-  };
-}
-
 /** Keep timeline text behind the large heading until its fade is nearly done. */
 export function headingBackdropOpacity(progress: number): number {
   return 1 - progress ** 12;
-}
-
-/**
- * Length of the short shadow under a minimized heading, as a fraction of the
- * shadow under the expanded plate. styles.css draws both from one gradient
- * (12rem below the plate, 3rem below the minimized heading), and while the
- * heading collapses the plate's shadow shrinks to this same fraction, so the
- * feather that follows the plate never outlasts the bar's. A heading anchored in
- * the timeline sits on this short feather at both heights, since the timeline
- * scrolls beneath a solid plate rather than meeting a title bar's hairline.
- */
-export const BAR_FADE_RATIO = 3 / PLATE_FADE_REM;
-
-/**
- * Fraction of the plate's shadow still drawn as the heading collapses in the
- * title bar's scroll handoff.
- */
-export function plateFadeScale(progress: number): number {
-  return 1 - progress * (1 - BAR_FADE_RATIO);
 }
 
 /**

@@ -9,7 +9,6 @@ import {
   headingBackdropOpacity,
   headingFade,
   headingHeight,
-  headingOpacity,
   headingScroll,
   headingScrollLimit,
   MIN_TITLE_BAR_WIDTH,
@@ -86,27 +85,29 @@ it("reserves only the goal's visible lines", () => {
   }
 });
 
-it("eases both copies together over a longer scroll and reaches both boundaries", () => {
+it("eases the fade over a handoff 3.5 times the title's exit distance", () => {
   const distance = titleExitDistance(BASE, eyebrowMetrics(BASE, false), 1);
-  const travel = distance * 2.5;
-  const start = headingScroll(0, distance);
-  const early = headingScroll(travel * 0.25, distance);
-  const halfway = headingScroll(travel * 0.5, distance);
-  const late = headingScroll(travel * 0.75, distance);
-  const finish = headingScroll(travel, distance);
-  expect(start).toEqual({ moved: 0, remaining: distance, progress: 0 });
-  expect(early.progress).toBeCloseTo(0.2265625);
-  expect(late.progress).toBeCloseTo(0.8671875);
-  expect(early.moved + early.remaining).toBeCloseTo(distance);
-  expect(halfway.progress).toBeCloseTo(0.5625);
-  expect(finish).toEqual({ moved: distance, remaining: 0, progress: 1 });
-  expect(headingScroll(travel + 50, distance)).toEqual(finish);
-  expect(headingScroll(-10, distance)).toEqual(start);
+  const travel = headingScrollLimit(distance);
+  expect(travel).toBeCloseTo(distance * 3.5);
+  expect(headingScroll(0, distance)).toEqual({ progress: 0 });
+  expect(headingScroll(travel * 0.25, distance).progress).toBeCloseTo(
+    0.2265625,
+  );
+  expect(headingScroll(travel * 0.5, distance).progress).toBeCloseTo(0.5625);
+  expect(headingScroll(travel * 0.75, distance).progress).toBeCloseTo(
+    0.8671875,
+  );
+  expect(headingScroll(travel, distance)).toEqual({ progress: 1 });
+  expect(headingScroll(travel + 50, distance)).toEqual({ progress: 1 });
+  expect(headingScroll(-10, distance)).toEqual({ progress: 0 });
+  // A handoff cut short by the thread's own length still ends at progress 1.
+  expect(headingScroll(100, distance, 100).progress).toBe(1);
+  expect(headingScroll(0, distance, 0).progress).toBe(1);
 });
 
 it("slows to a stop at the shared endpoint without overshooting", () => {
   const distance = titleExitDistance(BASE, eyebrowMetrics(BASE, false), 1);
-  const travel = distance * 2.5;
+  const travel = headingScrollLimit(distance);
   const before = headingScroll(travel * 0.98, distance);
   const almost = headingScroll(travel * 0.99, distance);
   const finish = headingScroll(travel, distance);
@@ -119,20 +120,7 @@ it("slows to a stop at the shared endpoint without overshooting", () => {
     const state = headingScroll((travel * step) / 100, distance);
     expect(state.progress).toBeGreaterThanOrEqual(0);
     expect(state.progress).toBeLessThanOrEqual(1);
-    expect(state.moved + state.remaining).toBeCloseTo(distance);
   }
-});
-
-it("gives the fade a longer scroll handoff than the slide", () => {
-  const distance = titleExitDistance(BASE, eyebrowMetrics(BASE, false), 1);
-  const halfway = headingScrollLimit(distance, "fade") / 2;
-  expect(headingScrollLimit(distance, "fade")).toBeCloseTo(distance * 3.5);
-  expect(headingScroll(halfway, distance, "fade").progress).toBeCloseTo(
-    headingScroll(headingScrollLimit(distance) / 2, distance).progress,
-  );
-  expect(headingScroll(halfway, distance, "fade").progress).toBeLessThan(1);
-  expect(headingScroll(100, distance, "fade", 100).progress).toBe(1);
-  expect(headingScroll(0, distance, "fade", 0).progress).toBe(1);
 });
 
 it("eases a small retreat and rise through the fade", () => {
@@ -165,18 +153,11 @@ it("keeps the eased fade but removes spatial motion when asked", () => {
   });
 });
 
-it("eases the outgoing and incoming opacity independently", () => {
-  expect(headingOpacity(0)).toEqual({ expanded: 1, compact: 0 });
-  expect(headingOpacity(0.25)).toEqual({ expanded: 0.9375, compact: 0.4375 });
-  expect(headingOpacity(0.75)).toEqual({ expanded: 0.4375, compact: 0.9375 });
-  expect(headingOpacity(1)).toEqual({ expanded: 0, compact: 1 });
-});
-
 it("keeps the backdrop opaque through the crossfade and clears it at the end", () => {
   expect(headingBackdropOpacity(0)).toBe(1);
   expect(headingBackdropOpacity(0.5)).toBeGreaterThan(0.99);
   expect(headingBackdropOpacity(0.9)).toBeGreaterThan(
-    headingOpacity(0.9).expanded,
+    headingFade(0.9).expanded.opacity,
   );
   expect(headingBackdropOpacity(1)).toBe(0);
 });

@@ -142,8 +142,8 @@ it("starts the band where the timeline does", () => {
 /** The scroll limit and the goal's height are read the way the component reads them. */
 it("limits and measures the way the component does", () => {
   const component = read("src/app/StickyGoalHeader.tsx");
-  expect(component).toContain('anchored || fadeOnly ? "fade" : "scroll"');
-  expect(page).toContain('anchored || fadeOnly ? "fade" : "scroll"');
+  expect(component).toContain("headingScrollLimit(exitDistance)");
+  expect(page).toContain("headingScrollLimit(exitDistance)");
   expect(component).toContain("scroller.scrollTop > 1");
   expect(page).toContain("scroller.scrollTop > 1");
   expect(page).toContain("goalExpanded.clientHeight");

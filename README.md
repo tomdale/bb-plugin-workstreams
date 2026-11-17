@@ -686,21 +686,27 @@ Stream Deck plugin gets that token from the `bb` CLI.
   change how the large heading hands off to the minimized one (**Fade**,
   **Scroll**, **Morph**, **Stagger**, **Flip**, **Rack focus**, or **Cascade**),
   or **Title alignment → Centered** to center the minimized title's slot in the
-  bar. Those last two appear only while the title minimizes. **Morph**,
-  **Stagger**, **Flip**, **Rack focus** and **Cascade** time each line
-  separately as you scroll away from the newest message (over 360 px at the 14px
-  body size) and shade each large line on its own instead of under one plate.
-  **Morph** carries the title to the bar, shrinking it as it goes. **Stagger**
-  slides each line away and the next in behind it. **Flip** turns each line
-  edge-on. **Rack focus** blurs the large title out while the minimized one
-  sharpens in, so one of the two is always mostly legible. **Cascade** lifts the
-  letters away one by one. With **Title alignment → Centered**, those five also
-  center the minimized title and workstream name on the slot's middle. **Fade**
-  and **Scroll** keep all title and workstream text left aligned. Reduced motion
-  uses the stationary crossfade in the title bar for every transition, and
-  removes the animation from the step down of a heading that stays in the
-  timeline. Switching threads preserves your reading position. When you follow
-  the newest message, the view stays attached to it as the heading loads.
+  bar. Those last two appear only while the title minimizes. **Scroll**,
+  **Morph**, **Stagger**, **Flip**, **Rack focus** and **Cascade** time each
+  line separately and shade each large line on its own instead of under one
+  plate. Rack focus follows the scroll over 360 px at the 14px body size. The
+  others are hybrids: the scroll carries the handoff for the first 48 px, then a
+  spring finishes it in about 0.7 s, starting at the speed you scrolled at, and
+  a slight scroll back (4 px below where it caught) reverses it. Once the large
+  heading has gone into the title bar, the room above the oldest message shrinks
+  from the heading's height to a fixed gap. **Scroll** slides both copies past
+  each other. **Morph** carries the title to the bar, shrinking it as it goes.
+  **Stagger** slides each line away and the next in behind it. **Flip** turns
+  each line edge-on. **Rack focus** blurs the large title out while the
+  minimized one sharpens in, so one of the two is always mostly legible.
+  **Cascade** lifts the letters away one by one. With **Title alignment →
+  Centered**, all of them also center the minimized title and workstream name on
+  the slot's middle. **Fade** keeps all title and workstream text left aligned.
+  Reduced motion uses the stationary crossfade in the title bar for every
+  transition, and removes the animation from the step down of a heading that
+  stays in the timeline. Switching threads preserves your reading position. When
+  you follow the newest message, the view stays attached to it as the heading
+  loads.
 - **Thread header actions:**
   - **Parent thread** (optional, off by default): Opens the parent thread from a
     child thread's header.
@@ -1257,7 +1263,7 @@ Open **Settings → Workstreams** to configure:
 | **Threads**           | **Keep titles current**                                                                                          | `On`                                              | Automatically titles new threads and updates titles as focus evolves. Outside manual title edits stay locked until cleared.                                                                                                                                                                                                                                        |
 | **Threads**           | **Title on scroll**                                                                                              | `Minimize`                                        | Minimize shrinks the heading into the title bar as you scroll; `Float` leaves it over the thread, which moves beneath its shadow.                                                                                                                                                                                                                                  |
 | **Threads**           | **Title transition**                                                                                             | `Fade`                                            | How the large heading hands off to the minimized title: `Fade`, `Scroll`, `Morph`, `Stagger`, `Flip`, `Rack focus`, or `Cascade`. In a narrow title bar the heading steps down at once. Shown only while **Title on scroll** is `Minimize`.                                                                                                                        |
-| **Threads**           | **Title alignment**                                                                                              | `Left`                                            | Where the minimized title's slot sits in the title bar: `Left` after the thread's controls, or `Centered` in the bar's middle. `Fade` and `Scroll` keep title and workstream text left aligned; the other transitions center it on the slot's middle. Shown only while **Title on scroll** is `Minimize`.                                                          |
+| **Threads**           | **Title alignment**                                                                                              | `Left`                                            | Where the minimized title's slot sits in the title bar: `Left` after the thread's controls, or `Centered` in the bar's middle. `Fade` keeps title and workstream text left aligned; the other transitions center it on the slot's middle. Shown only while **Title on scroll** is `Minimize`.                                                                      |
 | **Threads**           | **Show parent thread link**                                                                                      | `Off`                                             | Adds a link to the parent thread in child thread headers.                                                                                                                                                                                                                                                                                                          |
 | **Threads**           | **Show archive button**                                                                                          | `On`                                              | Shows an Archive button in thread headers.                                                                                                                                                                                                                                                                                                                         |
 | **Recap**             | **End turns with a recap**                                                                                       | `On`                                              | Gives agents `WorkstreamsRecap` and displays the recap card above the composer.                                                                                                                                                                                                                                                                                    |

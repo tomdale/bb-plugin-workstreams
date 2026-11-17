@@ -10,10 +10,8 @@ import {
   ANCHORED_PAD,
   SUBTITLE_LINE,
   SUBTITLE_SIZE,
-  BAR_FADE_RATIO,
   headingBackdropOpacity,
   headingHeight,
-  headingOpacity,
   headingScroll,
   anchoredHeight,
   anchoredTitleScale,
@@ -598,7 +596,7 @@ it("leaves the minimized title in the bar's gap by default", async () => {
   vi.spyOn(header.lastElementChild!, "getBoundingClientRect").mockReturnValue(
     new DOMRect(700, 0, 100, 48),
   );
-  const slot = await mountHeading();
+  const slot = await mountHeading("fade");
   const compact = () =>
     overlay()!.querySelector<HTMLElement>(
       '[data-ws-heading="compact"] .ws-goal-overlay__group',
@@ -608,6 +606,19 @@ it("leaves the minimized title in the bar's gap by default", async () => {
   // Between the thread's controls and the actions, as before.
   expect(compact()!.style.width).toBe("588px");
   slot.lifecycle.unmount();
+  // A choreographed transition fills the same span.
+  document.body.querySelector("[data-workstreams-goal-overlay]")?.remove();
+  const choreographed = await mountHeading("rack");
+  await waitFor(() =>
+    expect(
+      overlay()!.querySelector<HTMLElement>('[data-ws-heading="compact"]'),
+    ).not.toBeNull(),
+  );
+  expect(
+    overlay()!.querySelector<HTMLElement>('[data-ws-heading="compact"]')!.style
+      .width,
+  ).toBe(`${588 + 32 * 2}px`);
+  choreographed.lifecycle.unmount();
 });
 
 it.each(["fade", "scroll"] as const)(
@@ -655,9 +666,7 @@ it.each(["fade", "scroll"] as const)(
       )!;
     await waitFor(() => expect(expanded().style.opacity).toBe("1"));
     expect(compact().style.opacity).toBe("0");
-    expect(expanded().style.transform).toBe(
-      mode === "fade" ? "translateY(11.9px) scale(1)" : "translateY(11.9px)",
-    );
+    expect(expanded().style.transform).toBe("translateY(11.9px) scale(1)");
     // The timeline keeps its reserved room, and the heading still shadows it.
     expect(scroller.style.scrollPaddingTop).toBe(
       `${headingHeight(14, false, 1, 0)}px`,
@@ -690,103 +699,6 @@ it("draws the heading text inside the app's sliding surface so it travels with t
   const background = overlay()!.querySelector(".ws-goal-background");
   expect(background?.querySelector(".ws-sticky-goal__plate")).not.toBeNull();
   expect(root()!.contains(background)).toBe(false);
-  slot.lifecycle.unmount();
-});
-
-it("moves the two fixed-size headings together as the reader scrolls", async () => {
-  paneFixture({ recap: false });
-  const scroller = document.querySelector<HTMLElement>(
-    '[data-test="messages"]',
-  )!;
-  Object.defineProperties(scroller, {
-    scrollHeight: { configurable: true, value: 1000 },
-    clientHeight: { configurable: true, value: 400 },
-    scrollTop: { configurable: true, writable: true, value: 600 },
-  });
-  vi.spyOn(scroller, "getBoundingClientRect").mockReturnValue(
-    new DOMRect(0, 48, 900, 672),
-  );
-  const header = document.querySelector("header")!;
-  vi.spyOn(header, "getBoundingClientRect").mockReturnValue(
-    new DOMRect(0, 0, 900, 48),
-  );
-  vi.spyOn(
-    header.querySelector(".bb-thread-title")!,
-    "getBoundingClientRect",
-  ).mockReturnValue(new DOMRect(0, 0, 80, 48));
-  vi.spyOn(header.lastElementChild!, "getBoundingClientRect").mockReturnValue(
-    new DOMRect(700, 0, 100, 48),
-  );
-  const slot = await mountHeading();
-  scroller.scrollTop = 600;
-  scroller.dispatchEvent(new Event("scroll"));
-  const groups = () => [
-    ...overlay()!.querySelectorAll<HTMLElement>(".ws-goal-overlay__group"),
-  ];
-  await waitFor(() => expect(groups()).toHaveLength(2));
-  await act(() => vi.advanceTimersByTimeAsync(550));
-  const y = (element: HTMLElement) =>
-    Number.parseFloat(
-      element.style.transform.match(/translateY\(([-\d.]+)px\)/)![1]!,
-    );
-  const initial = groups().map(y);
-  expect(groups().map((group) => Number(group.style.opacity))).toEqual([1, 0]);
-  // Only a anchored heading steps, so only it takes the animation.
-  expect(
-    overlay()!
-      .querySelector<HTMLElement>(".ws-goal-background")!
-      .hasAttribute("data-ws-anchored"),
-  ).toBe(false);
-  const fadeScale = () =>
-    Number(
-      overlay()!
-        .querySelector<HTMLElement>(".ws-goal-background")!
-        .style.getPropertyValue("--ws-plate-fade-scale"),
-    );
-  expect(fadeScale()).toBe(1);
-  const motion = headingScroll(10, initial[1]!);
-  scroller.scrollTop = 590;
-  scroller.dispatchEvent(new Event("scroll"));
-  await waitFor(() =>
-    expect(y(groups()[0]!)).toBeCloseTo(initial[0]! - motion.moved),
-  );
-  expect(y(groups()[1]!)).toBeCloseTo(initial[1]! - motion.moved);
-  const partialOpacity = groups().map((group) => Number(group.style.opacity));
-  expect(partialOpacity[0]).toBeGreaterThan(0);
-  expect(partialOpacity[0]).toBeLessThan(1);
-  const expectedOpacity = headingOpacity(motion.progress);
-  expect(partialOpacity[0]).toBeCloseTo(expectedOpacity.expanded);
-  expect(partialOpacity[1]).toBeCloseTo(expectedOpacity.compact);
-  expect(partialOpacity[1]).toBeGreaterThan(0);
-  expect(fadeScale()).toBeLessThan(1);
-  expect(fadeScale()).toBeGreaterThan(BAR_FADE_RATIO);
-  expect(
-    groups()[0]!.querySelector<HTMLElement>(".ws-sticky-goal__title")!.style
-      .fontSize,
-  ).not.toBe(
-    groups()[1]!.querySelector<HTMLElement>(".ws-sticky-goal__title")!.style
-      .fontSize,
-  );
-  scroller.scrollTop = 450;
-  scroller.dispatchEvent(new Event("scroll"));
-  await waitFor(() => expect(y(groups()[1]!)).toBe(0));
-  expect(groups().map((group) => Number(group.style.opacity))).toEqual([0, 1]);
-  expect(fadeScale()).toBe(BAR_FADE_RATIO);
-  scroller.scrollTop = 590;
-  scroller.dispatchEvent(new Event("scroll"));
-  await waitFor(() =>
-    expect(y(groups()[1]!)).toBeCloseTo(initial[1]! - motion.moved),
-  );
-  expect(groups().map((group) => Number(group.style.opacity))).toEqual(
-    partialOpacity,
-  );
-  scroller.scrollTop = 600;
-  scroller.dispatchEvent(new Event("scroll"));
-  await waitFor(() =>
-    expect(groups().map((group) => Number(group.style.opacity))).toEqual([
-      1, 0,
-    ]),
-  );
   slot.lifecycle.unmount();
 });
 
@@ -869,6 +781,71 @@ it("draws a choreographed transition from the scroll position", async () => {
   slot.lifecycle.unmount();
 });
 
+it("follows the scroll to the latch point, then springs the rest of the way on its own", async () => {
+  const scroller = barFixture(600);
+  const slot = await mountHeading("morph", "Ship it");
+  scroller.scrollTop = 600;
+  scroller.dispatchEvent(new Event("scroll"));
+  await waitFor(() =>
+    expect(overlay()!.querySelector("[data-ws-choreographed]")).not.toBeNull(),
+  );
+  await act(() => vi.advanceTimersByTimeAsync(550));
+  const title = () =>
+    overlay()!.querySelector<HTMLElement>(
+      '[data-ws-heading="expanded"] .ws-sticky-goal__title:not(.ws-sticky-goal__probe)',
+    )!;
+  const scale = () =>
+    Number(/scale\(([\d.]+)\)/.exec(title().style.transform)?.[1] ?? 1);
+  expect(scale()).toBe(1);
+  // Before the latch point the heading tracks the scroll and stops where the scroll does.
+  scroller.scrollTop = 600 - 30;
+  scroller.dispatchEvent(new Event("scroll"));
+  await waitFor(() => expect(scale()).toBeLessThan(1));
+  const held = scale();
+  for (let frame = 0; frame < 30; frame++) await nextFrame();
+  expect(scale()).toBe(held);
+  expect((root() as HTMLElement).dataset.collapsed).toBe("false");
+  // Past it the spring finishes the handoff with no further scrolling.
+  scroller.scrollTop = 600 - 60;
+  scroller.dispatchEvent(new Event("scroll"));
+  await waitFor(
+    () => expect((root() as HTMLElement).dataset.collapsed).toBe("true"),
+    { timeout: 4000 },
+  );
+  expect(scale()).toBeCloseTo(0.95 / 1.5);
+  // Scrolling back below the release point springs it back to the scroll's value.
+  scroller.scrollTop = 600;
+  scroller.dispatchEvent(new Event("scroll"));
+  await waitFor(
+    () => expect((root() as HTMLElement).dataset.collapsed).toBe("false"),
+    { timeout: 4000 },
+  );
+  await waitFor(() => expect(scale()).toBe(1), { timeout: 4000 });
+  slot.lifecycle.unmount();
+});
+
+it("keeps the heading's height above the first message until it has gone into the bar", async () => {
+  const scroller = barFixture(600);
+  const slot = await mountHeading("rack", "Ship it");
+  scroller.scrollTop = 600;
+  scroller.dispatchEvent(new Event("scroll"));
+  await waitFor(() =>
+    expect(overlay()!.querySelector("[data-ws-choreographed]")).not.toBeNull(),
+  );
+  await act(() => vi.advanceTimersByTimeAsync(550));
+  const gap = () =>
+    Number.parseFloat((root() as HTMLElement).style.marginBottom);
+  const expandedGap = gap();
+  expect(expandedGap).toBeGreaterThan(21);
+  scroller.scrollTop = 100;
+  scroller.dispatchEvent(new Event("scroll"));
+  await waitFor(() => expect(gap()).toBeCloseTo(14 * 1.5));
+  scroller.scrollTop = 600;
+  scroller.dispatchEvent(new Event("scroll"));
+  await waitFor(() => expect(gap()).toBeCloseTo(expandedGap));
+  slot.lifecycle.unmount();
+});
+
 it("shows each choreographed title as separate letters in Cascade", async () => {
   barFixture(600);
   const slot = await mountHeading("cascade");
@@ -888,11 +865,23 @@ it("shows each choreographed title as separate letters in Cascade", async () => 
   slot.lifecycle.unmount();
 });
 
-it.each(["float", "reduced"] as const)(
-  "keeps the shared plate for a choreographed transition when %s",
+it("keeps the shared plate for a choreographed transition while floating", async () => {
+  barFixture(600);
+  const slot = await mountHeading("rack", null, undefined, {
+    headingScroll: "float",
+  });
+  await waitFor(() =>
+    expect(overlay()!.querySelector(".ws-sticky-goal__plate")).not.toBeNull(),
+  );
+  expect(overlay()!.querySelector("[data-ws-choreographed]")).toBeNull();
+  slot.lifecycle.unmount();
+});
+
+it.each(["scroll", "rack"] as const)(
+  "crosses the %s transition's lines in place under reduced motion",
   async (mode) => {
     vi.stubGlobal("matchMedia", (query: string) => ({
-      matches: mode === "reduced" && query === REDUCED_MOTION_QUERY,
+      matches: query === REDUCED_MOTION_QUERY,
       media: query,
       onchange: null,
       addListener: vi.fn(),
@@ -901,17 +890,37 @@ it.each(["float", "reduced"] as const)(
       removeEventListener: vi.fn(),
       dispatchEvent: vi.fn(),
     }));
-    barFixture(600);
-    const slot = await mountHeading(
-      "rack",
-      null,
-      undefined,
-      mode === "float" ? { headingScroll: "float" } : {},
-    );
+    const scroller = barFixture(600);
+    const slot = await mountHeading(mode, "Ship it");
+    scroller.scrollTop = 600;
+    scroller.dispatchEvent(new Event("scroll"));
+    const title = (which: "expanded" | "compact") =>
+      overlay()!.querySelector<HTMLElement>(
+        `[data-ws-heading="${which}"] .ws-sticky-goal__title:not(.ws-sticky-goal__probe)`,
+      )!;
     await waitFor(() =>
-      expect(overlay()!.querySelector(".ws-sticky-goal__plate")).not.toBeNull(),
+      expect(
+        overlay()!.querySelector("[data-ws-choreographed]"),
+      ).not.toBeNull(),
     );
-    expect(overlay()!.querySelector("[data-ws-choreographed]")).toBeNull();
+    await act(() => vi.advanceTimersByTimeAsync(550));
+    const rest = {
+      expanded: title("expanded").style.transform,
+      compact: title("compact").style.transform,
+    };
+    // Mid-handoff the lines have not moved or blurred, only their opacity changed.
+    scroller.scrollTop = 560;
+    scroller.dispatchEvent(new Event("scroll"));
+    await waitFor(() =>
+      expect(Number(title("expanded").style.opacity)).toBeLessThan(1),
+    );
+    for (let frame = 0; frame < 60; frame++) await nextFrame();
+    expect(title("expanded").style.transform).toBe(rest.expanded);
+    expect(title("compact").style.transform).toBe(rest.compact);
+    expect(title("expanded").style.filter).toBe("");
+    expect(Number(title("compact").style.opacity)).toBeGreaterThan(0);
+    // Its shadows still fade with it.
+    expect(overlay()!.querySelectorAll(".ws-goal-shadow").length).toBe(3);
     slot.lifecycle.unmount();
   },
 );
@@ -963,7 +972,6 @@ it("eases fixed headings through a gentle handoff and switches modes", async () 
     { y: 11.9, scale: 1, opacity: 1 },
     { y: 4, scale: 0.99, opacity: 0 },
   ]);
-  const distance = titleExitDistance(14, null, 1);
   let previousDistance = 0;
   let previous = readMotion();
   let first50: ReturnType<typeof readMotion> | null = null;
@@ -1001,7 +1009,7 @@ it("eases fixed headings through a gentle handoff and switches modes", async () 
   )!;
   expect(Number(plate.style.opacity)).toBeCloseTo(
     headingBackdropOpacity(
-      headingScroll(50, titleExitDistance(14, null, 1), "fade").progress,
+      headingScroll(50, titleExitDistance(14, null, 1)).progress,
     ),
   );
   expect(Number(plate.style.opacity)).toBeGreaterThan(0.95);
@@ -1015,45 +1023,32 @@ it("eases fixed headings through a gentle handoff and switches modes", async () 
       .querySelector<HTMLElement>(".ws-goal-background")!
       .style.getPropertyValue("--ws-plate-height"),
   ).toBe(`${height - 21}px`);
+  // Another transition replaces the shared plate with its own shadows.
   await slot.behavior.emitRealtime("prefs", {
     prefs: parsePrefs({ threads: { headingTransition: "scroll" } }),
   });
   await waitFor(() =>
-    expect(groups()[0]!.style.transform).not.toBe(fadeAt50[0]),
+    expect(overlay()!.querySelector("[data-ws-choreographed]")).not.toBeNull(),
   );
-  expect(groups()[1]!.style.transform).not.toBe(fadeAt50[1]);
-  const scrollOpacity = headingOpacity(headingScroll(50, distance).progress);
-  expect(Number(groups()[0]!.style.opacity)).toBeCloseTo(
-    scrollOpacity.expanded,
-  );
-  expect(Number(groups()[1]!.style.opacity)).toBeCloseTo(scrollOpacity.compact);
-  expect(Number(plate.style.opacity)).toBe(1);
+  expect(overlay()!.querySelector(".ws-sticky-goal__plate")).toBeNull();
   await slot.behavior.emitRealtime("prefs", {
     prefs: parsePrefs({ threads: { headingTransition: "fade" } }),
   });
   await waitFor(() =>
     expect(groups().map((group) => group.style.transform)).toEqual(fadeAt50),
   );
+  const fadePlate = () =>
+    overlay()!.querySelector<HTMLElement>(".ws-sticky-goal__plate")!;
   scroller.scrollTop = 450;
   scroller.dispatchEvent(new Event("scroll"));
   await waitFor(() => expect(Number(groups()[1]!.style.opacity)).toBe(1));
-  expect(Number(plate.style.opacity)).toBe(0);
+  expect(Number(fadePlate().style.opacity)).toBe(0);
   expect(scroller.style.scrollPaddingTop).toBe("0px");
   expect(
     overlay()!
       .querySelector<HTMLElement>(".ws-goal-background")!
       .style.getPropertyValue("--ws-fade-below-bar"),
   ).toBe("1");
-  await slot.behavior.emitRealtime("prefs", {
-    prefs: parsePrefs({ threads: { headingTransition: "scroll" } }),
-  });
-  await nextFrame();
-  await nextFrame();
-  await slot.behavior.emitRealtime("prefs", {
-    prefs: parsePrefs({ threads: { headingTransition: "fade" } }),
-  });
-  expect(Number(groups()[1]!.style.opacity)).toBe(1);
-  expect(Number(groups()[0]!.style.opacity)).toBe(0);
   slot.lifecycle.unmount();
 });
 
@@ -1261,7 +1256,7 @@ it.each([false, true])(
   },
 );
 
-it.each(["fade", "scroll"] as const)(
+it.each(["fade"] as const)(
   "keeps titles and backdrop stationary under reduced motion in %s mode",
   async (mode) => {
     vi.stubGlobal("matchMedia", (query: string) => ({

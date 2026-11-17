@@ -4,6 +4,8 @@ import {
   CASCADE_REACH,
   RACK,
   choreograph,
+  crossfade,
+  reserveGap,
   shadowPaint,
   shadowBackground,
   shadowTuning,
@@ -48,6 +50,7 @@ export type ChoreographyPlacement = {
 
 /** How a line pivots as it scales or turns. */
 const ORIGIN: Record<Choreographed, string> = {
+  current: "0 0",
   morph: "0 0",
   stagger: "0 0",
   flip: "50% 50%",
@@ -141,7 +144,11 @@ export function ChoreographedHeading({
   titleLines,
   goalLines,
   progress,
+  scrollDriven,
+  reduced,
   centered,
+  mount,
+  height,
   titleProbe,
   goalRef,
 }: {
@@ -160,7 +167,15 @@ export function ChoreographedHeading({
   titleLines: number;
   goalLines: number;
   progress: number;
+  /** The scroll position drives progress directly, rather than a spring. */
+  scrollDriven: boolean;
+  /** Reduced motion: the lines stay put and cross in place. */
+  reduced: boolean;
   centered: boolean;
+  /** The message column this heading reserves its gap in. */
+  mount: { root: HTMLElement; scroller: HTMLElement };
+  /** The expanded heading's height, which the gap keeps while the lines show. */
+  height: number;
   /** Counts the expanded title's wrapped lines on a narrow pane. */
   titleProbe: (element: HTMLHeadingElement | null) => void;
   /** Reports the summary's clamped height. */
@@ -228,8 +243,30 @@ export function ChoreographedHeading({
     eyebrowScale,
     letters,
   };
-  const pose = choreograph(kind, progress, layout, RACK);
+  const pose = reduced
+    ? crossfade(progress, layout)
+    : choreograph(kind, progress, layout, RACK, scrollDriven);
   const tuning = shadowTuning(kind);
+
+  // The gap above the first message follows the old heading's visibility: its
+  // own height while it shows, a fixed gap once it has gone into the bar. The
+  // distance from the newest message is held while the gap changes, so nothing
+  // on screen moves.
+  const gap = reserveGap(base, height, pose);
+  useLayoutEffect(() => {
+    const { root, scroller } = mount;
+    if (Math.abs(Number.parseFloat(root.style.marginBottom) - gap) < 0.25)
+      return;
+    // Growing the gap moves everything below it down by the change, so the
+    // scroll position moves with it to keep the distance from the newest message.
+    // The browser may already have anchored the scroll position to the content
+    // beneath the gap; reading it back says whether it did.
+    const before = scroller.scrollTop;
+    const wanted = before + (gap - Number.parseFloat(root.style.marginBottom));
+    root.style.marginBottom = `${gap.toFixed(2)}px`;
+    if (Math.abs(scroller.scrollTop - wanted) > 0.5)
+      scroller.scrollTop = wanted;
+  }, [mount, gap]);
 
   // Where each clip sits: the expanded lines in the scroller's width, the
   // minimized ones in the title bar's slot with room for blur on both sides.

@@ -280,7 +280,8 @@ const TITLE_TRANSITIONS = [
   {
     value: "scroll",
     label: "Scroll",
-    description: "Both copies slide past each other as you scroll.",
+    description:
+      "Both copies slide past each other; a short scroll starts it and it finishes on its own.",
   },
   {
     value: "morph",

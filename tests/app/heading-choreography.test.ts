@@ -4,6 +4,10 @@ import {
   CURVES,
   RACK,
   choreograph,
+  choreographyOf,
+  crossfade,
+  handoffFor,
+  reserveGap,
   featherCover,
   isChoreographed,
   runway,
@@ -30,8 +34,9 @@ const layout: HeadingLayout = {
   letters: 20,
 };
 
-it("knows the five choreographed transitions and none of the others", () => {
+it("knows the six choreographed transitions and none of the others", () => {
   expect(CHOREOGRAPHED).toEqual([
+    "current",
     "morph",
     "stagger",
     "flip",
@@ -40,7 +45,10 @@ it("knows the five choreographed transitions and none of the others", () => {
   ]);
   expect(isChoreographed("rack")).toBe(true);
   expect(isChoreographed("fade")).toBe(false);
-  expect(isChoreographed("scroll")).toBe(false);
+  // The Scroll setting draws the current transition; Fade has no choreography.
+  expect(choreographyOf("scroll")).toBe("current");
+  expect(choreographyOf("morph")).toBe("morph");
+  expect(choreographyOf("fade")).toBeNull();
 });
 
 it.each(CHOREOGRAPHED)(
@@ -56,6 +64,12 @@ it.each(CHOREOGRAPHED)(
       expect(end.expanded.title.x).toBeCloseTo(layout.slot.titleX);
       expect(end.expanded.title.y).toBeCloseTo(layout.bar.title);
       expect(end.expanded.title.scale).toBeCloseTo(0.95 / 1.5);
+    } else if (kind === "current") {
+      expect(end.expanded.title.y).toBeCloseTo(layout.rest.title - layout.exit);
+      expect(end.compact.title.y).toBeCloseTo(layout.bar.title);
+      expect(end.expanded.title.opacity).toBe(0);
+      expect(end.compact.title.opacity).toBe(1);
+      expect(start.compact.title.y).toBeCloseTo(layout.bar.title + layout.exit);
     } else if (kind === "cascade") {
       // The letters carry the opacity; their boxes stay put.
       expect(start.letters!.expanded.every((l) => l.opacity === 1)).toBe(true);
@@ -169,7 +183,7 @@ it("fades the shadows on each transition's own tuning", () => {
 
 it("shortens each shadow as the handoff runs and drops it once faded", () => {
   const tuning = shadowTuning("rack");
-  const shadow = { bottom: 80 };
+  const shadow = { bottom: 80, visible: 1 };
   const full = shadowPaint(tuning, 0, shadow)!;
   expect(full.solid).toBeCloseTo(80 + tuning.solidEdge);
   expect(full.feather).toBe(tuning.length);
@@ -194,4 +208,57 @@ it("falls every curve from 1 to 0", () => {
     expect(curve(0)).toBeCloseTo(1);
     expect(curve(1)).toBeCloseTo(0);
   }
+});
+
+it("slides the current transition's copies through the exit distance together", () => {
+  const mid = choreograph("current", 0.5, layout);
+  expect(mid.expanded.title.y).toBeCloseTo(layout.rest.title - layout.exit / 2);
+  expect(mid.compact.title.y).toBeCloseTo(layout.bar.title + layout.exit / 2);
+  expect(mid.expanded.title.opacity).toBeCloseTo(0.75);
+  expect(mid.compact.title.opacity).toBeCloseTo(0.75);
+  // Driven straight from the scroll it eases in step with the scroll position.
+  const eased = choreograph("current", 0.5, layout, RACK, true);
+  expect(eased.progress).toBeCloseTo(0.5625);
+});
+
+it("crosses the lines in place for reduced motion", () => {
+  expect(crossfade(0, layout).expanded.title.opacity).toBe(1);
+  const mid = crossfade(0.5, layout);
+  expect(mid.expanded.title.y).toBe(layout.rest.title);
+  expect(mid.compact.title.y).toBe(layout.bar.title);
+  expect(mid.expanded.title.opacity).toBeCloseTo(0.5);
+  expect(mid.compact.title.opacity).toBeCloseTo(0.5);
+  const end = crossfade(1, layout);
+  expect(end.expanded.goal?.opacity).toBe(0);
+  expect(end.compact.title.opacity).toBe(1);
+});
+
+it("keeps the heading's height above the first message while it shows, then a fixed gap", () => {
+  const height = 104;
+  expect(reserveGap(14, height, choreograph("rack", 0, layout))).toBe(height);
+  const gone = reserveGap(14, height, choreograph("rack", 1, layout));
+  expect(gone).toBeCloseTo(14 * 1.5);
+  const between = reserveGap(14, height, choreograph("rack", 0.6, layout));
+  expect(between).toBeGreaterThan(gone);
+  expect(between).toBeLessThan(height);
+  // The gap below the heading does not depend on how many lines the summary takes.
+  const taller = { ...layout, heights: { ...layout.heights, goal: 36 } };
+  expect(reserveGap(14, height, choreograph("rack", 1, taller))).toBeCloseTo(
+    gone,
+  );
+});
+
+it("hands off Rack focus by scroll and the rest as hybrids", () => {
+  const rack = handoffFor("rack", 14, 57);
+  expect(rack).toMatchObject({
+    drive: "scroll",
+    follow: "direct",
+    runway: 360,
+  });
+  const morph = handoffFor("morph", 14, 57);
+  expect(morph).toMatchObject({ drive: "hybrid", latchAt: 48, settle: 700 });
+  // Scroll's runway is 2.5 times the title's exit distance, and the distances grow with the type.
+  expect(handoffFor("current", 14, 57).runway).toBeCloseTo(142.5);
+  expect(handoffFor("rack", 16, 57).runway).toBeCloseTo((360 * 16) / 14);
+  expect(handoffFor("flip", 16, 57).latchAt).toBeCloseTo((48 * 16) / 14);
 });
