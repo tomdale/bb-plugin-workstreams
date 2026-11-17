@@ -103,14 +103,34 @@ export function clip(text: string, max: number): string {
   return `${space > max * 0.6 ? cut.slice(0, space) : cut}…`;
 }
 
-/** One line, without the quotes or closing period models sometimes add. */
+const QUOTE_PAIRS: Readonly<Record<string, string>> = {
+  '"': '"',
+  "'": "'",
+  "`": "`",
+  "\u201c": "\u201d",
+  "\u2018": "\u2019",
+};
+
+/**
+ * Removes quotes that wrap the whole text. A quote that opens or closes only
+ * part of it belongs to the text: `“gains” phrasing` stays whole, and so
+ * does `"a" and "b"`, which a pair-blind strip would unbalance.
+ */
+function unwrapQuotes(text: string): string {
+  let out = text;
+  for (;;) {
+    const close = QUOTE_PAIRS[out[0] ?? ""];
+    if (!close || out.length < 2 || !out.endsWith(close)) return out;
+    const inner = out.slice(1, -1);
+    if (inner.includes(out[0]!) || inner.includes(close)) return out;
+    out = inner.trim();
+  }
+}
+
+/** One line, without quotes wrapping it or the closing period models sometimes add. */
 function cleanPart(text: string): string {
-  return text
-    .replace(/\s+/g, " ")
-    .trim()
-    .replace(/^["'“‘`]+|["'”’`]+$/g, "")
-    .replace(/(?<!\.)\.$/, "")
-    .trim();
+  const dropPeriod = (part: string) => part.replace(/(?<!\.)\.$/, "").trim();
+  return dropPeriod(unwrapQuotes(dropPeriod(text.replace(/\s+/g, " ").trim())));
 }
 
 /** Head-and-tail excerpt: requests state intent up front, reports end with the result. */

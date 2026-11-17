@@ -140,6 +140,22 @@ describe("composeTitle", () => {
     ).toBe("Setting up CI cache");
   });
 
+  it("strips quotes that wrap a part and keeps ones that don't", () => {
+    const subject = (text: string) =>
+      composeTitle({ verb: "Fixing", subject: text }, null);
+    expect(subject("\u201cgains\u201d phrasing")).toBe(
+      "Fixing \u201cgains\u201d phrasing",
+    );
+    expect(subject('"gains" phrasing')).toBe('Fixing "gains" phrasing');
+    expect(subject('"a" and "b"')).toBe('Fixing "a" and "b"');
+    expect(subject("users'")).toBe("Fixing users'");
+    expect(subject("\u201cgains phrasing\u201d")).toBe("Fixing gains phrasing");
+    expect(subject("`'CI cache'`.")).toBe("Fixing CI cache");
+    expect(composeTitle({ verb: '"fixing"', subject: "CI cache" }, null)).toBe(
+      "Fixing CI cache",
+    );
+  });
+
   it("gives no title for a missing part, or one too long for BB", () => {
     expect(composeTitle(null, null)).toBeNull();
     expect(composeTitle({ verb: "Fixing", subject: " " }, null)).toBeNull();
