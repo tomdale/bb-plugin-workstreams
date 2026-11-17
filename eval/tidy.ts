@@ -37,7 +37,7 @@ const tree = (input: TidyInput): TreeState => ({
   ),
 });
 
-/** The topic names and thread titles an edit is about. */
+/** The workstream names and thread titles an edit is about. */
 function subjects(edit: TidyEdit, input: TidyInput): string[] {
   const name = (ref: string | null) =>
     input.workstreams.find((t) => t.id === ref)?.name ??
@@ -61,8 +61,8 @@ function subjects(edit: TidyEdit, input: TidyInput): string[] {
 }
 
 /**
- * Whether a reason is about its own edit: it names one of the edit's topics
- * or threads by a distinctive word.
+ * Whether a reason is about its own edit: it names one of the edit's
+ * workstreams or threads by a distinctive word.
  */
 function onWorkstream(
   reason: string,

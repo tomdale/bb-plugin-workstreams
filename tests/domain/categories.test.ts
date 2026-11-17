@@ -45,14 +45,14 @@ const generation = () => ({
 });
 
 describe("category lifecycle", () => {
-  it.each([0, 1, 2, 3])("discards a generation at %i roots", (n) => {
+  it.each([0, 1, 2, 3])("discards a generation at %i threads", (n) => {
     expect(categoryAction(generation(), n)).toBe("discard");
   });
-  it.each([4, 5])("preserves hysteresis at %i roots", (n) => {
+  it.each([4, 5])("preserves hysteresis at %i threads", (n) => {
     expect(categoryAction(null, n)).toBe("none");
     expect(categoryAction(generation(), n)).toBe("classify");
   });
-  it.each([6, 7, 100])("creates categories at %i roots", (n) => {
+  it.each([6, 7, 100])("creates categories at %i threads", (n) => {
     expect(categoryAction(null, n)).toBe("classify");
   });
   it("fingerprints membership and requests, not status, titles, or order", () => {
@@ -72,7 +72,7 @@ describe("category lifecycle", () => {
       categoryCollectionKey({ ...a, threads: a.threads.slice(1) }),
     ).not.toBe(categoryCollectionKey(a));
   });
-  it("removes departed roots and empty categories without mutating the snapshot", () => {
+  it("removes departed threads and empty categories without mutating the snapshot", () => {
     const before = generation();
     const after = pruneCategories(before, input().threads.slice(0, 2));
     expect(after).toEqual({
@@ -111,7 +111,7 @@ describe("category classifier contract", () => {
       },
     );
   });
-  it("maps short prompt IDs back to actual roots", () => {
+  it("maps short prompt IDs back to actual threads", () => {
     expect(
       parseCategories(JSON.stringify(arrangement()), input()).categories[0]!
         .threadIds,

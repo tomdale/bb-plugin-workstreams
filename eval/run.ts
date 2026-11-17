@@ -1,12 +1,13 @@
 /**
- * Live evaluation of Full analysis, a thread's start, and placement.
+ * Live evaluation of the turn-end analysis, a thread's start, and the
+ * workstream choice.
  * Opt-in and never part of `npm test`: it calls models through Pi's AI
  * Gateway.
  *
  *   node eval/run.ts [model ...]
  *
- * Every case goes through the production prompts and parsers. Placement sees
- * an empty topic tree, so the topic a case gets is the one the model
+ * Every case goes through the production prompts and parsers. The workstream
+ * choice sees an empty tree, so the workstream a case gets is the one the model
  * proposes; it is scored against the fixture's expected product names. Fixtures may carry a
  * `project` field for provenance; it is never sent. See README.md.
  */
@@ -39,7 +40,7 @@ type Case = {
   /** One state, or the states a reasonable reading allows. */
   expectedState?: WorkState | WorkState[];
 };
-/** What a run produced: status, title, and the topic's name. */
+/** What a run produced: status, title, and the workstream's name. */
 type Output = {
   state: WorkState | null;
   title: string | null;

@@ -56,7 +56,7 @@ async function mount(
   let seededAlphaId = "";
   world = await fakeWorld({
     // The composer's preview is the start call's answer for the text sent,
-    // so sending it files and titles the thread with no second call.
+    // so sending it moves and titles the thread with no second call.
     complete: ({ prompt }) =>
       JSON.stringify(
         prompt.includes("You name one new agent thread")
@@ -189,7 +189,7 @@ async function mount(
 }
 
 it.each(["Beta", "No workstream"] as const)(
-  "files the displayed %s choice when native dispatch has no submit metadata",
+  "applies the displayed %s choice when native dispatch has no submit metadata",
   async (choice) => {
     const {
       slot,
@@ -213,7 +213,7 @@ it.each(["Beta", "No workstream"] as const)(
   },
 );
 
-it("files an inherited topic when native dispatch has no submit metadata", async () => {
+it("applies an inherited workstream when native dispatch has no submit metadata", async () => {
   const {
     slot,
     workstreamStore: workstreamStore,
@@ -230,7 +230,7 @@ it("files an inherited topic when native dispatch has no submit metadata", async
   });
 });
 
-it("files an automatic topic and title when native dispatch has no submit metadata", async () => {
+it("applies an automatic workstream and title when native dispatch has no submit metadata", async () => {
   const {
     w,
     slot,
@@ -255,7 +255,7 @@ it("files an automatic topic and title when native dispatch has no submit metada
   expect(w.completions).toHaveLength(calls);
 });
 
-it("files a manually proposed topic without submit metadata", async () => {
+it("applies a manually proposed workstream without submit metadata", async () => {
   const {
     slot,
     workstreamStore: workstreamStore,
@@ -280,7 +280,7 @@ it("files a manually proposed topic without submit metadata", async () => {
   );
 });
 
-it("does not wait for identity reporting before native dispatch and files a late report", async () => {
+it("does not wait for identity reporting before native dispatch and applies a late report", async () => {
   const {
     slot,
     workstreamStore: workstreamStore,
@@ -296,7 +296,7 @@ it("does not wait for identity reporting before native dispatch and files a late
   const prompt = "Improve parser diagnostics before the preview completes";
   await act(() => slot.behavior.setComposerText(prompt));
   await dispatchNative(prompt);
-  // Until the report arrives, the start call files the thread on its own.
+  // Until the report arrives, the start call chooses the workstream alone.
   expect(workstreamStore.assignment("composed").provenance).not.toBe("manual");
   expect(slot.inspection.composer.submits).toHaveLength(0);
   await act(() => releaseReports());
@@ -338,7 +338,7 @@ it("submits classified automatic identity through host metadata and assigns on s
   expect(w.sent).toEqual([]);
 });
 
-it("submits a picked topic through host metadata", async () => {
+it("submits a picked workstream through host metadata", async () => {
   const { w, slot, dispatch } = await mount({
     outcome: "new-thread",
     subject: "Alpha",
@@ -363,7 +363,7 @@ it("submits a picked topic through host metadata", async () => {
   expect(w.spawned).toEqual([]);
 });
 
-it("submits a new topic picked in the UI through host metadata", async () => {
+it("submits a new workstream picked in the UI through host metadata", async () => {
   const { w, slot, dispatch } = await mount({
     outcome: "new-thread",
     title: "Invoice export",
@@ -392,7 +392,7 @@ it("submits a new topic picked in the UI through host metadata", async () => {
   expect(workstreamStore.assignment("composed").workstreamId).toBe(created!.id);
 });
 
-it("submits a picked No topic through native submission and leaves the thread without one", async () => {
+it("submits a picked No workstream through native submission and leaves the thread without one", async () => {
   const { w, slot, dispatch } = await mount({
     outcome: "new-thread",
     workstream: "Alpha",

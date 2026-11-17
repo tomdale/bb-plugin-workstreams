@@ -28,13 +28,13 @@ const workstreams: Workstream[] = [
   },
 ];
 
-it("uses the nearest topic's associated project, including a subtopic's override", () => {
+it("uses the nearest workstream's associated project, including a child workstream's override", () => {
   expect(chosenProject("root", workstreams)).toBe("project-root");
   expect(chosenProject("child", workstreams)).toBe("project-root");
   expect(chosenProject("override", workstreams)).toBe("project-child");
 });
 
-it("leaves unknown, unassociated, and cyclic topics without a project", () => {
+it("leaves unknown, unassociated, and cyclic workstreams without a project", () => {
   expect(chosenProject(null, workstreams)).toBeNull();
   expect(chosenProject("missing", workstreams)).toBeNull();
   expect(

@@ -1,5 +1,5 @@
 /**
- * The final-response contract for a root-thread session while Enhanced
+ * The final-response contract for a top-level thread's session while Enhanced
  * responses is on, delivered where a reply-block session gets its reply
  * contract. The agent writes its meaning in plain Markdown and chooses no
  * layout; Workstreams composes the enhanced document afterward from that text.

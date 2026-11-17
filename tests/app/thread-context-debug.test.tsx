@@ -108,7 +108,7 @@ const renderSection = (
     },
   );
 
-it("shows the accumulated goal, digest, topic, and analysis run in Debug mode", async () => {
+it("shows the accumulated goal, digest, workstream, and analysis run in Debug mode", async () => {
   const slot = await renderSection(true, stateWith("t1"));
   await waitFor(() => {
     expect(slot.baseElement.textContent).toContain(

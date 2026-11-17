@@ -25,8 +25,8 @@ beforeEach(() => {
 afterEach(cleanup);
 
 /**
- * A topic tree whose root holds subtopics, so it cannot hold a thread itself
- * (see `takesThreads`), beside a root that can.
+ * A tree whose top group holds workstreams, so it cannot hold a thread itself
+ * (see `takesThreads`), beside a top-level workstream that can.
  */
 const tree = {
   workstreams: [
@@ -59,7 +59,7 @@ const threads = () => [
   sidebarThread("root", { sectionId: "sec_a", title: "Root task" }),
 ];
 
-/** Opens a row's Topic submenu and returns its items. */
+/** Opens a row's Move to submenu and returns its items. */
 const workstreamChoices = async (
   slot: Awaited<ReturnType<typeof mount>>,
   title: string,
@@ -80,8 +80,8 @@ const workstreamChoices = async (
   return within(submenu).getAllByRole("menuitem");
 };
 
-describe("the row menu's Topic submenu", () => {
-  it("does no catalog indexing while the menu is closed", async () => {
+describe("the row menu's Move to submenu", () => {
+  it("does no workstream indexing while the menu is closed", async () => {
     const slot = await mount(threads(), {
       settings: { showRecent: false, showUpNext: false },
       tree,
@@ -94,7 +94,7 @@ describe("the row menu's Topic submenu", () => {
     slot.lifecycle.unmount();
   });
 
-  it("offers only topics that can hold threads", async () => {
+  it("offers only workstreams that can hold threads", async () => {
     const slot = await mount(threads(), {
       settings: { showRecent: false, showUpNext: false },
       tree,
@@ -105,12 +105,12 @@ describe("the row menu's Topic submenu", () => {
       "Area › Shipping",
       "Loose ends",
     ]);
-    // The parent heads its subtopic and holds no threads of its own.
+    // The group heads its workstream and holds no threads of its own.
     expect(screen.queryByRole("menuitem", { name: /^Area$/ })).toBeNull();
     slot.lifecycle.unmount();
   });
 
-  it("shows a failed topic change in the sidebar", async () => {
+  it("shows a failed workstream change in the sidebar", async () => {
     const slot = await mount(threads(), {
       settings: { showRecent: false, showUpNext: false },
       tree,
@@ -123,7 +123,7 @@ describe("the row menu's Topic submenu", () => {
     slot.lifecycle.unmount();
   });
 
-  it("assigns a chosen topic without reporting an error", async () => {
+  it("moves to a chosen workstream without reporting an error", async () => {
     const slot = await mount(threads(), {
       settings: { showRecent: false, showUpNext: false },
       tree,

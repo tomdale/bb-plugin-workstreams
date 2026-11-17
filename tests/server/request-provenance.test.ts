@@ -132,7 +132,7 @@ afterEach(async () => {
   world = null;
 });
 
-it("keeps subagent reports out of placement and uses the real handoff source", async () => {
+it("keeps subagent reports out of the workstream choice and uses the real handoff source", async () => {
   world = await fakeWorld();
   const w = world;
   const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
@@ -198,7 +198,7 @@ it("finds earlier user requests past a burst of subagent reports", async () => {
   expect(prompt).not.toContain("Full transcript:");
 });
 
-it("uses the actual spawning agent for placement and continuation", async () => {
+it("uses the actual spawning agent for the workstream choice and continuation", async () => {
   world = await fakeWorld();
   const w = world;
   const workstreamStore = new WorkstreamStore(openDatabase(w.bb));

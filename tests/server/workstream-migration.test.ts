@@ -48,8 +48,8 @@ function setup() {
   return { db, workstreamStore, product, feature, journal, migration, mapping };
 }
 
-describe("reviewed topic migration", () => {
-  it("resets only explicit nonmanual classifications and keeps recoverable original filing", () => {
+describe("reviewed workstream migration", () => {
+  it("resets only explicit nonmanual classifications and keeps each recoverable original workstream", () => {
     const { migration, workstreamStore } = setup();
     const plan = migration.preview({ resetThreadIds: ["broad"] });
     expect(plan.blockers).toEqual([]);
@@ -93,7 +93,7 @@ describe("reviewed topic migration", () => {
     expect(() => migration.apply(plan.id)).toThrow("changed");
     expect(workstreamStore.assignment("broad").provenance).toBe("manual");
   });
-  it("previews deeper paths but blocks parent assignments instead of inventing catch-all topics", () => {
+  it("previews deeper paths but blocks moves into parents instead of inventing catch-all workstreams", () => {
     const { migration, workstreamStore, feature, product } = setup();
     const before = workstreamStore.state();
     const plan = migration.preview();
@@ -151,7 +151,7 @@ describe("reviewed topic migration", () => {
     expect(getMeta(db, "workstream_categories")).toContain("stable");
     expect(() => migration.apply(plan.id)).toThrow("Preview");
   });
-  it("rejects newer filing choices instead of overwriting them", () => {
+  it("rejects newer workstream choices instead of overwriting them", () => {
     const { migration, mapping, workstreamStore } = setup();
     const plan = migration.preview(mapping);
     const other = workstreamStore.create("Another Product");
@@ -169,7 +169,7 @@ describe("reviewed topic migration", () => {
     expect(workstreamStore.getById("old")).not.toBeNull();
   });
 
-  it("rejects cyclic ancestry without changing filing", () => {
+  it("rejects cyclic ancestry without moving threads", () => {
     const { migration, db } = setup();
     db.prepare(
       "UPDATE ws_workstream SET parent_id = 'old' WHERE id = 'old'",
@@ -184,7 +184,7 @@ describe("reviewed topic migration", () => {
     ).toEqual({ workstream_id: "old" });
   });
 
-  it("requires review of an explicit project association on a removed topic", () => {
+  it("requires review of an explicit project association on a removed workstream", () => {
     const { migration, mapping, db } = setup();
     db.prepare(
       "UPDATE ws_workstream SET project_id = 'project', project_source = 'manual' WHERE id = 'old'",
@@ -210,7 +210,7 @@ describe("reviewed topic migration", () => {
         .all(),
     ).toEqual([]);
   });
-  it("rejects new third-level identities and unknown filing choices", () => {
+  it("rejects new third-level identities and unknown workstream choices", () => {
     const { migration, mapping, feature } = setup();
     expect(() =>
       migration.preview({
@@ -225,7 +225,7 @@ describe("reviewed topic migration", () => {
       }),
     ).toThrow("known assignment");
   });
-  it("includes archived assignments in the filing guard and reviewed plan", () => {
+  it("includes archived threads in the move guard and reviewed plan", () => {
     const { workstreamStore, migration, mapping, feature } = setup();
     expect(workstreamStore.heldThreads(feature.id)).toBe(0);
     expect(

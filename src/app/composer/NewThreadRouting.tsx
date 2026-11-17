@@ -168,7 +168,7 @@ export function NewThreadRouting() {
   useEffect(() => {
     // The host composer submits through BB's own thread creation; the
     // destination the pickers show — picked or automatic — travels as submit
-    // metadata the server's dispatch hook files.
+    // metadata the server's dispatch hook moves the thread by.
     const current = model ? model.snapshot() : null;
     if (!model || !current) return;
     const primary = root?.closest<HTMLElement>(

@@ -35,7 +35,7 @@ const holdout = process.env.EVAL_HOLDOUT === "1";
  * `rearrange` (default) asks for a whole arrangement; `fit` asks the fit check
  * on every case with a current arrangement and threads that arrived or whose
  * work changed. A case passes the fit check when its expected partitions
- * follow from the current categories and the check files every thread into
+ * follow from the current categories and the check moves every thread into
  * them, or when they don't and the check sends it to a rearrangement.
  */
 const kind = process.env.EVAL_KIND ?? "rearrange";
@@ -102,11 +102,11 @@ for (const test of queue) {
       const fit = parseCategoryFit(response, input);
       const next = applyCategoryFit(input, fit);
       // Whether the expected arrangement keeps every current category's
-      // other members together: then filing into them can reach it.
+      // other members together: then moving threads into them can reach it.
       const reachable = (() => {
         const filed = new Set(input.changed);
         const expected = test.partitions.map((p) => new Set(p));
-        // A new category can't come from filing into the current ones.
+        // A new category can't come from moving threads into the current ones.
         const staying = new Set(
           input.current.categories
             .flatMap((category) => category.threadIds)

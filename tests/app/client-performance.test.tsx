@@ -861,7 +861,7 @@ it("rejects preference and spinner reads crossing a reader-free interval", async
   expect(handlers.spinner).toHaveBeenCalledTimes(2);
 });
 
-it("reuses catalog paths, leaf ordering, and search fields per snapshot", () => {
+it("reuses workstream paths, leaf ordering, and search fields per snapshot", () => {
   const workstreams = [
     {
       id: "area",

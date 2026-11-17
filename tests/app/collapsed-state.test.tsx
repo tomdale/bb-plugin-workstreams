@@ -13,7 +13,7 @@ afterEach(() => {
   });
   cleanup();
 });
-it("shares toggle state between mounted surfaces and retains topic identity across native sections", () => {
+it("shares toggle state between mounted surfaces and retains workstream identity across native sections", () => {
   const first = renderHook(() => useCollapsed());
   const second = renderHook(() => useCollapsed());
   const oldKey = groupCollapseKey("section-old", "workstream");

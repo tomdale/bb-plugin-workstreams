@@ -28,7 +28,8 @@ async function setup(goals: (string | null)[], prefs?: PrefsPatch) {
   let call = 0;
   world = await fakeWorld({
     prefs,
-    // Placement calls share the model; only Full analysis names goals.
+    // Workstream-choice calls share the model; only the turn-end call names
+    // goals.
     complete: ({ prompt }) =>
       JSON.stringify({
         recap: "Working.",

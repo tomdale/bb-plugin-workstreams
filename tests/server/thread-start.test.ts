@@ -7,7 +7,7 @@ import { openDatabase } from "../../src/server/db.ts";
 
 /*
  * The start call's title: a new thread named from its first request while
- * its first turn runs. These threads already have a topic you set, so the
+ * its first turn runs. These threads already have a workstream you set, so the
  * call asks only for the title; starting-workstream.test.ts covers the workstream.
  */
 
@@ -24,7 +24,9 @@ const REQUEST =
   "Fix the stale build cache in the monorepo, it keeps serving old output";
 const isOpening = (prompt: string) =>
   prompt.includes("You name one new agent thread from its opening request");
-/** Gives a thread a topic, so the start call has only its title to settle. */
+/**
+ * Gives a thread a workstream, so the start call has only its title to settle.
+ */
 const workstreamked = (w: World, id: string) =>
   new WorkstreamStore(openDatabase(w.bb)).assign(id, null, {
     provenance: "manual",
@@ -163,7 +165,7 @@ describe("naming a thread from its opening request", () => {
     expect(openingCalls(w)[1]!.prompt).toContain(
       "Validation requirement: return only a JSON object with the requested fields",
     );
-    // You set its topic, so the repair asks nothing about topics.
+    // You set its workstream, so the repair asks nothing about workstreams.
     expect(openingCalls(w)[1]!.prompt).not.toMatch(/topic_tree/);
   });
 
@@ -210,7 +212,7 @@ describe("naming a thread from its opening request", () => {
     expect(prompt).toContain(
       'Return {"title": {"verb": string, "subject": string}|null}',
     );
-    // You set its topic, so naming it needs no topic tree.
+    // You set its workstream, so naming it needs no workstream tree.
     expect(prompt).not.toContain("<workstream_tree>");
     expect(prompt).not.toContain("Last assistant");
     expect(prompt).not.toContain("Zebracorn");

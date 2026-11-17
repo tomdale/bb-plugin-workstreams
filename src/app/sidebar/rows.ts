@@ -16,9 +16,9 @@ type SnoozeOf = (
 ) => { until: number | null } | undefined;
 
 /**
- * What a placement changes about how its rows draw and what they offer. Every
- * row reads these from here, so a placement's behavior is one table entry
- * rather than a set of flags set at each call site.
+ * What a location changes about how its rows draw and what they offer. Every
+ * row reads these from here, so a location's behavior is one table entry rather
+ * than a set of flags set at each call site.
  */
 export type RowLocationTraits = {
   /**
@@ -71,7 +71,7 @@ export const LOCATION_TRAITS: Record<RowLocation, RowLocationTraits> = {
   },
 };
 
-/** A row drawn outside any placement, such as a row in isolation. */
+/** A row drawn outside any location, such as a row in isolation. */
 export const STANDALONE_TRAITS: RowLocationTraits = {
   ...LOCATION_TRAITS.group,
   inGroup: false,
@@ -91,10 +91,10 @@ export type RowEntry = {
 };
 
 /**
- * The rows of one tree (its root first, then descendants in tree order) as a
- * placement draws them, skipping folded rows' descendants. An overlay rebases
- * depth on the root, and keys children under it because a child can also be a
- * row of its own in the same band.
+ * The rows of one tree (its top thread first, then descendants in tree order)
+ * as a location draws them, skipping folded rows' descendants. An overlay
+ * rebases depth on the top thread, and keys children under it because a child
+ * can also be a row of its own in the same band.
  */
 export function visibleEntries(
   tree: readonly ThreadRow[],
@@ -201,7 +201,10 @@ export type BandGroupPlan = {
   readonly trees: ThreadRow[][];
 };
 
-/** Sort entire snoozed trees; their children stay with their roots even when grouped. */
+/**
+ * Sort entire snoozed trees; their children stay with their parent threads even
+ * when grouped.
+ */
 export function planBandRows(
   rows: readonly ThreadRow[],
   placement: "recent" | "snoozed" | "archived",
@@ -217,7 +220,7 @@ export function planBandRows(
   if (!options.grouped) return [{ id: null, name: null, trees: ordered }];
   const groups = new Map<string | null, ThreadRow[][]>();
   for (const tree of ordered) {
-    // A workstream the sidebar doesn't list files under Other.
+    // A workstream the sidebar doesn't list falls under Other.
     const workstreamId = tree[0]!.workstreamId;
     const id = workstreamId && nameOf.has(workstreamId) ? workstreamId : null;
     const group = groups.get(id) ?? [];
@@ -232,9 +235,9 @@ export function planBandRows(
 }
 
 /**
- * The archived threads as flat rows. An archived child inherits its root's
- * workstream, even across section changes, and a workstream the sidebar
- * doesn't list files under none.
+ * The archived threads as flat rows. An archived child inherits its parent
+ * thread's workstream, even across section changes, and a workstream the
+ * sidebar doesn't list falls under none.
  */
 export function planArchived(
   threads: readonly PluginSidebarThread[],
@@ -267,7 +270,10 @@ export function planArchived(
   return { threads: visible, rows };
 }
 
-/** Count every displayed descendant, but send only roots to the subtree snooze operation. */
+/**
+ * Count every displayed descendant, but send only top-level threads to the
+ * subtree snooze operation.
+ */
 export function groupSnoozeRequest(
   group: Group<PluginSidebarThread> | WorkstreamNode<PluginSidebarThread>,
 ) {

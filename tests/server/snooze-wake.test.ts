@@ -111,7 +111,7 @@ it("leaves a snooze alone when its wake event is turned off", async () => {
   expect(Object.keys(await snoozes(w))).toEqual(["t1"]);
 });
 
-it("wakes a snoozed thread when it or a delegate asks a question", async () => {
+it("wakes a snoozed thread when it or a child thread asks a question", async () => {
   const w = await world();
   const ask = (id: string) =>
     w.harness.behavior.emitThreadEvent("interaction.pending", {
@@ -130,7 +130,7 @@ it("wakes a snoozed thread when it or a delegate asks a question", async () => {
   expect(Object.keys(await snoozes(w))).toEqual(["t1"]);
 });
 
-it("wakes a delegate's root when the delegate's turn needs review", async () => {
+it("wakes a child thread's parent when the child's turn needs review", async () => {
   const w = await world();
   await snooze(w, null);
   await endTurn(w, "d1", "complete");

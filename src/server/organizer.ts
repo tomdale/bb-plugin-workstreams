@@ -196,7 +196,7 @@ export class Organizer {
     return this.storedLayout().nodes;
   }
 
-  /** Whether each root is done, from only the roots' analyses and recaps. */
+  /** Whether each thread is done, from only its analysis and recap. */
   private completed(roots: readonly InventoryThread[]): Map<string, boolean> {
     const current = new Map(
       this.deps.service.threads().map((thread) => [thread.id, thread]),
@@ -271,7 +271,7 @@ export class Organizer {
       const allThreads = this.deps.service.threads();
       const forest = buildForest(allThreads);
 
-      // Only independently actionable visible, non-archived roots
+      // Only independently actionable visible, non-archived top-level threads
       const roots = forest.threads
         .map((r) => r.thread)
         .filter((t) => !t.isHidden && !t.isArchived);
@@ -299,7 +299,8 @@ export class Organizer {
         return currentState;
       }
 
-      // What each root's workstream was settled from, shown for roots with none.
+      // What each thread's workstream was settled from, shown for threads with
+      // none.
       const evidenceById = new Map<string, string>();
       for (const [id, assignment] of assignments)
         if (assignment.evidence) evidenceById.set(id, assignment.evidence);
@@ -353,8 +354,8 @@ export class Organizer {
           ),
         });
       const planEvidence = evidence(workstreams, isCompletedMap, assignments);
-      // Workstreams, assignments, and analysis change only while the pass awaits
-      // BB, so the evidence is read again only after an await.
+      // Workstreams, threads' workstreams, and analysis change only while the
+      // pass awaits BB, so the evidence is read again only after an await.
       let awaited = false;
       const awaitBb = async <T>(call: Promise<T>): Promise<T> => {
         try {
@@ -404,7 +405,8 @@ export class Organizer {
             );
 
             if (!section) {
-              // Check if an existing section matches the name and is not bound to another active entity
+              // Check if an existing section matches the name and is not bound
+              // to another active workstream
               const candidate = liveSections.find(
                 (s) =>
                   s.name.toLowerCase() === expectedName.toLowerCase() &&
@@ -438,7 +440,7 @@ export class Organizer {
               groupBindings.set(created.id, workstreamId);
               this.deps.service.seeSection(created.id, created.name);
             } else if (section.name !== expectedName) {
-              // Rename section if entity name changed
+              // Rename section if workstream name changed
               await awaitBb(
                 sdk.threadSections.update({
                   id: section.id,
@@ -458,7 +460,7 @@ export class Organizer {
             workstreamToSection.set(workstreamId, section.id);
           }
 
-          // Update roots' sectionId in BB
+          // Update top-level threads' sectionId in BB
           for (const thread of roots) {
             assertCurrent();
             const assignment = assignments.get(thread.id);

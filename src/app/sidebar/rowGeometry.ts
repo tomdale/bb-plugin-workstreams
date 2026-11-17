@@ -19,9 +19,9 @@ const ROW_HEIGHT_CLASS = {
 } as const satisfies Record<RowHeight, string>;
 
 /**
- * The layout values a sidebar row derives from its depth and placement: its
- * left padding, its height and line-height classes, and whether its hover
- * actions draw at the compact (root) size.
+ * The layout values a sidebar row derives from its depth and location: its left
+ * padding, its height and line-height classes, and whether its hover actions
+ * draw at the compact (top-level) size.
  */
 export function rowGeometry(options: {
   depth: number;
@@ -36,11 +36,11 @@ export function rowGeometry(options: {
   leadingClass: string;
   compactActions: boolean;
 } {
-  // Inline groups: a root sits at the workstream header's title inset, and
-  // a categorized root indents to the category heading. The category's 20px
-  // indent less the sortable tree container's own inset (`treeInset`) leaves
-  // 8px here, so a categorized root sits flush under its heading. Overlay
-  // bands give every row a fixed indent.
+  // Inline groups: a top-level thread sits at the workstream header's title
+  // inset, and a categorized one indents to the category heading. The
+  // category's 20px indent less the sortable tree container's own inset
+  // (`treeInset`) leaves 8px here, so a categorized thread sits flush under its
+  // heading. Overlay bands give every row a fixed indent.
   const baseIndent = options.inGroup
     ? options.categorized
       ? SIDEBAR_GEOMETRY.category.indent - SIDEBAR_GEOMETRY.category.treeInset
@@ -64,9 +64,9 @@ export function rowGeometry(options: {
         ]
       } items-center`;
 
-  // Nested and two-line rows give their titles a 20px (`leading-5`) line so
-  // the aside stays centered on it; a root's title sits on a tighter 1.2
-  // line to fit its 21px row.
+  // Nested and two-line rows give their titles a 20px (`leading-5`) line so the
+  // aside stays centered on it; a top-level title sits on a tighter 1.2 line to
+  // fit its 21px row.
   const leadingClass =
     options.hasSubtitle || options.depth > 0 ? "leading-5" : "leading-[1.2]";
 

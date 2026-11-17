@@ -3,9 +3,9 @@
  *
  * BB stores hierarchy as flat `parentThreadId` links, which can point at a
  * thread the caller cannot see (archived, hidden, deleted) or, in corrupt data,
- * form a cycle. The forest built here places every input thread exactly once:
- * a thread whose parent is absent becomes a root, and each cycle is broken at
- * its lowest id so the result is deterministic.
+ * form a cycle. The forest built here places every input thread exactly once: a
+ * thread whose parent is absent becomes a top-level thread, and each cycle is
+ * broken at its lowest id so the result is deterministic.
  */
 
 export type TreeThread = {
@@ -21,9 +21,9 @@ export type TreeNode<T extends TreeThread> = {
 
 type Forest<T extends TreeThread> = {
   readonly threads: TreeNode<T>[];
-  /** Root thread of each input thread's tree, keyed by thread id. */
+  /** The top thread of each input thread's tree, keyed by thread id. */
   readonly rootOf: ReadonlyMap<string, T>;
-  /** Threads whose parent is not in the input; they render as roots. */
+  /** Threads whose parent is not in the input; they render at the top. */
   readonly orphanIds: readonly string[];
   /** Threads that were only reachable through a parent cycle. */
   readonly cycleIds: readonly string[];

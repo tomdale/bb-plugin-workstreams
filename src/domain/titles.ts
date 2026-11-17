@@ -47,7 +47,8 @@ type RetitleSkip =
 /**
  * What a suggested title was inferred from.
  *
- * - `analysis`: the full analysis of a finished turn. The thread must still be
+ * - `analysis`: the turn-end analysis of a finished turn. The thread must still
+ * be
  *   idle at the analyzed revision.
  * - `opening`: the opening request alone, while the first turn is still
  *   running. It may only name a thread that has no title of its own, and only

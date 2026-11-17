@@ -37,7 +37,7 @@ export type HomePlan<T extends WorkstreamThread> = {
     readonly more: readonly Row<T>[];
     readonly trimmed: readonly Row<T>[];
   } | null;
-  /** The pinned roots, in BB's pin order, under Up Next (see `Projection`). */
+  /** Pinned threads, in BB's pin order, under Up Next (see `Projection`). */
   readonly pinnedThreads: readonly Row<T>[];
   /**
    * Focus, which holds whether or not Up Next shows: while a focused

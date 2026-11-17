@@ -217,7 +217,8 @@ describe("snoozing a workstream row", () => {
     );
     const [call, ...rest] = snoozeCalls(slot);
     expect(rest).toEqual([]);
-    // Roots only; each takes its children along and wakes with them.
+    // Top-level threads only; each takes its children along and wakes with
+    // them.
     expect([...call!.threadIds].sort()).toEqual(["ask", "nap"]);
     expect(call!.until - before).toBeGreaterThanOrEqual(3 * 3_600_000);
     expect(call!.until - before).toBeLessThan(3 * 3_600_000 + 5_000);
@@ -280,7 +281,7 @@ describe("snoozing a workstream row", () => {
     slot.lifecycle.unmount();
   });
 
-  it("snoozes Unfiled, and draws no header for a workstream with no threads", async () => {
+  it("snoozes Other, and draws no header for a workstream with no threads", async () => {
     const slot = await mount(
       [
         sidebarThread("ask", { sectionId: "sec_a", title: "Asking task" }),
@@ -389,7 +390,7 @@ describe("snoozing a workstream row", () => {
     slot.lifecycle.unmount();
   });
 
-  it("offers only Overview and Snooze on Unfiled's header", async () => {
+  it("offers only Overview and Snooze on Other's header", async () => {
     const slot = await mount(
       [
         sidebarThread("ask", { sectionId: "sec_a", title: "Asking task" }),

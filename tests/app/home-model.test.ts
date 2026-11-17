@@ -60,7 +60,7 @@ describe("planHome", () => {
     expect(ids(unfilled.upNext!.rows)).toEqual(["unread"]);
   });
 
-  it("lists workstreams with threads, Unfiled, then Dormant, and skips empty ones", () => {
+  it("lists workstreams with threads, Other, then Dormant, and skips empty ones", () => {
     const projection = projectWorkstreams(
       [
         thread("a1", { sectionId: "sec_a", latestAttentionAt: now - 1 }),
@@ -203,7 +203,7 @@ describe("planHome", () => {
     expect(plan.lowerCounts).toEqual({ needsYou: 1, total: 1 });
   });
 
-  it("tiers nothing while the prioritized workstream has no active threads", () => {
+  it("tiers nothing while the focused workstream has no active threads", () => {
     const projection = projectWorkstreams(
       [
         thread("snoozed", { sectionId: "sec_a", latestAttentionAt: now }),
@@ -454,7 +454,7 @@ describe("home.css", () => {
   });
 });
 
-describe("planHome with topics", () => {
+describe("planHome with nested workstreams", () => {
   it("nests workstreams and focuses a whole top-level group", () => {
     const nested = [
       { id: "sec_p", name: "Product" },

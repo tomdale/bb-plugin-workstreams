@@ -88,7 +88,7 @@ const stepSchema = z.discriminatedUnion("kind", [
     kind: z.literal("restore-workstreams"),
     snapshotId: z.string(),
     /**
-     * The workstreams and groups and assignments the change left (see
+     * The workstreams and groups and threads' workstreams the change left (see
      * `topicsFingerprint`); any later change to them blocks undo.
      */
     fingerprint: z.string(),

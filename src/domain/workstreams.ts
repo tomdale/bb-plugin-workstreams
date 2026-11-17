@@ -70,7 +70,7 @@ export const takesThreads = (
   workstreams: readonly { parentId: string | null }[],
 ) => !workstreams.some((workstream) => workstream.parentId === id);
 
-/** Returns ancestor entity IDs from nearest up to root. */
+/** Returns ancestor workstream IDs from nearest up to the top. */
 export function workstreamAncestors(
   id: string,
   workstreams: readonly { id: string; parentId: string | null }[],
@@ -134,11 +134,11 @@ const sameName = (
  * ["Subagents"]); taken verbatim, that creates a same-named copy of the parent.
  *
  * Each segment, outermost first and the leaf last, that names a workstream on
- * the anchor's own path or an existing child of the anchor (an existing root
- * without one) becomes the anchor; the first other segment starts the missing
- * remainder. Names match by name or alias, ignoring case, as the workstreams and groups's
- * sibling lookup does. When the leaf resolves too, the proposal is that
- * existing workstream.
+ * the anchor's own path or an existing child of the anchor (an existing
+ * top-level workstream without one) becomes the anchor; the first other segment
+ * starts the missing remainder. Names match by name or alias, ignoring case, as
+ * the workstreams and groups's sibling lookup does. When the leaf resolves too,
+ * the proposal is that existing workstream.
  */
 export function resolveProposal(
   proposal: DraftWorkstreamProposal,

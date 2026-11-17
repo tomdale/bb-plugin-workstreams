@@ -27,8 +27,8 @@ export function useGoalContext(threadId: string | null): GoalContext | null {
         if (!threadId) return null;
         const thread = threads.find((item) => item.id === threadId);
         if (!thread) return null;
-        // Child threads follow their root's workstream, even when BB keeps a
-        // different native section on the child thread itself.
+        // Child threads follow their parent thread's workstream, even when BB
+        // keeps a different native section on the child thread itself.
         let root = thread;
         const seen = new Set([root.id]);
         while (root.parentThreadId && !seen.has(root.parentThreadId)) {

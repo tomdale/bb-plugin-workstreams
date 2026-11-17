@@ -1,8 +1,8 @@
 import { workstreamAncestors } from "./workstreams.ts";
 
 /**
- * The workstream a workstream's roots file under: its nearest self-or-ancestor
- * that lists threads (see `layoutGroups`).
+ * The workstream a workstream's threads are listed under: its nearest
+ * self-or-ancestor that lists threads (see `layoutGroups`).
  */
 export function activeHome(
   id: string,

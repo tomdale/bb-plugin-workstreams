@@ -1,8 +1,9 @@
 /*
  * Model contracts for reviewed workstream divisions and tidy edits. Validation
- * keeps assignments in leaf workstreams and resulting paths within two levels.
- * Contextual category inference uses categories.ts and separate collection state.
- * Prompt IDs map back through their input, so unsupported IDs never file work.
+ * keeps threads in leaf workstreams and resulting paths within two levels.
+ * Contextual category inference uses categories.ts and separate collection
+ * state. Prompt IDs map back through their input, so unsupported IDs never move
+ * work.
  */
 import { z } from "zod";
 import { HEADER, redact, stripFence, tagged } from "./analysis.ts";
@@ -58,7 +59,10 @@ export type TidyEdit =
 export type Split = {
   readonly workstreamId: string;
   readonly threadTitles?: Readonly<Record<string, string>>;
-  /** It files the threads of a workstream that holds them beside workstreams in a group. */
+  /**
+   * It moves the threads of a workstream that holds them beside workstreams in
+   * a group.
+   */
   readonly repair?: boolean;
   readonly workstreams: readonly {
     readonly name: string;
@@ -78,7 +82,7 @@ const validName = (name: string) => {
   return clean.length > 0 && clean.length <= 80 && !clean.includes(PATH_MARK);
 };
 
-/** Visible threads filed directly in each workstream. */
+/** Visible threads directly in each workstream. */
 export type Held = Readonly<Record<string, number>>;
 
 function treeBlock(
@@ -152,7 +156,10 @@ export type SplitInput = {
 
 const SPLIT_RULES = `The workstreams of a group identify lasting products, capabilities, or maintained areas within a broad product. Each scope must be supported by the requests and independently assignable to a future thread without comparing it with other threads. A single-purpose tool covers its fixes, refactors, and reviews without separate workstreams for those stages. Thread volume and recurring categories do not establish lasting scope. Name each workstream for its supported scope, rather than General or Other, so future threads follow the area instead of leftover membership. Give every listed thread one supported workstream and leave the split unapplied if no complete supported split is available. Workstreams go at most two levels deep: these workstreams sit inside the group and hold threads. Name them in Title Case, preserving product spelling, without repeating the group's name.`;
 
-/** The group's workstreams in a group a thread can be filed in: those without workstreams in a group. */
+/**
+ * The group's workstreams a thread can be moved into: those without workstreams
+ * in a group.
+ */
 const fileable = (input: Pick<SplitInput, "workstreams" | "workstreamId">) =>
   input.workstreams.filter(
     (t) =>
@@ -892,7 +899,7 @@ type SplitNow = {
    * without the new workstreams that left it empty.
    */
   readonly split: Split;
-  /** Threads that joined the group since, which accepting must also file. */
+  /** Threads that joined the group since, which accepting must also move. */
   readonly arrivals: readonly string[];
   /** Why it no longer makes sense or can't apply; null when it can. */
   readonly problem: string | null;
@@ -901,11 +908,11 @@ type SplitNow = {
 };
 
 /**
- * Fits a split to the group as it is now. Threads moving or closing since
- * don't stop it: the rest are filed as proposed, and threads that joined
- * are filed too when it's accepted. It stops only when what it proposed no
- * longer holds: the group is gone, none of its threads remain, more threads
- * joined than remain, or a split would leave only one workstream with threads.
+ * Fits a split to the group as it is now. Threads moving or closing since don't
+ * stop it: the rest are moved as proposed, and threads that joined are moved
+ * too when it's accepted. It stops only when what it proposed no longer holds:
+ * the group is gone, none of its threads remain, more threads joined than
+ * remain, or a split would leave only one workstream with threads.
  */
 export function splitNow(split: Split, state: TreeState): SplitNow {
   const group = state.workstreams.find((t) => t.id === split.workstreamId);

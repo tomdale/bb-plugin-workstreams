@@ -17,7 +17,7 @@ export type ProjectLearningDecision = {
 
 const PROJECT_LEARNING_THREADS = 3;
 
-/** Independent roots must agree; a parent's children must also agree. */
+/** Independent top-level threads must agree; so must a parent's children. */
 export function projectLearningPlan(
   workstreams: readonly Workstream[],
   threads: readonly ProjectThread[],

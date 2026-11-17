@@ -155,7 +155,7 @@ it("shows one item at a time, Up Next first, with how many are left", async () =
   slot.lifecycle.unmount();
 });
 
-it("uses the topic color for the queue workstream path", async () => {
+it("uses the workstream color for the queue workstream path", async () => {
   const slot = await mount({
     workstreams: [
       {

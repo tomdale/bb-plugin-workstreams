@@ -115,7 +115,8 @@ export function useWorkstreams() {
   /** What nests the workstreams (see `nestGroups`). */
   const workstreams: WorkstreamTree | undefined = useMemo(
     () => workstreamsOf(tree),
-    // A filing changes the workstream tree's assignments, which nesting never reads.
+    // Moving a thread changes only threads' workstreams, which nesting never
+    // reads.
     [tree?.workstreams, tree?.groups, tree?.layout, tree?.categories],
   );
   const upNextOptions = shared.upNextOptions(

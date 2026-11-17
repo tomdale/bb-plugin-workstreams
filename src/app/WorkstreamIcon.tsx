@@ -3,8 +3,8 @@ import { cn } from "@/lib/utils";
 import { WORKSTREAM_ICON } from "./workstream-icon.ts";
 
 /**
- * The mark beside a workstream's name, wherever the UI shows a workstream
- * entity: muted, decorative, and sized by the caller's `className`.
+ * The mark beside a workstream's name, wherever the UI shows a workstream or
+ * group: muted, decorative, and sized by the caller's `className`.
  */
 export function WorkstreamIcon({ className }: { className?: string }) {
   return (

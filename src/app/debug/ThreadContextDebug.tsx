@@ -1,11 +1,11 @@
 /**
- * The thread Info tab and thread context card's "Workstreams debug"
- * section: the metadata Workstreams generated and accumulated for the
- * thread — the settled goal, the context digest, the workstream assignment and
- * its provenance, and the latest analysis run's status, model, and age.
- * Related journal events and analysis calls appear below, with the model-call
- * inspector one click away. Shown with the debug UI only; the slots are
- * feature-detected, so bb builds without them skip the registrations.
+ * The thread Info tab and thread context card's "Workstreams debug" section:
+ * the metadata Workstreams generated and accumulated for the thread — the
+ * settled goal, the context digest, the thread's workstream and its provenance,
+ * and the latest analysis run's status, model, and age. Related journal events
+ * and analysis calls appear below, with the model-call inspector one click
+ * away. Shown with the debug UI only; the slots are feature-detected, so bb
+ * builds without them skip the registrations.
  */
 import type { ReactNode } from "react";
 import {

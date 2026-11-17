@@ -14,7 +14,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-it("reorders roots by dragging a row", async () => {
+it("reorders threads by dragging a row", async () => {
   const restore = layoutByRows();
   try {
     const slot = await mountWithBands(
@@ -104,7 +104,7 @@ it("does not rerender row content for drag transforms", async () => {
   }
 });
 
-it("does not highlight another workstream until its topic binding is known", async () => {
+it("does not highlight another workstream until its section binding is known", async () => {
   const restore = layoutByRows();
   try {
     const slot = await mount(
@@ -140,7 +140,7 @@ it("does not highlight another workstream until its topic binding is known", asy
   }
 });
 
-it("moves a root onto a collapsed workstream header", async () => {
+it("moves a thread onto a collapsed workstream header", async () => {
   const restore = layoutByRows();
   const rowBounds = Element.prototype.getBoundingClientRect;
   Element.prototype.getBoundingClientRect = function () {
@@ -227,7 +227,7 @@ it("moves a root onto a collapsed workstream header", async () => {
 });
 
 it.each([false, true])(
-  "chooses a topic inside a parent group and moves its delegates (failure: %s)",
+  "chooses a workstream inside a parent group and moves its child threads (failure: %s)",
   async (fails) => {
     let release!: () => void;
     const moveWait = new Promise<void>((resolve) => {

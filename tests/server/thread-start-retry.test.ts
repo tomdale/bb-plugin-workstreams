@@ -38,7 +38,7 @@ async function setup() {
     sdk: () => world!.bb.sdk,
     inference: { run, annotate: vi.fn() } as unknown as Inference,
     model: async () => ({ kind: "gateway", model: "test" }),
-    // Only the topic is asked, so these tests follow filing alone.
+    // Only the workstream is asked, so these tests follow its choice alone.
     titles: () => false,
     analyzed: () => false,
     title: async () => {},
@@ -194,7 +194,7 @@ describe("first-request start retries", () => {
     expect(workstreamStore.assignment(thread.id).provenance).toBeNull();
   });
 
-  it("retries a fetch failure and files the successful answer", async () => {
+  it("retries a fetch failure and applies the successful answer", async () => {
     const { workstream, workstreamStore, run, apply, log, first, thread } =
       await setup();
     run.mockRejectedValueOnce(new TypeError("fetch failed"));
@@ -219,7 +219,7 @@ describe("first-request start retries", () => {
     });
   });
 
-  it("stops after three failed attempts without changing the topic", async () => {
+  it("stops after three failed attempts without changing the workstream", async () => {
     const { workstreamStore, run, apply, log, first, thread } = await setup();
     run.mockRejectedValue(new TypeError("fetch failed"));
     const pending = first();
@@ -278,7 +278,7 @@ describe("first-request start retries", () => {
     expect(workstreamStore.assignment(thread.id).provenance).toBe("manual");
   });
 
-  it("rebuilds the placement question against the current topic tree", async () => {
+  it("rebuilds the workstream-choice question against the current tree", async () => {
     const { workstreamStore, run, first, thread } = await setup();
     run.mockRejectedValueOnce(new TypeError("fetch failed"));
     const pending = first();

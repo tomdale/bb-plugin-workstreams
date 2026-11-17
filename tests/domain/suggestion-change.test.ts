@@ -18,7 +18,7 @@ const workstream = (
 
 /**
  * bb holds Todo; Toolbelt holds two threads; Agent › Automations holds a
- * thread beside its Alerts subtopic.
+ * thread beside its Alerts workstream.
  */
 const context = (extra: Partial<ChangeContext> = {}): ChangeContext => ({
   workstreams: [
@@ -47,7 +47,7 @@ const listed = (...ids: string[]) =>
   ids.map((id) => ({ id, title: `Thread ${id}` }));
 
 describe("suggestionChange", () => {
-  it("refiles a thread from where it is, or from Unfiled", () => {
+  it("moves a thread from where it is, or from Other", () => {
     expect(
       suggestionChange(
         { op: "move-thread", thread: "t1", workstream: "todo" },
@@ -72,7 +72,7 @@ describe("suggestionChange", () => {
     ).toMatchObject({ from: null, threads: listed("t5") });
   });
 
-  it("splits a topic's threads into the subtopics it would create", () => {
+  it("splits a workstream's threads into the workstreams it would create", () => {
     expect(
       suggestionChange(
         {
@@ -136,7 +136,7 @@ describe("suggestionChange", () => {
     ]);
   });
 
-  it("files threads beside subtopics in existing subtopics by name or alias", () => {
+  it("moves threads beside child workstreams into existing ones by name or alias", () => {
     const change = suggestionChange(
       {
         workstreamId: "auto",
@@ -152,7 +152,7 @@ describe("suggestionChange", () => {
     ]);
   });
 
-  it("merges a topic's threads and subtopics into another", () => {
+  it("merges a workstream's threads and child workstreams into another", () => {
     expect(
       suggestionChange({ op: "merge", from: "auto", into: "todo" }, context()),
     ).toEqual({
@@ -174,7 +174,7 @@ describe("suggestionChange", () => {
     });
   });
 
-  it("moves a topic with every thread below it", () => {
+  it("moves a workstream with every thread below it", () => {
     expect(
       suggestionChange(
         { op: "move-workstream", workstream: "agent", parent: "bb" },
@@ -196,7 +196,7 @@ describe("suggestionChange", () => {
     ).toMatchObject({ from: at("bb", "Todo Plugin"), to: at("Todo Plugin") });
   });
 
-  it("counts only visible threads moving with a topic", () => {
+  it("counts only visible threads moving with a workstream", () => {
     const hidden = context({ visible: (id) => id !== "t4" && id !== "t1" });
     expect(
       suggestionChange(
@@ -210,7 +210,7 @@ describe("suggestionChange", () => {
     ).toEqual(listed("t2"));
   });
 
-  it("renames a topic in place", () => {
+  it("renames a workstream in place", () => {
     expect(
       suggestionChange(
         { op: "rename", workstream: "todo", name: "Todos" },
@@ -219,7 +219,7 @@ describe("suggestionChange", () => {
     ).toMatchObject({ from: at("bb", "Todo Plugin"), to: at("bb", "Todos") });
   });
 
-  it("creates a parent around topics, or a topic on its own", () => {
+  it("creates a group around workstreams, or a workstream on its own", () => {
     expect(
       suggestionChange(
         {
@@ -253,7 +253,7 @@ describe("suggestionChange", () => {
     ).toEqual([{ from: null, to: [made("Plugins")], threads: [], carried: 0 }]);
   });
 
-  it("places a topic another suggestion of the pass creates", () => {
+  it("places a workstream another suggestion of the pass creates", () => {
     const change = suggestionChange(
       { op: "move-thread", thread: "t1", workstream: "new:plugins" },
       context({
@@ -263,7 +263,7 @@ describe("suggestionChange", () => {
     expect(change?.moves[0]?.to).toEqual([...at("bb"), made("Plugins")]);
   });
 
-  it("is null when a thread or topic it names is gone", () => {
+  it("is null when a thread or workstream it names is gone", () => {
     expect(
       suggestionChange(
         { op: "move-thread", thread: "gone", workstream: "todo" },
@@ -420,8 +420,8 @@ describe("changeHeadline", () => {
 describe("changeDelta", () => {
   /**
    * Billing holds Invoices and Payments; Docs holds two threads; Infra holds
-   * one beside no subtopics; "Automations" is empty. t9 is archived work
-   * filed under Payments.
+   * one beside no child workstreams; "Automations" is empty. t9 is archived
+   * work in Payments.
    */
   const world = (extra: Partial<ChangeContext> = {}): ChangeContext => ({
     workstreams: [
@@ -449,7 +449,7 @@ describe("changeDelta", () => {
     ...extra,
   });
 
-  it("refiles a thread, and files an unfiled one", () => {
+  it("moves a thread, and moves one with no workstream", () => {
     expect(
       changeDelta(
         { op: "move-thread", thread: "d1", workstream: "infra" },
@@ -474,7 +474,7 @@ describe("changeDelta", () => {
     ).toEqual([{ threadId: "u1", workstreamId: "docs" }]);
   });
 
-  it("moves nothing for a rename, and names the topic as it will be", () => {
+  it("moves nothing for a rename, and names the workstream as it will be", () => {
     expect(
       changeDelta(
         { op: "rename", workstream: "docs", name: " Documentation " },
@@ -491,7 +491,7 @@ describe("changeDelta", () => {
     });
   });
 
-  it("reparents a topic, with or without a new name", () => {
+  it("reparents a workstream, with or without a new name", () => {
     expect(
       changeDelta(
         { op: "move-workstream", workstream: "docs", parent: "billing" },
@@ -511,7 +511,7 @@ describe("changeDelta", () => {
     ).toEqual([{ id: "invoices", name: "Billing Docs", parentId: null }]);
   });
 
-  it("merges a topic into another: threads follow and the source is removed", () => {
+  it("merges a workstream into another: threads follow and the source is removed", () => {
     expect(
       changeDelta({ op: "merge", from: "docs", into: "infra" }, world()),
     ).toMatchObject({
@@ -541,7 +541,7 @@ describe("changeDelta", () => {
     ]);
   });
 
-  it("merges a topic with subtopics, joining subtopics of the same name", () => {
+  it("merges a group, joining child workstreams of the same name", () => {
     expect(
       changeDelta({ op: "merge", from: "web", into: "billing" }, world()),
     ).toMatchObject({
@@ -569,7 +569,7 @@ describe("changeDelta", () => {
     );
   });
 
-  it("creates a topic, adopting the topics it names", () => {
+  it("creates a workstream, adopting the workstreams it names", () => {
     const created = changeDelta(
       {
         op: "group",
@@ -612,7 +612,7 @@ describe("changeDelta", () => {
     });
   });
 
-  it("splits a topic into new subtopics and reuses a matching one", () => {
+  it("splits a workstream into new workstreams and reuses a matching one", () => {
     const split = changeDelta(
       {
         workstreamId: "docs",
@@ -640,7 +640,8 @@ describe("changeDelta", () => {
       { threadId: "d1", workstreamId: newWorkstreamId("docs", "Guides") },
       { threadId: "d2", workstreamId: newWorkstreamId("docs", "Reference") },
     ]);
-    // A subgroup named like an existing subtopic, or its alias, files into it.
+    // A subgroup named like an existing workstream, or its alias, moves into
+    // it.
     expect(
       changeDelta(
         {
@@ -659,7 +660,7 @@ describe("changeDelta", () => {
     });
   });
 
-  it("names the threads filed in a topic it touches, with titles, and leaves archived ones out", () => {
+  it("names the threads in a workstream it touches, with titles, and leaves archived ones out", () => {
     const delta = changeDelta(
       { op: "rename", workstream: "payments", name: "Billing Payments" },
       world({ visible: (id) => id !== "t9" }),
@@ -686,7 +687,7 @@ describe("changeDelta", () => {
     ).toBe(0);
   });
 
-  it("is null when a topic or thread it names is gone", () => {
+  it("is null when a workstream or thread it names is gone", () => {
     expect(
       changeDelta(
         { op: "move-thread", thread: "gone", workstream: "docs" },
@@ -713,7 +714,7 @@ describe("changeDelta", () => {
     ).toBeNull();
   });
 
-  it("is null while it needs a topic another suggestion creates", () => {
+  it("is null while it needs a workstream another suggestion creates", () => {
     expect(
       changeDelta(
         { op: "move-thread", thread: "d1", workstream: "new:Money" },
@@ -737,7 +738,7 @@ describe("changeDelta", () => {
     ).toBeNull();
   });
 
-  it("applies to topics and filing without changing its inputs", () => {
+  it("applies to workstreams and thread workstreams without changing its inputs", () => {
     const context = world();
     const change = changeDelta(
       { op: "merge", from: "docs", into: "infra" },

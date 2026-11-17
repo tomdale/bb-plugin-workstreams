@@ -17,7 +17,7 @@ const declared: Record<string, string> =
 
 describe("the plugin's declared icons", () => {
   // BB draws an icon name it doesn't know as a lightning bolt, so every name
-  // the UI uses for a Workstreams entity must be declared in the manifest.
+  // the UI uses for a Workstreams object must be declared in the manifest.
   it.each([
     ["workstream", WORKSTREAM_ICON],
     ["tag", TAG_ICON],

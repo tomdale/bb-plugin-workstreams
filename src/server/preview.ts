@@ -50,7 +50,7 @@ export class ComposerPreview {
       workstreamStore: WorkstreamStore;
       workstreamChoice: Pick<WorkstreamChoice, "draft">;
       inference: Inference;
-      /** The model that names and files new threads. */
+      /** The model that names new threads and chooses their workstreams. */
       model: () => Promise<ModelChoice>;
     },
   ) {}

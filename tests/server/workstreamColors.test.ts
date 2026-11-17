@@ -27,7 +27,7 @@ afterEach(async () => {
 const hueDistance = (a: number, b: number) =>
   Math.min(Math.abs(a - b), 360 - Math.abs(a - b));
 
-describe("topic colors", () => {
+describe("workstream colors", () => {
   it("survives renaming, section recreation, restarts and new unrelated workstreams", () => {
     const { db, workstreamStore, read } = store();
     const parent = workstreamStore.create("Alpha");
@@ -59,7 +59,7 @@ describe("topic colors", () => {
     ).toEqual(after);
   });
 
-  it("reassigns only moved topics to their new family and releases deleted topics", () => {
+  it("reassigns only moved workstreams to their new family and releases deleted ones", () => {
     const { workstreamStore, read } = store();
     const a = workstreamStore.create("Alpha"),
       b = workstreamStore.create("Beta");
@@ -112,7 +112,7 @@ describe("topic colors", () => {
     expect(read()).toEqual(colors);
   });
 
-  it("does not replace a valid stored color for an invalid topic tree", () => {
+  it("does not replace a valid stored color for an invalid workstream tree", () => {
     const { workstreamStore, colors, read } = store();
     const workstream = workstreamStore.create("Kept");
     workstreamStore.bindGroup("sec", workstream.id);

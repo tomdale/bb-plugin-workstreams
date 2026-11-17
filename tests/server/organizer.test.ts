@@ -35,7 +35,7 @@ const rebuildOrg = async (w: World): Promise<OrganizerState> => {
 };
 
 describe("automatic update coordinator lifecycle", () => {
-  it("initial populate: Full analysis settles each root's topic, and organizing files it", async () => {
+  it("initial populate: the turn-end analysis settles each thread's workstream, and organizing moves it", async () => {
     let lanternId = "";
     world = await fakeWorld({
       complete: () =>
@@ -79,7 +79,7 @@ describe("automatic update coordinator lifecycle", () => {
     await rebuildOrg(w);
     expect(calls).toHaveLength(0);
   });
-  it("new root: a thread created from another starts with its topic", async () => {
+  it("new thread: a thread created from another starts with its workstream", async () => {
     world = await fakeWorld();
     const w = world;
     const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
@@ -88,7 +88,7 @@ describe("automatic update coordinator lifecycle", () => {
     workstreamStore.assign("t1", lantern.id, { provenance: "automatic" });
     await rebuildOrg(w);
 
-    // A fork of t1 inherits its topic as soon as it exists.
+    // A fork of t1 inherits its workstream as soon as it exists.
     const t2 = w.addThread("t2", {
       title: "Lantern task 2",
       sourceThreadId: "t1",
@@ -103,7 +103,7 @@ describe("automatic update coordinator lifecycle", () => {
     const section = w.sections.find((s) => s.name === "Lantern")!;
     expect(w.threads.get("t2")?.sectionId).toBe(section.id);
   });
-  it("correct identity: manual assignment is authoritative and moves the root", async () => {
+  it("correct identity: a manual workstream is authoritative and moves the thread", async () => {
     world = await fakeWorld();
     const w = world;
     const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
@@ -153,7 +153,7 @@ describe("automatic update coordinator lifecycle", () => {
     const state = await rebuildOrg(w);
     expect(state.counts.activeThreads).toBe(0);
     expect(state.groups).toHaveLength(0);
-    // Nothing is left to file in it, so the workstream goes with its threads.
+    // Nothing is left to move into it, so the workstream goes with its threads.
     expect(w.sections.some((s) => s.name === "Lantern")).toBe(false);
     expect(w.threads.get("t1")?.archivedAt).not.toBeNull();
   });
@@ -210,8 +210,8 @@ describe("automatic update coordinator lifecycle", () => {
     state = await rebuildOrg(w);
     expect(state.counts.activeThreads).toBe(1);
     expect(state.counts.completedThreads).toBe(3);
-    // Four visible roots on one topic stay its one workstream, regardless of
-    // completion state.
+    // Four visible threads in one workstream stay its one workstream,
+    // regardless of completion state.
     expect(state.groups).toHaveLength(1);
     expect(state.groups[0]!.name).toBe("Lantern › Shelves");
     expect(state.groups[0]!.completedCount).toBe(3);
@@ -228,7 +228,7 @@ describe("automatic update coordinator lifecycle", () => {
     expect(state.counts.completedThreads).toBe(2);
   });
 
-  it("reparent: derived groups follow catalog reparenting", async () => {
+  it("reparent: derived groups follow workstream moves", async () => {
     world = await fakeWorld();
     const w = world;
     const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
@@ -241,8 +241,8 @@ describe("automatic update coordinator lifecycle", () => {
       threadId: "t1",
       workstreamId: feat.id,
     });
-    // A root topic with no threads of its own is a context, so the feature
-    // lists its thread under its own name.
+    // A top-level workstream with no threads of its own is a context, so
+    // the feature lists its thread under its own name.
     let state = await rebuildOrg(w);
     expect(state.groups[0]!.name).toBe("ProductOne › FeatureX");
 
@@ -257,7 +257,7 @@ describe("automatic update coordinator lifecycle", () => {
     expect(w.threads.get("t1")?.sectionId).toBe(p2Sec.id);
   });
 
-  it("merge: merges entity and updates derived workstream placement", async () => {
+  it("merge: merges a workstream and updates each thread's derived workstream", async () => {
     world = await fakeWorld();
     const w = world;
     const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
@@ -299,13 +299,13 @@ describe("automatic update coordinator lifecycle", () => {
     });
 
     const state = await rebuildOrg(w);
-    // Only 1 root counted!
+    // Only 1 top-level thread counted!
     expect(state.counts.totalThreads).toBe(1);
     expect(state.counts.activeThreads).toBe(1);
     expect(state.groups[0]!.totalCount).toBe(1);
   });
 
-  it("retention on contraction: visible completed tasks remain navigable under product root", async () => {
+  it("retention on contraction: visible completed tasks remain navigable under the top-level workstream", async () => {
     world = await fakeWorld();
     const w = world;
     const db = openDatabase(w.bb);
@@ -347,7 +347,8 @@ describe("automatic update coordinator lifecycle", () => {
     const state = await rebuildOrg(w);
     expect(state.counts.activeThreads).toBe(0);
     expect(state.counts.completedThreads).toBe(3);
-    // Product root is retained so all 3 completed tasks remain navigable!
+    // The top-level workstream is retained so all 3 completed tasks remain
+    // navigable!
     expect(state.groups).toHaveLength(1);
     expect(state.groups[0]!.name).toBe("Lantern");
     expect(state.groups[0]!.completedCount).toBe(3);
@@ -355,7 +356,7 @@ describe("automatic update coordinator lifecycle", () => {
     expect(w.threads.get("t1")?.sectionId).toBe(sec.id);
   });
 
-  it("unresolved navigation: unresolved tasks remain navigable in unfiled and are reported", async () => {
+  it("no-workstream navigation: tasks with no workstream remain navigable in Other and are reported", async () => {
     world = await fakeWorld();
     const w = world;
     w.addThread("u1", { title: "Completely unresolved task" });
@@ -484,7 +485,7 @@ describe("automatic update coordinator lifecycle", () => {
     ]);
   });
 
-  it("no topic set yourself stays: analysis never gives that thread one", async () => {
+  it("no workstream set yourself stays: analysis never gives that thread one", async () => {
     world = await fakeWorld({
       complete: () =>
         JSON.stringify({
@@ -574,7 +575,7 @@ describe("automatic update coordinator lifecycle", () => {
     const state = await rebuildOrg(w);
     expect(state.status).toBe("idle");
 
-    // Completed tasks must NOT be in unresolved
+    // Completed tasks must NOT be in No workstream
     expect(state.noWorkstream.filter((u) => u.id === "done-root")).toHaveLength(
       0,
     );
@@ -582,13 +583,13 @@ describe("automatic update coordinator lifecycle", () => {
       0,
     );
 
-    // Completed tasks must be filed in native sections, not Unfiled!
+    // Completed tasks must be in native sections, not Other!
     const doneThread = w.threads.get("done-root");
     const doneDocsThread = w.threads.get("done-docs");
     expect(doneThread?.sectionId).not.toBeNull();
     expect(doneDocsThread?.sectionId).not.toBeNull();
 
-    // Each completed root keeps its own topic's workstream.
+    // Each completed thread keeps its own workstream.
     const coreGroup = state.groups.find((g) => g.name === "Lantern › Core");
     expect(coreGroup?.threads.some((r) => r.id === "done-root")).toBe(true);
     const docsGroup = state.groups.find((g) => g.name === "Lantern › Docs");
@@ -673,7 +674,7 @@ describe("automatic update coordinator lifecycle", () => {
     expect(alphaGroup?.sectionId).not.toBeNull();
   });
 
-  it("event lifecycle: topic changes trigger the organizer without a rebuild", async () => {
+  it("event lifecycle: workstream changes trigger the organizer without a rebuild", async () => {
     world = await fakeWorld();
     const w = world;
     const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
@@ -714,7 +715,7 @@ describe("automatic update coordinator lifecycle", () => {
 });
 
 describe("organizer pass cost", () => {
-  /** Topic-tree reads and recap scans in one forced pass with nothing to move. */
+  /** Tree reads and recap scans in one forced pass with nothing to move. */
   const passReads = async (roots: number) => {
     world = await fakeWorld();
     const w = world;
@@ -742,15 +743,15 @@ describe("organizer pass cost", () => {
     }
   };
 
-  it("reads the topic tree a fixed number of times, however many roots there are", async () => {
+  it("reads the workstream tree a fixed number of times, however many threads there are", async () => {
     const few = await passReads(2);
-    // Below six roots, so no category assessment adds reads of its own.
+    // Below six threads, so no category assessment adds reads of its own.
     const many = await passReads(5);
     expect(many.lists).toBe(few.lists);
     expect(many).toMatchObject({ assignments: 0, recapScans: 0 });
   });
 
-  it("drops a plan whose topics changed while it waited on BB, then applies the new one", async () => {
+  it("drops a plan whose workstreams changed while it waited on BB, then applies the new one", async () => {
     world = await fakeWorld();
     const w = world;
     const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
@@ -762,7 +763,7 @@ describe("organizer pass cost", () => {
     const created: string[] = [];
     w.harness.sdk.stub("threadSections.create", async ({ name }) => {
       created.push(name);
-      // The user picks another topic while BB creates the section.
+      // The user picks another workstream while BB creates the section.
       if (!moved) {
         moved = true;
         workstreamStore.assign("t1", compass.id, { provenance: "manual" });
@@ -780,7 +781,7 @@ describe("organizer pass cost", () => {
 });
 
 describe("organizer triggers", () => {
-  it("runs a pass for a root's turn, not for a hidden thread's or a child's", async () => {
+  it("runs a pass for a top-level thread's turn, not for a hidden thread's or a child's", async () => {
     world = await fakeWorld();
     const w = world;
     const root = w.addThread("root", { title: "Root" });
@@ -802,7 +803,7 @@ describe("organizer triggers", () => {
     expect(await passesAfter(hidden)).toBe(0);
     expect(await passesAfter(child)).toBe(0);
     expect(await passesAfter(root)).toBeGreaterThan(0);
-    // Its parent isn't visible, so the organizer files it as a root.
+    // Its parent isn't visible, so the organizer treats it as top-level.
     expect(await passesAfter(orphan)).toBeGreaterThan(0);
   });
 

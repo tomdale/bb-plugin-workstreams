@@ -27,7 +27,7 @@ afterEach(() => {
   takeProjectChoice("project");
 });
 
-it("carries the topic, provenance, and preview into the replacement composer once", () => {
+it("carries the workstream, provenance, and preview into the replacement composer once", () => {
   const release = preserveProjectChoice("project", choice);
   expect(takeProjectChoice("other")).toBeUndefined();
   const model = new NewWork(
@@ -55,7 +55,7 @@ it("releases a failed or settled switch without erasing a newer transfer", () =>
 
 const deps = { route: async () => choice.decision, cancelRoute: () => {} };
 
-it("carries a picked topic to the draft's model in the project you chose", () => {
+it("carries a picked workstream to the draft's model in the project you chose", () => {
   const work = new NewWork(deps);
   work.selectIdentity({ workstreamId: "workstream", label: "Workstream" });
   carryPickedWorkstream("draft", "project", work.snapshot());
@@ -71,7 +71,7 @@ it("carries a picked topic to the draft's model in the project you chose", () =>
   replacement.dispose();
 });
 
-it("does not carry a topic into the same project or carry Quick analysis's topic", () => {
+it("does not carry a workstream into the same project or carry the start call's workstream", () => {
   const work = new NewWork(deps);
   work.selectIdentity({ workstreamId: "workstream", label: "Workstream" });
   carryPickedWorkstream("draft", "project", work.snapshot());
@@ -81,7 +81,7 @@ it("does not carry a topic into the same project or carry Quick analysis's topic
   work.dispose();
 });
 
-it("drops a carried topic no replacement took", () => {
+it("drops a carried workstream no replacement took", () => {
   vi.useFakeTimers();
   try {
     const work = new NewWork(deps);
@@ -95,7 +95,7 @@ it("drops a carried topic no replacement took", () => {
   }
 });
 
-it("marks a project you choose after picking a topic, until the topic changes", () => {
+it("marks a project you choose after picking a workstream, until the workstream changes", () => {
   const work = new NewWork(deps);
   work.observeSelection({ projectId: "one" });
   work.observeSelection({ projectId: "two" });

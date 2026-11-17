@@ -70,7 +70,7 @@ function setup() {
 }
 
 describe("persisted collection categories", () => {
-  it("categorizes a one-level collection at six roots and does not call again for unchanged facts", async () => {
+  it("categorizes a one-level collection at six threads and does not call again for unchanged facts", async () => {
     const { engine, classify } = setup();
     await engine.reconcile();
     await engine.reconcile();
@@ -289,7 +289,7 @@ describe("persisted collection categories", () => {
     await Promise.all([run, collapsed]);
     expect(engine.generations()).toEqual({});
   });
-  it("rejects a pre-collapse response even if the identical roots return before it resolves", async () => {
+  it("rejects a pre-collapse response even if the identical threads return before it resolves", async () => {
     const { engine, state, classify } = setup();
     let resolve!: (value: CategoryDecision) => void;
     classify.mockImplementationOnce(
@@ -361,7 +361,7 @@ describe("persisted collection categories", () => {
     ).not.toContain(removedCategoryId);
   });
 
-  it("drops categories when the topic becomes a container or disappears", async () => {
+  it("drops categories when the workstream becomes a group or disappears", async () => {
     const { engine, state, classify } = setup();
     await engine.reconcile();
     state.collections = [];
@@ -444,7 +444,7 @@ describe("persisted collection categories", () => {
     const other = { ...collection(), workstreamId: "topic-b", label: "Other" };
     state.collections = [collection(), other];
     classify.mockImplementation(async (input: CategoryInput) => {
-      // The first collection gains a root while the second is assessed.
+      // The first collection gains a thread while the second is assessed.
       if (input.workstreamId === "topic-b" && classify.mock.calls.length === 2)
         state.collections = [collection(7), other];
       return decision(input);

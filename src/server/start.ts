@@ -1,8 +1,9 @@
 /**
- * A thread's start: one call names a new thread from its first request and,
- * for a root, chooses its workstream (see `domain/start.ts`), while its first turn
- * is still running. The thread is titled and filed within seconds instead of
- * after a turn that may take an hour; the turn-end call settles both later.
+ * A thread's start: one call names a new thread from its first request and, for
+ * a thread with no parent, chooses its workstream (see `domain/start.ts`),
+ * while its first turn is still running. The thread is titled and moved to its
+ * workstream within seconds instead of after a turn that may take an hour; the
+ * turn-end call settles both later.
  *
  * Everything here is best effort and apart from the turn it describes:
  *
@@ -42,7 +43,10 @@ const MAX_SWEEP_IN_FLIGHT = 4;
 /** A call's debug label is the request's opening words, as BB shows them. */
 const LABEL_MAX = 60;
 
-/** What decides whether a thread can be named and filed from its request. */
+/**
+ * What decides whether a thread can be named and given a workstream from its
+ * request.
+ */
 export type OpeningThread = ChoiceThread & {
   readonly visibility: string;
   readonly archivedAt: number | null;
@@ -112,12 +116,15 @@ export class ThreadStart {
       ) => Promise<void>;
       /** Where a child thread is listed, so its title needn't repeat it. */
       listing: (thread: OpeningThread) => ThreadListing;
-      /** What filing a root from its first request asks (see `Placement`). */
+      /**
+       * What choosing a thread's workstream from its first request asks (see
+       * `WorkstreamChoice`).
+       */
       question: (
         thread: OpeningThread,
         request: string,
       ) => Promise<ChoiceQuestion | null>;
-      /** Whether nothing else has settled the root's workstream. */
+      /** Whether nothing else has settled the thread's workstream. */
       unsettled: (threadId: string) => boolean;
       /** Applies a workstream answer under the source priority. */
       file: (
@@ -149,10 +156,10 @@ export class ThreadStart {
   }
 
   /**
-   * A thread's first message was admitted and the thread is filed from where
-   * it started, so the call reads its inherited workstream and hints. What the
-   * composer's preview answered for this text (`preset`) is applied as is,
-   * and only the rest is asked. Never rejects.
+   * A thread's first message was admitted and the thread's workstream is chosen
+   * from where it started, so the call reads its inherited workstream and
+   * hints. What the composer's preview answered for this text (`preset`) is
+   * applied as is, and only the rest is asked. Never rejects.
    */
   async onFirstRequest(
     ctx: OpeningDispatch,
@@ -288,7 +295,8 @@ export class ThreadStart {
           const question = workstreamWanted()
             ? await this.deps.question(thread, request)
             : null;
-          // A root with nothing to place by settles "no workstream" without a call.
+          // A thread with nothing to choose by settles "no workstream" without
+          // a call.
           if (question?.settled)
             this.deps.file(thread.id, question.settled, question.basis, null);
           const placing = question && !question.settled ? question : null;
@@ -328,7 +336,7 @@ export class ThreadStart {
           // An invalid workstream is asked again; the title already stands.
           if (placing && value.workstreamError)
             throw new Error(value.workstreamError);
-          // The thread may have been filed or corrected while the call ran.
+          // The thread may have been moved or corrected while the call ran.
           if (placing && value.workstream && workstreamWanted())
             this.deps.file(thread.id, value.workstream, placing.basis, traceId);
           else if (placing)

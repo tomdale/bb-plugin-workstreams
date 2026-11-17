@@ -1,7 +1,7 @@
 import type { Workstream } from "../src/domain/classify.ts";
 import type { WorkstreamChoiceInput } from "../src/domain/workstreamChoice.ts";
 
-/** One classification case's evidence, as Full analysis is shown it. */
+/** One classification case's evidence, as the turn-end analysis sees it. */
 export type ClassifyInput = {
   /** The thread's title and summary, standing in for its latest reply. */
   prompt: string;
@@ -111,11 +111,12 @@ type Case = {
   input: ClassifyInput;
   expected: string | null;
   /**
-   * No existing topic fits: the answer is a new topic, not within the subtree
-   * of `outside` when that is set, and beneath `inside` when that is set.
+   * No existing workstream fits: the answer is a new workstream, not within
+   * the subtree of `outside` when that is set, and beneath `inside` when that
+   * is set.
    */
   expectNew?: { outside?: string; inside?: string };
-  /** The case tests the topic tree it carries, so it has no cold form. */
+  /** The case tests the tree it carries, so it has no cold form. */
   warmOnly?: boolean;
   scopeShift?: boolean;
 };
@@ -228,10 +229,10 @@ const base: Case[] = [
 }));
 
 /**
- * A pane topic filed under an unrelated app. Its description fits the request;
+ * A pane workstream under an unrelated app. Its description fits the request;
  * its owner does not, and the request names the owner. With the platform's own
- * plugin topic present, that topic is the answer. Without it, the answer is a
- * new topic outside the app, not the pane.
+ * plugin workstream present, that workstream is the answer. Without it, the
+ * answer is a new workstream outside the app, not the pane.
  */
 const lookalike = (spec: {
   id: string;
@@ -317,9 +318,9 @@ const preview = {
   ] as [string, string],
 };
 /**
- * Work on one capability of a broad topic. With no topic for that capability,
- * the answer is a new topic beneath the broad one; work on the whole, or on a
- * task that names no capability, stays with the broad topic.
+ * Work on one capability of a broad workstream. With no workstream for that
+ * capability, the answer is a new workstream beneath the broad one; work on the
+ * whole, or on a task that names no capability, stays with the broad one.
  */
 const specific = (
   id: string,

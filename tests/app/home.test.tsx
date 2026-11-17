@@ -104,7 +104,7 @@ describe("Home screen", () => {
     expect(dot.style.getPropertyValue("--ws-color-dot")).toContain("60.00%");
     slot.lifecycle.unmount();
   });
-  it("uses the same topic color in Home's Up Next label and workstream dot", async () => {
+  it("uses the same workstream color in Home's Up Next label and workstream dot", async () => {
     const slot = await mountHome({
       threads: sample(),
       tree: {
@@ -364,7 +364,7 @@ describe("Home screen", () => {
       expect(links(region(slot, "Other"))).toEqual(["First", "Second"]);
     });
 
-    it("files whole trees under the root's workstream, with the children toggled by a count", async () => {
+    it("lists whole trees under the parent thread's workstream, with the children toggled by a count", async () => {
       const slot = await mountHome({
         threads: [
           sidebarThread("root", {
@@ -727,7 +727,7 @@ describe("Home screen first frame", () => {
       snoozes: { later: { until: later, attentionAt: 0, at: 0 } },
       gates: { prefs: hold.promise, state: hold.promise },
     });
-    // The threads are in, but what files them and what is snoozed is not.
+    // The threads are in, but their workstreams and what is snoozed are not.
     expect((await slot.findByRole("status")).textContent).toContain("Loading");
     expect(slot.queryByRole("region", { name: "Alpha" })).toBeNull();
     expect(

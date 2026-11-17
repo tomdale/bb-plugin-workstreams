@@ -27,7 +27,7 @@ const row = (
   needsYou: false,
 });
 const ids = (rows: readonly ThreadRow[]) => rows.map((r) => r.thread.id);
-/** The roots of a band sorted by `sort`, as the flat band lists them. */
+/** The top-level threads of a band sorted by `sort`, as the band lists them. */
 const sortedBand = (
   rows: readonly ThreadRow[],
   sort: Parameters<typeof planBandRows>[2]["sort"],
@@ -78,7 +78,7 @@ it("breaks every sort's ties by identity, including indefinite wakes", () => {
     expect(ids(sortedBand(rows, sort, () => undefined))).toEqual(["a", "b"]);
 });
 
-it("sorts snoozed roots while keeping descendants in tree order and under their root's workstream", () => {
+it("sorts snoozed threads while keeping descendants in tree order and under their parent thread's workstream", () => {
   const rows = [
     row("later", { sectionId: "b" }),
     row("child", { sectionId: "a" }, 1),
@@ -110,7 +110,7 @@ it("sorts snoozed roots while keeping descendants in tree order and under their 
   ]);
 });
 
-it("labels unknown and unfiled workstreams and preserves within-group sorting", () => {
+it("labels unknown workstreams and No workstream and preserves within-group sorting", () => {
   const rows = [
     row("z", { sectionId: "a" }),
     row("a", { sectionId: "a" }),
@@ -168,7 +168,7 @@ it("folds a complete subtree without hiding its next sibling and keeps placement
   expect(foldDefault("recent")).toBe(true);
 });
 
-it("files archived children under their root, excluding hidden and live threads", () => {
+it("lists archived children under their parent thread, excluding hidden and live threads", () => {
   const threads = [
     sidebarThread("root", { sectionId: "a", isArchived: true }),
     sidebarThread("child", {
@@ -212,7 +212,7 @@ it("bounds archived ancestry walks with missing or cyclic parents", () => {
   expect(result.rows[0]!.workstreamId).toBe("a");
 });
 
-it("counts descendants in a snooze label but sends roots, including Other", () => {
+it("counts descendants in a snooze label but sends top-level threads, including Other", () => {
   const projection = projectWorkstreams(
     [
       sidebarThread("root", { sectionId: "a" }),
@@ -268,7 +268,7 @@ it("keeps the grouping policy without mounting rows: manual order, no empty work
   expect(ids(groups.populated.flatMap((g) => g.rows))).not.toContain("nap");
 });
 
-it("draws an overlay tree flat from its root and a group tree at its own depth", () => {
+it("draws an overlay tree flat from its top thread and a group tree at its own depth", () => {
   const tree = [row("child", {}, 1), row("grandchild", {}, 2)];
   const entries = (placement: Parameters<typeof visibleEntries>[1]) =>
     visibleEntries(tree, placement, () => false).map(

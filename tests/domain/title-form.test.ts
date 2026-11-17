@@ -97,7 +97,7 @@ describe("listing context", () => {
     ).not.toContain("listed_under");
   });
 
-  it("tells Full analysis only when it settles the goal", () => {
+  it("tells the turn-end analysis only when it settles the goal", () => {
     const input = {
       title: "Phase 0",
       titledBy: "workstreams",

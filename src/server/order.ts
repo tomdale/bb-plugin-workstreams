@@ -34,7 +34,7 @@ export function loadOrder(db: Database): StoredOrder {
 }
 
 /**
- * Replaces the workstream order, the focused set, or one group's root
+ * Replaces the workstream order, the focused set, or one group's top-level
  * thread order. An empty thread list forgets the group's order, so it falls
  * back to recency.
  */

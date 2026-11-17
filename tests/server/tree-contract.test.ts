@@ -13,8 +13,8 @@ afterEach(async () => {
   world = null;
 });
 
-describe("Catalog and Task Identity RPC Contract", () => {
-  it("creates topics without creating workstreams", async () => {
+describe("workstream tree and thread workstream RPC contract", () => {
+  it("creates workstreams without creating sidebar sections", async () => {
     world = await fakeWorld({
       complete: () =>
         JSON.stringify({
@@ -24,7 +24,7 @@ describe("Catalog and Task Identity RPC Contract", () => {
     });
     const w = world;
 
-    // Create an entity in the catalog
+    // Create a workstream in the tree
     const { workstream } = (await w.harness.behavior.callRpc(
       "workstreamCreate",
       {
@@ -33,7 +33,7 @@ describe("Catalog and Task Identity RPC Contract", () => {
       },
     )) as { workstream: { id: string } };
 
-    // Verify catalog RPC returns state
+    // Verify the tree RPC returns state
     const cat = (await w.harness.behavior.callRpc(
       "tree",
       null,
@@ -42,11 +42,11 @@ describe("Catalog and Task Identity RPC Contract", () => {
     expect(cat.workstreams.some((e) => e.id === workstream.id)).toBe(true);
     expect(cat.colors?.[workstream.id]).toBeUndefined();
 
-    // Creating a topic no thread has creates no workstream.
+    // Creating a workstream no thread has creates no sidebar section.
     expect(w.sections).toHaveLength(0);
   });
 
-  it("taskAssign sets a topic yourself, which files the thread by it", async () => {
+  it("threadMove sets a workstream yourself, which moves the thread into it", async () => {
     world = await fakeWorld({
       complete: () => JSON.stringify({ recap: "r", state: "complete" }),
     });
@@ -87,7 +87,7 @@ describe("Catalog and Task Identity RPC Contract", () => {
     expect(state.tree.colors?.[eng.id]).toEqual(tree.colors?.[eng.id]);
     expect(state.tree.groups[engineering.id]).toBe(eng.id);
 
-    // No topic, set yourself, leaves it Unfiled.
+    // No workstream, set yourself, leaves it in No workstream.
     const cleared = (await w.harness.behavior.callRpc("threadMove", {
       threadId: thread.id,
       workstreamId: null,
@@ -100,7 +100,7 @@ describe("Catalog and Task Identity RPC Contract", () => {
     expect(w.threads.get("t-task")?.sectionId).toBeNull();
   });
 
-  it("catalogRename, catalogReparent, and catalogMerge maintain referential integrity", async () => {
+  it("workstreamRename, workstreamMove, and workstreamMerge maintain referential integrity", async () => {
     world = await fakeWorld({
       complete: () => JSON.stringify({ recap: "r", state: "complete" }),
     });
@@ -143,7 +143,7 @@ describe("Catalog and Task Identity RPC Contract", () => {
       }),
     ).rejects.toThrow(/inside/);
 
-    // Move Alpha back out, so Beta holds no subtopics and can take threads
+    // Move Alpha back out, so Beta holds no workstreams and can take threads
     await w.harness.behavior.callRpc("workstreamMove", {
       workstreamId: alpha.id,
       parentId: null,
@@ -181,7 +181,7 @@ describe("Catalog and Task Identity RPC Contract", () => {
     expect(updateRes.workstream.aliases).toContain("BetaAlias1");
   });
 
-  it("catalog and state reads are pure and do not increment catalog revision", async () => {
+  it("tree and state reads are pure and do not increment the tree revision", async () => {
     world = await fakeWorld({
       complete: () => JSON.stringify({ recap: "r", state: "complete" }),
     });
@@ -209,7 +209,7 @@ describe("Catalog and Task Identity RPC Contract", () => {
     }
   });
 
-  it("catalogUpdateMetadata updates metadata atomically and handles no-ops and collisions", async () => {
+  it("workstreamUpdate updates metadata atomically and handles no-ops and collisions", async () => {
     world = await fakeWorld({
       complete: () => JSON.stringify({ recap: "r", state: "complete" }),
     });
@@ -242,7 +242,7 @@ describe("Catalog and Task Identity RPC Contract", () => {
     expect(updated.workstream.description).toBe("Updated description");
     expect(updated.workstream.aliases).toEqual(["AlphaAlias"]);
 
-    // Colliding alias with existing entity name in parent scope fails
+    // Colliding alias with existing workstream name in parent scope fails
     await expect(
       w.harness.behavior.callRpc("workstreamUpdate", {
         workstreamId: beta.id,
@@ -267,7 +267,7 @@ describe("Catalog and Task Identity RPC Contract", () => {
     expect(catAfter.revision).toBe(catBefore.revision);
   });
 
-  it("persists, validates, preserves, and clears a topic's optional project", async () => {
+  it("persists, validates, preserves, and clears a workstream's optional project", async () => {
     world = await fakeWorld({
       complete: () => JSON.stringify({ recap: "r", state: "complete" }),
     });
@@ -301,7 +301,7 @@ describe("Catalog and Task Identity RPC Contract", () => {
     expect((await read()).projectId).toBeNull();
   });
 
-  it("taskAssign on a child sets its root's topic", async () => {
+  it("threadMove on a child sets its parent thread's workstream", async () => {
     world = await fakeWorld({
       complete: () => JSON.stringify({ recap: "r", state: "complete" }),
     });
@@ -328,7 +328,7 @@ describe("Catalog and Task Identity RPC Contract", () => {
     expect(tree.assignments[thread.id]?.workstreamId).toBe(feature.id);
   });
 
-  it("taskReclassify hands the topic back and settles the root with Full analysis", async () => {
+  it("threadAutomatic hands the workstream back and settles the parent thread with the turn-end analysis", async () => {
     let capturedPrompt = "";
     let workstreamId = "";
     world = await fakeWorld({

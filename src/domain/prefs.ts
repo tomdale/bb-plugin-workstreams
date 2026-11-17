@@ -56,8 +56,8 @@ export function gatewayModel(choice: ModelChoice): string | null {
 /** Eval-tested defaults (see eval/). */
 export const DEFAULT_MODELS = {
   /**
-   * Names and files a new thread from a draft or its first request, while
-   * you wait, and answers every other closed workstream choice.
+   * Names a new thread and chooses its workstream from a draft or its first
+   * request, while you wait, and answers every other closed workstream choice.
    */
   newThread: {
     kind: "gateway",
@@ -177,9 +177,9 @@ const GROUPS = {
   },
   analysis: {
     /**
-     * Names and files new threads: the composer's preview, a thread's first
-     * request, a move into a multi-workstream group, workstream repair, and the
-     * categories fit check.
+     * Names new threads and chooses their workstreams: the composer's preview,
+     * a thread's first request, a move into a multi-workstream group,
+     * workstream repair, and the categories fit check.
      */
     newThreadModel: [modelChoiceSchema, DEFAULT_MODELS.newThread],
     /** Updates a thread's title, goal, status, and workstream when a turn ends. */

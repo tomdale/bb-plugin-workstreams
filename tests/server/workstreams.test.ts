@@ -113,7 +113,7 @@ describe("WorkstreamStore", () => {
     ).toBeTruthy();
   });
 
-  it("renames the topic sources of earlier storage", () => {
+  it("renames the workstream sources of earlier storage", () => {
     // Not `store()`, which would already apply every migration.
     const host = createTestPluginHost({ pluginId: `legacy-${hosts.length}` });
     hosts.push(host);
@@ -216,7 +216,7 @@ describe("WorkstreamStore", () => {
     ).toBe(root.id);
   });
 
-  it("rejects assignment to unknown entities and retains specific subjects under broad placement", () => {
+  it("rejects an unknown workstream and keeps specific workstreams inside a broad group", () => {
     const { workstreamStore: workstreamStore } = store();
     expect(() => workstreamStore.assign("thread-x", "missing")).toThrow(
       /Unknown workstream/,
@@ -230,7 +230,7 @@ describe("WorkstreamStore", () => {
     );
   });
 
-  it("assignment doesn't move native thread placement", () => {
+  it("choosing a workstream doesn't move the thread's native section", () => {
     const { host, workstreamStore: workstreamStore } = store();
     const db = openDatabase(host.bb);
     db.prepare(
@@ -243,7 +243,7 @@ describe("WorkstreamStore", () => {
     expect(assignment.status).toBe("assigned");
     expect(assignment.workstreamId).toBe(workstream.id);
 
-    // Verify placement in ws_seen_thread was not modified
+    // Verify the section in ws_seen_thread was not modified
     const seen = db
       .prepare("SELECT section_id FROM ws_seen_thread WHERE thread_id = 't1'")
       .get() as { section_id: string };
@@ -359,7 +359,7 @@ describe("WorkstreamStore", () => {
     expect(assignment.provenance).toBe("manual");
   });
 
-  it("ensures children inherit root identity and mutations apply to root", () => {
+  it("ensures children inherit the top thread's workstream and changes apply to it", () => {
     const { host, workstreamStore: workstreamStore } = store();
     const db = openDatabase(host.bb);
     db.prepare(
@@ -375,7 +375,7 @@ describe("WorkstreamStore", () => {
     const workstream1 = workstreamStore.create("Feature 1", "First feature");
     const workstream2 = workstreamStore.create("Feature 2", "Second feature");
 
-    // Assign root
+    // Move the top-level thread
     workstreamStore.assign("t-root", workstream1.id);
 
     // Child and grandchild inherit
@@ -389,7 +389,7 @@ describe("WorkstreamStore", () => {
     expect(grandAssign.workstreamId).toBe(workstream1.id);
     expect(grandAssign.inheritedFrom).toBe("t-root");
 
-    // Mutating child re-assigns root
+    // Changing a child moves the top-level thread
     workstreamStore.assign("t-grandchild", workstream2.id);
     expect(workstreamStore.assignment("t-root").workstreamId).toBe(
       workstream2.id,
@@ -398,13 +398,13 @@ describe("WorkstreamStore", () => {
       workstream2.id,
     );
 
-    // Clearing child clears root
+    // Clearing a child clears the top-level thread
     workstreamStore.clear("t-child");
     expect(workstreamStore.assignment("t-root").status).toBe("none");
     expect(workstreamStore.assignment("t-grandchild").status).toBe("none");
   });
 
-  it("resolves one thread without reading the topic tree, and many from one read", () => {
+  it("resolves one thread without reading the workstream tree, and many from one read", () => {
     const { host, workstreamStore: workstreamStore } = store();
     const db = openDatabase(host.bb);
     for (const [id, parent] of [
@@ -529,7 +529,7 @@ describe("WorkstreamStore", () => {
     expect(same.description).toBe("Billing engine");
     expect(workstreamStore.revision()).toBe(revBefore);
 
-    // Collision with another entity in scope throws
+    // Collision with another workstream in scope throws
     expect(() =>
       workstreamStore.updateMetadata(e2.id, { aliases: ["Invoice"] }),
     ).toThrow(/already names/);
@@ -545,7 +545,7 @@ describe("WorkstreamStore", () => {
     expect(workstreamStore.revision()).toBeGreaterThan(revBefore);
   });
 
-  it("merges matching second-level topics and preserves leaf references", () => {
+  it("merges matching second-level workstreams and preserves leaf references", () => {
     const { workstreamStore: workstreamStore } = store();
     const targetRoot = workstreamStore.create("TargetRoot");
     const targetBackend = workstreamStore.create("Backend", "", targetRoot.id);
@@ -613,7 +613,7 @@ describe("WorkstreamStore", () => {
       /already/,
     );
 
-    // All entities still exist and are untouched (transaction rolled back)
+    // All workstreams still exist and are untouched (transaction rolled back)
     expect(workstreamStore.getById(source.id)).not.toBeNull();
     expect(workstreamStore.assignment("t-child").workstreamId).toBe(source.id);
     expect(workstreamStore.revision()).toBe(revBefore);
@@ -625,7 +625,7 @@ describe("WorkstreamStore", () => {
     workstreamStore.assign("t1", workstream.id, { provenance: "manual" });
     const rev1 = workstreamStore.revision();
 
-    // Assigning identical entity, provenance, and evidence is a no-op
+    // Assigning identical workstream, provenance, and evidence is a no-op
     const a2 = workstreamStore.assign("t1", workstream.id, {
       provenance: "manual",
     });
@@ -670,7 +670,7 @@ describe("WorkstreamStore", () => {
       provenance: "automatic",
       evidence: "k1",
     });
-    // Inherited changes only on a scope shift from Full analysis.
+    // Inherited changes only on a scope shift from the turn-end analysis.
     workstreamStore.assign("i", a.id, { provenance: "inherited" });
     expect(
       workstreamStore.applyAnalysis("i", answer(b.id), "automatic", "k2"),
@@ -688,7 +688,7 @@ describe("WorkstreamStore", () => {
     });
   });
 
-  it("keeps inherited priority when a proposed child still needs a reviewed filing plan", () => {
+  it("keeps inherited priority when a proposed child still needs a reviewed move plan", () => {
     const { workstreamStore: workstreamStore } = store();
     const product = workstreamStore.create(
       "Product",
@@ -722,7 +722,7 @@ describe("WorkstreamStore", () => {
     );
   });
 
-  it("lets Full analysis narrow an inherited topic without a scope shift", () => {
+  it("lets the turn-end analysis narrow an inherited workstream without a scope shift", () => {
     const { workstreamStore: workstreamStore, db } = store();
     const product = workstreamStore.create("Product", "");
     const other = workstreamStore.create("Other", "");
@@ -739,14 +739,14 @@ describe("WorkstreamStore", () => {
       db.prepare(
         "INSERT INTO ws_thread_workstream(thread_id, workstream_id, source) VALUES (?, ?, 'inherited')",
       ).run(id, product.id);
-    // A sibling or the same topic is no narrowing.
+    // A sibling or the same workstream is no narrowing.
     expect(
       workstreamStore.applyAnalysis("i", answer(other.id), "automatic", "k1"),
     ).toBe(false);
     expect(
       workstreamStore.applyAnalysis("i", answer(product.id), "automatic", "k2"),
     ).toBe(false);
-    // An existing descendant narrows it, and Quick analysis never does.
+    // An existing descendant narrows it, and the start call never does.
     expect(
       workstreamStore.applyAnalysis("i", answer(feature.id), "composer", null),
     ).toBe(false);
@@ -772,7 +772,7 @@ describe("WorkstreamStore", () => {
     );
   });
 
-  it("inherits a topic only into a thread with none or a quick guess", () => {
+  it("inherits a workstream only into a thread with none or a quick guess", () => {
     const { workstreamStore: workstreamStore } = store();
     const a = workstreamStore.create("Alpha", "");
     const b = workstreamStore.create("Beta", "");
@@ -787,7 +787,7 @@ describe("WorkstreamStore", () => {
     expect(workstreamStore.inherit("orphan", "nobody")).toBe(false);
   });
 
-  it("keeps a discovered topic with an associated project until the association is cleared", () => {
+  it("keeps a discovered workstream with an associated project until the association is cleared", () => {
     const { workstreamStore: workstreamStore } = store();
     const workstream = workstreamStore.rememberProposal({
       name: "Configured",
@@ -803,7 +803,7 @@ describe("WorkstreamStore", () => {
     ]);
   });
 
-  it("prunes discovered topics nothing uses, deepest first, and keeps yours", () => {
+  it("prunes discovered workstreams nothing uses, deepest first, and keeps yours", () => {
     const { workstreamStore: workstreamStore } = store();
     const mine = workstreamStore.create("Mine", "");
     const leaf = workstreamStore.rememberProposal({

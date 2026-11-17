@@ -25,7 +25,7 @@ it("accepts capability synonyms while rejecting flattened required ancestry", ()
   expect(score(["Loom", "Waiting Recap"]).owner).toBe(true);
   expect(score(["Loom", "Waiting Recap"]).hierarchy).toBe(false);
 });
-it("passes a cold single root proposal on its owner alone", () => {
+it("passes a cold single top-level proposal on its owner alone", () => {
   const c = cases.find((c) => c.id === "waiting-schema")!;
   const value = {
     workstreamId: null,
@@ -71,7 +71,7 @@ it("reports a familiar title's wrong capability as advisory beside a correct own
   expect(result.pass).toBe(true);
 });
 
-it("expects a new topic outside the app whose pane only looks like the answer", () => {
+it("expects a new workstream outside the app whose pane only looks like the answer", () => {
   const c = cases.find((c) => c.id === "lookalike-missing")!;
   const score = (value: Parameters<typeof scoreClassification>[0]) =>
     scoreClassification(value, c.input, c.expected, false, c.expectNew).pass;
@@ -88,17 +88,17 @@ it("expects a new topic outside the app whose pane only looks like the answer", 
   expect(score({ workstreamId: "pane", proposed: null })).toBe(false);
   expect(score({ workstreamId: "app", proposed: null })).toBe(false);
   expect(score({ workstreamId: null, proposed: null })).toBe(false);
-  // New topics under the app, however the proposal spells its ancestry.
+  // New workstreams under the app, however the proposal spells its ancestry.
   expect(score(proposal("app"))).toBe(false);
   expect(score(proposal(null, "Pennant"))).toBe(false);
   expect(score(proposal("pane"))).toBe(false);
-  // New topics under the platform, or as a root of their own.
+  // New workstreams under the platform, or at the top on their own.
   expect(score(proposal("platform"))).toBe(true);
   expect(score(proposal(null, "Harbor"))).toBe(true);
   expect(score(proposal(null))).toBe(true);
 });
 
-it("expects the platform's own plugin topic when it exists beside the lookalike", () => {
+it("expects the platform's own plugin workstream when it exists beside the lookalike", () => {
   const c = cases.find((c) => c.id === "lookalike-present")!;
   expect(c.expected).toBe("plugin");
   const score = (workstreamId: string) =>

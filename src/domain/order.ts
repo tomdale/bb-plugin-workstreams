@@ -10,7 +10,10 @@
 export type ManualOrder = {
   /** Section ids, top to bottom. */
   readonly workstreams: readonly string[];
-  /** Root thread ids, top to bottom, keyed by group id (section id or "unsorted"). */
+  /**
+   * Top-level thread ids, top to bottom, keyed by group id (section id or
+   * "unsorted").
+   */
   readonly threads: Readonly<Record<string, readonly string[]>>;
   /**
    * Focused section ids, as a set: focused workstreams pin above the others

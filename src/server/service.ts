@@ -218,7 +218,7 @@ export class WorkstreamService {
           threadId: move.threadId,
           sectionId: move.from,
         });
-        // Record Undo as the user's placement decision.
+        // Record Undo as the user's workstream choice.
         this.seeThread(move.threadId, move.from, thread.parentThreadId ?? null);
         done++;
       }
@@ -292,8 +292,8 @@ export class WorkstreamService {
   }
 
   /**
-   * Journals a thread started from the New thread composer or a Debug
-   * report. The organizer files it by its workstream.
+   * Journals a thread started from the New thread composer or a Debug report.
+   * The organizer lists it under its workstream.
    */
   recordCreated(
     threadId: string,
@@ -424,7 +424,7 @@ export class WorkstreamService {
             }[]
           ).map((r) => [r.thread_id, r]),
         );
-        // Only a root's section decides grouping, so only root moves
+        // Only a top-level thread's section decides grouping, so only its moves
         // are worth recording.
         const forest = buildForest(threads);
         const isRoot = new Set(forest.threads.map((r) => r.thread.id));

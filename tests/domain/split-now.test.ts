@@ -37,7 +37,7 @@ describe("splitNow", () => {
     ]);
   });
 
-  it("lists threads that joined since, to be filed when accepted", () => {
+  it("lists threads that joined since, to be moved when accepted", () => {
     const now = splitNow(
       split,
       tree({ a1: "auto", a2: "auto", a3: "auto", a4: "auto", n1: "auto" }),
@@ -69,7 +69,7 @@ describe("splitNow", () => {
     ).toBe("Its group is gone.");
   });
 
-  it("lets a filing of threads beside subgroups go ahead with one subgroup, until none are left", () => {
+  it("lets a move of threads beside subgroups go ahead with one subgroup, until none are left", () => {
     const repair: Split = {
       workstreamId: "auto",
       repair: true,

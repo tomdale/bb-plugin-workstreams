@@ -58,7 +58,7 @@ const answer = (fields: Record<string, unknown>) =>
   });
 
 describe("turn-end call", () => {
-  it("asks for the topic beside the description only when placement is supplied", () => {
+  it("asks for the workstream beside the description only when the workstream choice is supplied", () => {
     const prompt = turnEndPrompt(input);
     expect(prompt).toContain("decide which workstream it belongs in now");
     expect(prompt).toContain("[viewer] Viewer");
@@ -81,7 +81,7 @@ describe("turn-end call", () => {
     expect(turnEndSchema(alone).properties).not.toHaveProperty("workstream");
   });
 
-  it("titles the thread beside the topic it chose", () => {
+  it("titles the thread beside the workstream it chose", () => {
     const output = parseTurnEnd(answer({}), input);
     expect(output.workstream).toEqual({
       workstreamId: "viewer",
@@ -92,7 +92,7 @@ describe("turn-end call", () => {
     expect(output.status?.state).toBe("review");
   });
 
-  it("refuses an invalid topic without losing the description", () => {
+  it("refuses an invalid workstream without losing the description", () => {
     const output = parseTurnEnd(answer({ workstream: "atlas" }), input);
     expect(output.workstream).toBeNull();
     expect(output.workstreamError).toMatch(/Invalid workstream/);

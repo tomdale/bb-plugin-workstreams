@@ -48,7 +48,7 @@ describe("planFeed", () => {
     expect(ids(feed.earlier)).toEqual(["seen"]);
   });
 
-  it("lists Up Next with the trimmed threads, then every other open root newest first", () => {
+  it("lists Up Next with the trimmed threads, then every other open thread newest first", () => {
     // Seven read threads not blocked on the user: Up Next keeps five, and
     // the rest are read and not blocked, so they fall to Earlier.
     const threads = Array.from({ length: 7 }, (_, i) =>
@@ -100,7 +100,7 @@ describe("planFeed", () => {
     expect(ids(feed.earlier)).toEqual([]);
   });
 
-  it("leaves running and snoozed roots out of the queue", () => {
+  it("leaves running and snoozed threads out of the queue", () => {
     const feed = plan(
       [
         thread("run", { sectionId: "sec_a", status: "active" }),
@@ -112,7 +112,7 @@ describe("planFeed", () => {
     expect([...ids(feed.upNext), ...ids(feed.earlier)]).toEqual(["idle"]);
   });
 
-  it("never queues a delegate on its own", () => {
+  it("never queues a child thread on its own", () => {
     const feed = plan([
       thread("root", { sectionId: "sec_a" }),
       thread("kid1", { parentThreadId: "root" }),
@@ -122,7 +122,7 @@ describe("planFeed", () => {
     expect(ids(feed.earlier)).toEqual([]);
   });
 
-  it("files each root under its workstream", () => {
+  it("lists each thread under its workstream", () => {
     const threads = [
       thread("qa", { sectionId: "sec_a", isUnread: true }),
       thread("qb1", { sectionId: "sec_b", isUnread: true }),

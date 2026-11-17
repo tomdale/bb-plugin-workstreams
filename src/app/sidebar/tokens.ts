@@ -20,7 +20,7 @@ export const SIDEBAR_GEOMETRY = {
     /** Top margin for subsequent categories: 4px catGap + 9px categoryBetween = 13px. */
     betweenGap: 13,
     afterGap: 3,
-    /** A categorized root's sortable tree container pads in by this much (`pl-3`). */
+    /** A categorized thread's sortable tree container pads in by `pl-3`. */
     treeInset: 12,
   },
   gaps: {

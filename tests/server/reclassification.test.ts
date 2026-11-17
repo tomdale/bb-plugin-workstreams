@@ -38,7 +38,7 @@ async function setup(answer?: (fallback: string) => string | Promise<string>) {
     w.harness.behavior.callRpc("repairApply", { planId: id });
   return { w, workstreamStore, a, b, preview, apply };
 }
-describe("reviewable topic repairs", () => {
+describe("reviewable workstream repairs", () => {
   it("does not offer an apply command when a preview contains no automatic repairs", async () => {
     const { w, workstreamStore, a } = await setup();
     workstreamStore.assign("t", a.id);
@@ -57,7 +57,7 @@ describe("reviewable topic repairs", () => {
     expect(result.exitCode).toBe(0);
     expect(await w.harness.behavior.callRpc("journal", {})).toEqual(before);
   });
-  it("persists catalog-changing repairs before a notification failure and resumes remaining rows", async () => {
+  it("persists workstream-changing repairs before a notification failure and resumes remaining rows", async () => {
     const { w, workstreamStore, a } = await setup((fallback) =>
       JSON.stringify({
         ...JSON.parse(fallback),
@@ -120,7 +120,7 @@ describe("reviewable topic repairs", () => {
     releaseApply!();
     expect(await applying).toEqual({ changed: 1, skipped: 0 });
   });
-  it("applies an explicitly reviewed correction to an inherited topic", async () => {
+  it("applies an explicitly reviewed correction to an inherited workstream", async () => {
     const { workstreamStore, a, b, preview, apply } = await setup();
     workstreamStore.assign("t", a.id, { provenance: "inherited" });
     const plan = await preview();
@@ -241,13 +241,13 @@ describe("reviewable topic repairs", () => {
     expect(await apply(plan.id)).toEqual({ changed: 0, skipped: 1 });
     expect(workstreamStore.assignment("t").provenance).toBe("manual");
   });
-  it("rejects a plan when catalog definitions change", async () => {
+  it("rejects a plan when workstream definitions change", async () => {
     const { workstreamStore, a, preview, apply } = await setup();
     const plan = await preview();
     workstreamStore.updateMetadata(a.id, { description: "Updated scope" });
     await expect(apply(plan.id)).rejects.toThrow("catalog changed");
   });
-  it("skips a new turn and does not ask a model about manually assigned topics", async () => {
+  it("skips a new turn and does not ask a model about manually chosen workstreams", async () => {
     const { w, workstreamStore, a, preview, apply } = await setup();
     const plan = await preview();
     w.threads.set("t", { ...w.threads.get("t")!, status: "active" });

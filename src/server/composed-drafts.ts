@@ -60,9 +60,9 @@ export class ComposedDrafts {
   constructor(private now: () => number = Date.now) {}
 
   /**
-   * Records the identity a banner shows for draft `key`; empty text forgets
-   * the draft. Returns the thread a dispatch already started from this text,
-   * which the caller files with `identity`, or null.
+   * Records the identity a banner shows for draft `key`; empty text forgets the
+   * draft. Returns the thread a dispatch already started from this text, which
+   * the caller moves to its workstream with `identity`, or null.
    */
   report(
     key: string,
@@ -103,7 +103,7 @@ export class ComposedDrafts {
   /**
    * Claims the newest reported draft whose text is `text`, for thread
    * `threadId`. With none, the thread waits for a matching `report` and this
-   * returns undefined; a draft's own identity may be null (nothing to file).
+   * returns undefined; a draft's own identity may be null (no workstream).
    */
   claim(
     threadId: string,

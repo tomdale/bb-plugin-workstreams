@@ -55,7 +55,7 @@ describe("planDrop", () => {
     });
   });
 
-  it("reorders roots within a group, ignoring children", () => {
+  it("reorders top-level threads within a group, ignoring children", () => {
     expect(
       planDrop(
         threadDrop({
@@ -72,7 +72,7 @@ describe("planDrop", () => {
     });
   });
 
-  it("reorders within a category without treating another category as a filing destination", () => {
+  it("reorders within a category without treating another category as a move destination", () => {
     const categorized = {
       ...workstreams,
       categories: {
@@ -130,7 +130,7 @@ describe("planDrop", () => {
     { overThreadId: "a3", below: true, ids: ["a1", "a2", "a3", "b1"] },
     { overThreadId: null, below: false, ids: ["b1", "a1", "a2", "a3"] },
   ])(
-    "assigns the destination topic and places the root at the drop position: $ids",
+    "moves the thread to the destination workstream at the drop position: $ids",
     ({ overThreadId, below, ids }) => {
       expect(
         planDrop(
@@ -147,7 +147,7 @@ describe("planDrop", () => {
     },
   );
 
-  it("clears the topic when dropped in Unfiled", () => {
+  it("clears the workstream when dropped in Other", () => {
     expect(
       planDrop(
         threadDrop({ toGroupId: "other", overThreadId: null }),
@@ -162,7 +162,7 @@ describe("planDrop", () => {
     });
   });
 
-  it("files an Unfiled root by the destination topic", () => {
+  it("moves a thread from Other to the destination workstream", () => {
     expect(
       planDrop(
         threadDrop({ threadId: "u1", fromGroupId: "other" }),
@@ -205,7 +205,7 @@ describe("planDrop", () => {
     });
   });
 
-  it("requires a known topic and chooses within parent destinations", () => {
+  it("requires a known workstream and chooses within parent destinations", () => {
     const withChild = {
       ...workstreams,
       workstreams: [

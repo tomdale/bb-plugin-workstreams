@@ -21,9 +21,9 @@
  * row travels to its new slot (see `useSlotList`); other overlay rows open
  * and close their height over a fixed duration (see `motion.ts`).
  *
- * Pinned lists the roots the user pinned, in BB's pin order, directly under
- * Up Next. The two bands share one sticky plate at the top of the list, so
- * both stay in reach while the workstreams scroll beneath them.
+ * Pinned lists the threads the user pinned, in BB's pin order, directly under
+ * Up Next. The two bands share one sticky plate at the top of the list, so both
+ * stay in reach while the workstreams scroll beneath them.
  *
  * This file arranges the list and owns its state. The pieces it draws live
  * beside it: `Bands.tsx` (band headers, menus, the lower toggle),
@@ -31,8 +31,8 @@
  * `ListedWorkstream.tsx` (a workstream as the list holds it, sortable and
  * memoized), `WorkstreamGroup.tsx` (its header and fold), `GroupBody.tsx` (a
  * group's trees, categories, and nested groups), `SidebarThreadRow.tsx` (a
- * thread row and what its placement offers), and `Row.tsx` (the row itself).
- * `rows.ts` holds the placement table and row planning, `useGroupCollapse.ts`
+ * thread row and what its location offers), and `Row.tsx` (the row itself).
+ * `rows.ts` holds the location table and row planning, `useGroupCollapse.ts`
  * every group fold, and `useSidebarSnooze.tsx` the snoozing.
  */
 import {
@@ -273,7 +273,7 @@ export function WorkstreamsThreadList({
       isCollapsed(foldKey(placement, id), foldDefault(placement)),
     [isCollapsed],
   );
-  /** One tree, root first, as `placement` draws it with its folds applied. */
+  /** One tree, top thread first, as `placement` draws it with folds applied. */
   const entriesOf = useCallback(
     (tree: readonly ThreadRow[], placement: RowLocation) =>
       visibleEntries(tree, placement, (id) => folded(placement, id)),
@@ -568,8 +568,9 @@ export function WorkstreamsThreadList({
     },
     [navigate, onNavigate],
   );
-  // Colors read only the workstream tree's section bindings and stored colors, so a
-  // filing, which changes its assignments, leaves the group renderers alone.
+  // Colors read only the workstream tree's section bindings and stored colors,
+  // so moving a thread, which changes only threads' workstreams, leaves the
+  // group renderers alone.
   const colorBindings = ws.server.tree?.groups;
   const storedColors = ws.server.tree?.colors;
   const colorOf = useCallback(

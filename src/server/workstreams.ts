@@ -84,8 +84,8 @@ type AssignmentRow = {
 };
 
 /**
- * The assignment `threadId` has through its root's subject row. `entities`
- * holds at least the assigned workstream and its ancestors.
+ * The workstream `threadId` has through the subject row of the thread at the
+ * top of its tree. `entities` holds at least that workstream and its ancestors.
  */
 function resolveAssignment(
   threadId: string,
@@ -131,8 +131,8 @@ function insertRows(db: Database, table: string, rows: readonly Row[]) {
 }
 
 /**
- * Records the workstreams and groups and every workstream assignment, so an accepted
- * suggestion can be undone. The latest 50 are kept.
+ * Records the workstreams and groups and every thread's workstream, so an
+ * accepted suggestion can be undone. The latest 50 are kept.
  */
 export function snapshotWorkstreams(db: Database, at: number): string {
   const id = randomUUID();
@@ -151,9 +151,10 @@ export function snapshotWorkstreams(db: Database, at: number): string {
 }
 
 /**
- * The workstreams and groups, manual project choices, and every workstream assignment, hashed.
- * Workstream bindings, the workstream tree revision, and learned project choices are
- * left out so automatic organization cannot immediately invalidate Undo.
+ * The workstreams and groups, manual project choices, and every thread's
+ * workstream, hashed. Workstream bindings, the workstream tree revision, and
+ * learned project choices are left out so automatic organization cannot
+ * immediately invalidate Undo.
  */
 export function workstreamsFingerprint(db: Database): string {
   return createHash("sha256")
@@ -180,10 +181,11 @@ export function workstreamsFingerprint(db: Database): string {
 }
 
 /**
- * Puts back the workstreams and groups and assignments a snapshot recorded, while they
- * still match `fingerprint`: any later workstream or assignment change means
- * undoing would discard it, so nothing is restored. Workstreams bound to
- * workstreams the snapshot lacks are unbound. Returns whether it restored.
+ * Puts back the workstreams and groups and threads' workstreams a snapshot
+ * recorded, while they still match `fingerprint`: any later change to a
+ * workstream or a thread's workstream means undoing would discard it, so
+ * nothing is restored. Workstreams bound to workstreams the snapshot lacks are
+ * unbound. Returns whether it restored.
  *
  * Rows are updated in place rather than replaced, so foreign keys from
  * workstream bindings and parent links hold at every step, and every workstream
@@ -310,7 +312,7 @@ export class WorkstreamStore {
     return raw ? parseInt(raw, 10) || 1 : 1;
   }
 
-  /** Independent of assignment and native-section projection changes. */
+  /** Unchanged by moving threads or by native-section projection changes. */
   definitionKey(): string {
     return createHash("sha256")
       .update(JSON.stringify(this.list()))
@@ -362,7 +364,7 @@ export class WorkstreamStore {
     ).n;
   }
 
-  /** Stored assignments keep a workstream in use, including archived work. */
+  /** Stored threads keep a workstream in use, including archived work. */
   heldThreads(workstreamId: string): number {
     return (
       this.db
@@ -386,7 +388,9 @@ export class WorkstreamStore {
       );
   }
 
-  /** Refuses to file a thread in a workstream that has workstreams in a group. */
+  /**
+   * Refuses to move a thread into a workstream that has workstreams in a group.
+   */
   private assertTakesThreads(workstreamId: string): void {
     if (this.workstreams(workstreamId) > 0)
       throw new Error(
@@ -532,10 +536,10 @@ export class WorkstreamStore {
   }
 
   /**
-   * Records a discovered workstream under its deepest existing ancestor, resolved
-   * against the Catalog as it is now: it may have changed since the proposal
-   * was classified. A proposal that names an existing workstream returns it
-   * unchanged.
+   * Records a discovered workstream under its deepest existing ancestor,
+   * resolved against the workstreams as they are now: it may have changed since
+   * the proposal was classified. A proposal that names an existing workstream
+   * returns it unchanged.
    */
   rememberProposal(draft: DraftWorkstreamProposal): Workstream {
     return this.db.transaction(() => {
@@ -644,9 +648,9 @@ export class WorkstreamStore {
   }
 
   /**
-   * One thread's assignment. It reads only the thread's root, its subject
-   * row, and the assigned workstream's lineage, so callers may use it per thread;
-   * a caller resolving many threads at once uses `assignmentsOf`.
+   * One thread's workstream. It reads only the thread at the top of its tree,
+   * its subject row, and the workstream's lineage, so callers may use it per
+   * thread; a caller resolving many threads at once uses `assignmentsOf`.
    */
   assignment(threadId: string): WorkstreamAssignment {
     const rootId = this.findParentmostThread(threadId);
@@ -659,7 +663,10 @@ export class WorkstreamStore {
     );
   }
 
-  /** The assignments of `threadIds`, from one read of the workstreams and groups. */
+  /**
+   * The workstreams of `threadIds`, from one read of the workstreams and
+   * groups.
+   */
   assignmentsOf(
     threadIds: Iterable<string>,
   ): Map<string, WorkstreamAssignment> {
@@ -675,7 +682,7 @@ export class WorkstreamStore {
     return out;
   }
 
-  /** Every seen thread's and every stored subject's assignment. */
+  /** Every seen thread's and every stored subject's workstream. */
   assignments(): Record<string, WorkstreamAssignment> {
     const workstreams = this.list();
     const subjects = new Map(
@@ -799,12 +806,11 @@ export class WorkstreamStore {
 
   /**
    * Applies an analysis's workstream under the source priority (see
-   * `AssignmentProvenance`): your workstream is never replaced, an inherited one
-   * only by an automatic choice (`full`) on a scope shift or with a more
+   * `AssignmentProvenance`): your workstream is never replaced, an inherited
+   * one only by an automatic choice (`full`) on a scope shift or with a more
    * specific workstream beneath it, and a composer preview of earlier text
-   * (`quick`) only fills a thread that has no workstream yet or replaces its own
-   * earlier one. Returns whether the assignment
-   * changed.
+   * (`quick`) only fills a thread that has no workstream yet or replaces its
+   * own earlier one. Returns whether the thread's workstream changed.
    */
   applyAnalysis(
     threadId: string,
@@ -856,8 +862,9 @@ export class WorkstreamStore {
         : answer.proposed
           ? this.rememberProposal(answer.proposed)
           : null;
-      // An unavailable or non-fileable workstream preserves the current assignment.
-      // Retain the request basis so unrelated turns do not repeat the same call.
+      // A workstream that is unavailable or can't hold threads preserves the
+      // current one. Retain the request basis so unrelated turns do not repeat
+      // the same call.
       if (
         (answer.workstreamId && !workstream) ||
         (workstream &&
@@ -960,8 +967,8 @@ export class WorkstreamStore {
    * preview's (`quick`), the workstream `entityId` as inherited.
    */
   inheritWorkstream(threadId: string, workstreamId: string): boolean {
-    // A workstream with workstreams in a group holds no threads; placement settles the thread
-    // with this workstream as its hint.
+    // A workstream with workstreams in a group holds no threads; the workstream
+    // choice settles the thread with this workstream as its hint.
     if (
       !this.getById(workstreamId) ||
       this.workstreams(workstreamId) > 0 ||
@@ -977,7 +984,7 @@ export class WorkstreamStore {
 
   /**
    * Applies a reviewed division of a top-level workstream into lasting child
-   * workstreams. Every stored assignment, including archived work, appears exactly
+   * workstreams. Every stored thread, including archived work, appears exactly
    * once and retains its provenance and basis. Matching children are reused.
    */
   split(
@@ -1536,10 +1543,10 @@ export class WorkstreamStore {
   }
 
   /**
-   * The assignments of visible, non-archived threads (`ws_seen_thread`), one
-   * for each, for client snapshots. Filing plans and stored-assignment checks
-   * use `assignments()`, which also covers archived subjects; clients read an
-   * archived thread's assignment on demand.
+   * The workstreams of visible, non-archived threads (`ws_seen_thread`), one
+   * for each, for client snapshots. Plans that move threads and checks of
+   * stored workstreams use `assignments()`, which also covers archived
+   * subjects; clients read an archived thread's workstream on demand.
    */
   visibleAssignments(): Record<string, WorkstreamAssignment> {
     const workstreams = this.list();
@@ -1550,7 +1557,8 @@ export class WorkstreamStore {
           .all() as { thread_id: string; parent_thread_id: string | null }[]
       ).map((row) => [row.thread_id, row.parent_thread_id]),
     );
-    // A root is a seen thread or the unseen parent a seen chain stops at.
+    // A top-level thread is a seen thread or the unseen parent a seen chain
+    // stops at.
     const subjects = new Map(
       (
         this.db

@@ -13,7 +13,7 @@ const store = () => {
   const host = createTestPluginHost({ pluginId: `partition-${hosts.length}` });
   hosts.push(host);
   const db = openDatabase(host.bb);
-  /** A visible root, as the reconciler records it. */
+  /** A visible thread with no parent, as the reconciler records it. */
   const see = (...ids: string[]) => {
     for (const id of ids)
       db.prepare(
@@ -29,8 +29,8 @@ afterEach(async () => {
   );
 });
 
-describe("a topic holds threads or subtopics, never both", () => {
-  it("refuses a thread in a topic with subtopics", () => {
+describe("a workstream holds threads and a group holds workstreams", () => {
+  it("refuses a thread in a group", () => {
     const { workstreamStore } = store();
     const product = workstreamStore.create("Automations");
     workstreamStore.create("Triggers", "", product.id);
@@ -39,7 +39,7 @@ describe("a topic holds threads or subtopics, never both", () => {
     );
   });
 
-  it("refuses a subtopic beneath a topic that holds visible threads", () => {
+  it("refuses a workstream beneath one that holds visible threads", () => {
     const { workstreamStore, see } = store();
     const product = workstreamStore.create("Automations");
     const other = workstreamStore.create("Code Review");
@@ -53,7 +53,7 @@ describe("a topic holds threads or subtopics, never both", () => {
     );
   });
 
-  it("refuses a merge that would put threads beside subtopics", () => {
+  it("refuses a merge that would put threads beside workstreams", () => {
     const { workstreamStore, see } = store();
     const a = workstreamStore.create("Alpha");
     const b = workstreamStore.create("Beta");
@@ -68,7 +68,7 @@ describe("a topic holds threads or subtopics, never both", () => {
     );
   });
 
-  it("files a proposal beneath a topic that holds threads in that topic", () => {
+  it("moves a proposal beneath a workstream with threads into that workstream", () => {
     const { workstreamStore, see } = store();
     const product = workstreamStore.create("Automations");
     see("t1");
@@ -82,7 +82,7 @@ describe("a topic holds threads or subtopics, never both", () => {
     expect(workstreamStore.workstreams(product.id)).toBe(0);
   });
 
-  it("ignores an analysis answer that names a topic with subtopics", () => {
+  it("ignores an analysis answer that names a group", () => {
     const { workstreamStore } = store();
     const product = workstreamStore.create("Automations");
     workstreamStore.create("Triggers", "", product.id);
@@ -98,7 +98,7 @@ describe("a topic holds threads or subtopics, never both", () => {
     expect(workstreamStore.assignment("t1").provenance).toBe("automatic");
   });
 
-  it("keeps the topic, but settles the basis, when placement names a topic that can't hold it", () => {
+  it("keeps the workstream, but settles the basis, when the workstream choice names one that can't hold it", () => {
     const { workstreamStore } = store();
     const product = workstreamStore.create("Automations");
     workstreamStore.create("Triggers", "", product.id);
@@ -110,7 +110,7 @@ describe("a topic holds threads or subtopics, never both", () => {
         "k",
       ),
     ).toBe(false);
-    // Settled as Unfiled from these requests, so it isn't asked again.
+    // Settled as No workstream from these requests, so it isn't asked again.
     expect(workstreamStore.assignment("t1")).toMatchObject({
       workstreamId: null,
       provenance: "automatic",
@@ -127,7 +127,7 @@ describe("a topic holds threads or subtopics, never both", () => {
     expect(workstreamStore.basis("t2")).toBe("k");
   });
 
-  it("doesn't inherit a topic with subtopics", () => {
+  it("doesn't inherit a group", () => {
     const { workstreamStore } = store();
     const product = workstreamStore.create("Automations");
     workstreamStore.create("Triggers", "", product.id);
@@ -135,7 +135,7 @@ describe("a topic holds threads or subtopics, never both", () => {
   });
 });
 
-describe("merging a lone subtopic into its parent", () => {
+describe("merging a lone workstream into its group", () => {
   it("leaves the parent holding the threads", () => {
     const { workstreamStore, see } = store();
     const parent = workstreamStore.create("Automations");
@@ -149,7 +149,7 @@ describe("merging a lone subtopic into its parent", () => {
 });
 
 describe("split", () => {
-  it("files each stored assignment in a reviewed child topic", () => {
+  it("moves each stored thread into a reviewed child workstream", () => {
     const { workstreamStore, see } = store();
     const product = workstreamStore.create("Automations");
     see("a", "b", "c");
@@ -174,7 +174,7 @@ describe("split", () => {
     expect(workstreamStore.revision()).toBeGreaterThan(before);
   });
 
-  it("reuses a subtopic a legacy topic already has", () => {
+  it("reuses a workstream a legacy group already has", () => {
     const { workstreamStore, see, db } = store();
     const product = workstreamStore.create("Automations");
     const triggers = workstreamStore.create("Triggers", "", product.id);
@@ -264,7 +264,7 @@ describe("restoreWorkstreams", () => {
     expect(restoreWorkstreams(db, nextSnapshot, nextFingerprint)).toBe(false);
   });
 
-  it("restores nothing once the catalog changed again", () => {
+  it("restores nothing once the workstreams changed again", () => {
     const { db, workstreamStore } = store();
     const alpha = workstreamStore.create("Alpha");
     const snapshot = snapshotWorkstreams(db, 1);

@@ -1,14 +1,10 @@
 /**
- * The searchable option lists behind New work's two pickers, drawn in the
- * composer's popovers (`WorkstreamPicker`). The rules — which entries appear,
+ * The searchable option list behind New work's workstream picker, drawn in
+ * the composer's popover (`WorkstreamPicker`). The rules — which entries appear,
  * how a query matches, what picking one does to the `NewWork` model — live
  * here once.
  *
- * Product/Feature identity and Workstream placement stay independent:
- * - Identity says what the task concerns in the Catalog.
- * - Placement says where the thread is filed in the sidebar.
- * Choosing one never erases or forces the other. Searching matches full
- * ancestry paths and aliases.
+ * Searching matches a workstream's full path and its aliases.
  */
 import {
   useEffect,
@@ -104,7 +100,7 @@ function Description({ text }: { text: string | null | undefined }) {
 }
 
 /**
- * The Catalog's entities, fetched each time `enabled` turns on (a picker
+ * The workstreams and groups, fetched each time `enabled` turns on (a picker
  * opening) so the list reflects workstreams added since.
  */
 export function useTreeWorkstreams(enabled: boolean): Workstream[] {
@@ -133,7 +129,7 @@ export function identityValue(state: NewWorkViewState): string {
 
 interface OptionsProps {
   newWork: NewWork;
-  /** The Catalog, empty until `useCatalogEntities` has loaded it. */
+  /** The workstreams, empty until `useTreeWorkstreams` has loaded them. */
   workstreams: readonly Workstream[];
   query: string;
   onQueryChange: (query: string) => void;

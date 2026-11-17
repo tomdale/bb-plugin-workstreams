@@ -11,7 +11,7 @@ export type { ThreadRow } from "./rows.ts";
 export type ThreadNode = WorkstreamNode<PluginSidebarThread>;
 export type RowRenderOptions = {
   placement: RowLocation;
-  /** The drag handle, for a root row that drags its tree. */
+  /** The drag handle, for a top-level row that drags its tree. */
   handle?: DragHandle;
   /** The width its rows reserve for the status slot (see `slotWidthOf`). */
   slotWidth?: number;

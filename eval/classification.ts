@@ -141,8 +141,8 @@ try {
             workstreamId: workstream.workstreamId,
             proposed: workstream.proposed,
           };
-          // Subgroups come only from splits, so placement files work on a
-          // new capability in its product while the product has none.
+          // Subgroups come only from splits, so the workstream choice moves
+          // work on a new capability in its product while the product has none.
           const inside = test.expectNew?.inside;
           const intoProduct =
             !!inside &&
@@ -207,7 +207,7 @@ await writeFile(
       accepted,
       acceptance: cold
         ? "top-level ownership; hierarchy is advisory for single-workstream proposals"
-        : "the expected topic",
+        : "the expected workstream",
       hierarchyMatches: results.filter((r) => r.hierarchy).length,
       exactMatches: results.filter((r) => r.exact).length,
       total: results.length,

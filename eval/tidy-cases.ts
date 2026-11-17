@@ -1,8 +1,8 @@
 import type { TidyEdit, TidyInput } from "../src/domain/tidy.ts";
 
 /**
- * An edit a case expects or forbids, matched on its operation and the topics
- * or thread it names; a rename on a move doesn't change the match.
+ * An edit a case expects or forbids, matched on its operation and the
+ * workstreams or thread it names; a rename on a move doesn't change the match.
  */
 export type EditPattern =
   | { op: "merge"; from: string; into: string }
@@ -34,7 +34,10 @@ const workstreams = (rows: Row[]) =>
     aliases: [],
   }));
 
-/** Threads as `topicId: title` lines; each gets the ID `<topic>-<n>`. */
+/**
+ * Threads as `workstreamId: title` lines; each gets the ID
+ * `<workstream>-<n>`.
+ */
 const threads = (lines: string[]) =>
   lines.map((entry, i) => {
     const at = entry.indexOf(":");

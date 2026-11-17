@@ -75,7 +75,10 @@ export function openingOf(
   );
 }
 
-/** The agent that actually started a root, not an agent that later messaged it. */
+/**
+ * The agent that actually started a top-level thread, not an agent that later
+ * messaged it.
+ */
 export function senderOfStart(
   requested: readonly { data?: unknown }[],
 ): string | null {

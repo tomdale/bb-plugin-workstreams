@@ -108,7 +108,7 @@ export function overviewGroup(
   return find(nestGroups(ws.projection.all, ws.workstreams));
 }
 
-/** The root rows a group lists, its workstreams' included. */
+/** The top-level thread rows a group lists, its workstreams' included. */
 const threadRows = (group: Listed): ProjectedRow<PluginSidebarThread>[] => [
   ...group.rows.filter((row) => row.depth === 0),
   ...(group.workstreams ?? []).flatMap(threadRows),

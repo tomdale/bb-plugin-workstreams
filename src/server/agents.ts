@@ -9,8 +9,8 @@ import { RESPONSE_INSTRUCTIONS } from "../domain/postTurn/instructions.ts";
 
 /**
  * Internal inference workers receive no tools or instructions. Side chats
- * receive question support; other threads also receive recap configuration.
- * A root thread in the Enhanced responses experiment gets the plain response
+ * receive question support; other threads also receive recap configuration. A
+ * top-level thread in the Enhanced responses experiment gets the plain response
  * contract in place of the reply-block one, so its agent never writes a reply
  * block that would be drawn beside the enhanced document.
  */

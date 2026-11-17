@@ -1,5 +1,5 @@
 /*
- * Categories arrange a workstream's current root collection.
+ * Categories arrange a workstream's current collection of threads.
  */
 import { z } from "zod";
 import { HEADER, redact, stripFence, tagged } from "./analysis.ts";
@@ -71,7 +71,7 @@ export function categoryAction(
   return "none";
 }
 
-/** Departing roots leave immediately, even while inference is in flight. */
+/** Departing threads leave immediately, even while inference is in flight. */
 export function pruneCategories(
   generation: CategoryGeneration,
   threads: readonly { id: string }[],
@@ -259,7 +259,7 @@ export function parseCategories(
 
 /**
  * Whether an arrangement is mostly categories of one, which only a full
- * rearrangement can regroup: filing a newcomer into one of them would keep it.
+ * rearrangement can regroup: moving a newcomer into one of them would keep it.
  */
 export function mostlySingletons(generation: CategoryGeneration): boolean {
   const singles = generation.categories.filter(
@@ -274,7 +274,7 @@ export function mostlySingletons(generation: CategoryGeneration): boolean {
  */
 export type CategoryFitInput = CategoryInput & {
   current: CategoryGeneration;
-  /** Root IDs to file: arrivals and threads whose work changed. */
+  /** Thread IDs to place: arrivals and threads whose work changed. */
   changed: string[];
 };
 
@@ -394,7 +394,7 @@ export function parseCategoryFit(
 }
 
 /**
- * The arrangement with every changed thread filed where the check put it, or
+ * The arrangement with every changed thread moved where the check put it, or
  * null when one doesn't fit and the collection needs rearranging.
  */
 export function applyCategoryFit(

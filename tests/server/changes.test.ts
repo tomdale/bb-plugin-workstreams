@@ -73,7 +73,7 @@ describe("client snapshot scope", () => {
     );
     seen.run("root", null, "Root");
     seen.run("child", "root", "Child");
-    // A child whose archived parent is no longer seen inherits its topic.
+    // A child whose archived parent is no longer seen inherits its workstream.
     seen.run("orphan", "archived-parent", "Orphan");
     seen.run("other", null, "Other");
     workstreamStore.assign("root", workstream.id, { provenance: "manual" });

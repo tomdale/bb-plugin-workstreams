@@ -31,7 +31,7 @@ const root: StartInput = {
 };
 
 describe("start call", () => {
-  it("names a root and files it with placement's rules", () => {
+  it("names a thread and chooses its workstream by the workstream choice's rules", () => {
     const prompt = startPrompt(root);
     expect(prompt).toContain("and choose its workstream");
     expect(prompt).toContain("[billing] Billing");
@@ -54,7 +54,7 @@ describe("start call", () => {
       root,
     );
     expect(output.workstream?.workstreamId).toBe("billing");
-    // The title drops the names of the topic the same answer chose.
+    // The title drops the names of the workstream the same answer chose.
     expect(output.title).toBe("Fixing export timeouts");
   });
 
@@ -78,7 +78,7 @@ describe("start call", () => {
     ).toEqual({ title: "Reviewing Phase 3", workstream: null });
   });
 
-  it("refuses a topic that can't hold threads and keeps the title", () => {
+  it("refuses a workstream that can't hold threads and keeps the title", () => {
     const output = parseStart(
       JSON.stringify({
         title: { verb: "Fixing", subject: "export timeouts" },

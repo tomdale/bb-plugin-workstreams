@@ -72,7 +72,7 @@ export function Row({
    */
   context?: string;
   /**
-   * Where the row is listed (see `PLACEMENT_TRAITS`); absent for a row on its
+   * Where the row is listed (see `LOCATION_TRAITS`); absent for a row on its
    * own. Up Next rows, for one, all need Tom, so the title reads at full
    * strength.
    */

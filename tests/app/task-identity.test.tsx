@@ -97,7 +97,7 @@ const treeState: WorkstreamState = {
   revision: 5,
 };
 
-/** Mounts the topic control as the Workstreams page renders it. */
+/** Mounts the workstream control as the Workstreams page renders it. */
 function WorkstreamControl({ threadId }: { threadId: string }) {
   return <TaskIdentity threadId={threadId} />;
 }
@@ -194,8 +194,8 @@ async function mountTaskIdentity(
   );
 }
 
-describe("Topic control", () => {
-  it("shows a topic the user chose", async () => {
+describe("Workstream control", () => {
+  it("shows a workstream the user chose", async () => {
     const slot = await mountTaskIdentity("t-root");
     const button = await slot.findByRole("button", {
       name: "Workstream: Platform › Auth (moved there by you)",
@@ -229,7 +229,7 @@ describe("Topic control", () => {
     slot.lifecycle.unmount();
   });
 
-  it("shows No topic when Workstreams found none", async () => {
+  it("shows No workstream when Workstreams found none", async () => {
     const slot = await mountTaskIdentity("t-unresolved-in-workstream");
     const button = await slot.findByRole("button", {
       name: "Workstream: No workstream (automatic)",
@@ -241,7 +241,7 @@ describe("Topic control", () => {
     slot.lifecycle.unmount();
   });
 
-  it("shows a fork's parent topic without letting it change", async () => {
+  it("shows a fork's parent workstream without letting it change", async () => {
     const slot = await mountTaskIdentity("t-child");
     const button = (await slot.findByRole("button", {
       name: "Workstream: Platform › Auth (follows its parent thread)",
@@ -251,7 +251,7 @@ describe("Topic control", () => {
     slot.lifecycle.unmount();
   });
 
-  it("picking a topic saves it as the user's choice", async () => {
+  it("picking a workstream saves it as the user's choice", async () => {
     const rpcCalls: { method: string; args: unknown }[] = [];
     const slot = await mountTaskIdentity("t-auto", { rpcCalls });
     fireEvent.click(

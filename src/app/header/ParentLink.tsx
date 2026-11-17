@@ -18,9 +18,9 @@ function threadHue(id: string): number {
 }
 
 /**
- * Optional chip in a child thread's header that opens its
- * parent. It reads the live sidebar thread set, so it hides for roots and for
- * parents that are archived or hidden.
+ * Optional chip in a child thread's header that opens its parent. It reads the
+ * live sidebar thread set, so it hides for top-level threads and for parents
+ * that are archived or hidden.
  */
 export function ParentThreadLink({
   threadId,

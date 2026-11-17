@@ -25,7 +25,7 @@ const recordSchema = z.object({
   status: z.enum(["pending", "settled"]),
   work: z.record(z.string(), z.object({ basis: z.string(), key: z.string() })),
   /**
-   * Each root's work key when the current arrangement was last settled, so a
+   * Each thread's work key when the current arrangement was last settled, so a
    * later change can tell which threads arrived or changed. Absent before an
    * arrangement settles with it, which asks for a whole new one.
    */
@@ -59,7 +59,7 @@ export class Categories {
   constructor(
     private readonly deps: {
       db: Database;
-      /** Only leaf workstreams, with their visible unsnoozed roots. */
+      /** Only leaf workstreams, with their visible unsnoozed threads. */
       collections: () => CategoryCollection[];
       classify: (
         input: CategoryInput,
@@ -316,11 +316,11 @@ export class Categories {
    * again after a model call, or null when it made none.
    *
    * With a settled arrangement, a change is first checked against it: a
-   * departure or a title change asks nothing, and threads that arrived or
-   * whose work changed are filed into existing categories when they fit
-   * (`fit`). Only a thread that fits none, an arrangement of mostly
-   * singletons, or a collection with no arrangement yet asks for a whole
-   * new arrangement (`classify`).
+   * departure or a title change asks nothing, and threads that arrived or whose
+   * work changed are moved into existing categories when they fit (`fit`). Only
+   * a thread that fits none, an arrangement of mostly singletons, or a
+   * collection with no arrangement yet asks for a whole new arrangement
+   * (`classify`).
    */
   private async update(
     collection: CategoryCollection,
@@ -504,7 +504,7 @@ export class Categories {
     else this.save(fresh);
   }
 
-  /** Each root's work as the record last saw it (see `key`). */
+  /** Each thread's work as the record last saw it (see `key`). */
   private workKeys(
     collection: CategoryCollection,
     record?: Record,
@@ -520,7 +520,7 @@ export class Categories {
   }
 }
 
-/** Activity's reason for filing changed threads into existing categories. */
+/** Activity's reason for moving changed threads into existing categories. */
 function fitReason(
   collection: CategoryCollection,
   next: CategoryGeneration,

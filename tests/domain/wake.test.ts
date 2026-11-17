@@ -98,7 +98,7 @@ describe("isStalled", () => {
     failedAt: AT + 1,
   });
 
-  it("holds when a delegate failed after the snooze and nothing moves", () => {
+  it("holds when a child thread failed after the snooze and nothing moves", () => {
     expect(isStalled(root, [failedChild], AT)).toBe(true);
   });
 
@@ -116,7 +116,7 @@ describe("isStalled", () => {
     }
   });
 
-  it("doesn't hold when the root's turn already wakes it, or the failure is old", () => {
+  it("doesn't hold when the parent thread's turn already wakes it, or the failure is old", () => {
     expect(isStalled({ ...root, work: "complete" }, [failedChild], AT)).toBe(
       false,
     );
@@ -160,7 +160,7 @@ describe("wakeEvent", () => {
     ).toBe(null);
   });
 
-  it("wakes for a delegate that needs the user, but not one that's done", () => {
+  it("wakes for a child thread that needs the user, but not one that's done", () => {
     const child = (work: WakeThread["work"]) =>
       thread({ id: "d", latestAttentionAt: AT + 1, work });
     expect(

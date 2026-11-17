@@ -71,7 +71,7 @@ it("shows the parent's title and disc and opens the parent", async () => {
   slot.lifecycle.unmount();
 });
 
-it("hides for roots and for parents outside the live thread set", async () => {
+it("hides for top-level threads and for parents outside the live thread set", async () => {
   for (const threads of [
     [sidebarThread("child", { title: "Child work" })],
     [sidebarThread("child", { parentThreadId: "missing" })],

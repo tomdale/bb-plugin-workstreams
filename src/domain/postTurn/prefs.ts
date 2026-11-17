@@ -1,6 +1,6 @@
 /**
  * The Enhanced responses experiment's settings: off by default. While on,
- * agents in visible root threads write their final response as plain
+ * agents in visible top-level threads write their final response as plain
  * Markdown instead of a reply block, and Workstreams composes an enhanced
  * document below it after each turn with the chosen model.
  */

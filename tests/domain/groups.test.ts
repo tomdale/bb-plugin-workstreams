@@ -70,14 +70,14 @@ describe("arrangeGroups", () => {
     expect(arranged.tiered).toBe(false);
   });
 
-  it("tiers the groups once any workstream is prioritized", () => {
+  it("tiers the groups once any workstream is focused", () => {
     const arranged = arrangeGroups(project(["sec_b"]), "alphabetical");
     expect(names(arranged.focused)).toEqual(["Beta"]);
     expect(names(arranged.populated)).toEqual(["Alpha", "Charlie"]);
     expect(arranged.tiered).toBe(true);
   });
 
-  it("sums hidden group counts once, including nested threads, Unfiled and Dormant", () => {
+  it("sums hidden group counts once, including nested threads, Other and Dormant", () => {
     const projection = projectWorkstreams(
       [
         thread("focused", {
@@ -148,7 +148,7 @@ describe("arrangeGroups", () => {
     expect(arranged.lowerCounts).toEqual({ needsYou: 3, total: 5 });
   });
 
-  it("reports nothing to reveal when every group is prioritized", () => {
+  it("reports nothing to reveal when every group is focused", () => {
     const projection = projectWorkstreams(
       [thread("a1", { sectionId: "sec_a" })],
       [{ id: "sec_a", name: "Alpha" }],

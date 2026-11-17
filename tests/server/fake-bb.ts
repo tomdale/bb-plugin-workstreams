@@ -32,17 +32,17 @@ export type FakeCompletion = (call: {
   signal?: AbortSignal;
 }) => FakeAnswer | Promise<FakeAnswer>;
 
-/** How the placement prompt opens, so a fake can tell it apart. */
+/** How the workstream choice prompt opens, so a fake can tell it apart. */
 const PLACEMENT = "You choose the workstream for one agent thread";
 
-/** How a turn's end asks for a topic beside its description. */
+/** How a turn's end asks for a workstream beside its description. */
 const TURN_END_WORKSTREAM = "and decide which workstream it belongs in now";
 
-/** How a thread's start opens; a root's also files it under a topic. */
+/** How a thread's start opens; a top-level thread's also picks a workstream. */
 const START = "You name one new agent thread from its opening request";
 const START_WORKSTREAM = `${START} and choose its workstream`;
 
-/** Whether a prompt chooses a thread's topic, alone or with other fields. */
+/** Whether a prompt chooses a thread's workstream, alone or with others. */
 export const choosesWorkstream = (prompt: string) =>
   prompt.includes(PLACEMENT) ||
   prompt.includes(TURN_END_WORKSTREAM) ||
@@ -50,7 +50,7 @@ export const choosesWorkstream = (prompt: string) =>
 
 /**
  * Whether a prompt is a thread's start, which names it. The composer's
- * preview opens the same way and also chooses a topic.
+ * preview opens the same way and also chooses a workstream.
  */
 export const isStart = (prompt: string) => prompt.includes(START);
 
@@ -80,9 +80,10 @@ function asTitleParts(answer: string) {
 }
 
 /**
- * Tests answer every call with one JSON shape, naming a topic by its ID as
- * `subjectId` or proposing one as `proposed`. Placement names topics by short
- * IDs and proposes with `propose`, so translate a test's answer for it.
+ * Tests answer every call with one JSON shape, naming a workstream by its ID
+ * as `subjectId` or proposing one as `proposed`. The workstream choice names
+ * workstreams by short IDs and proposes with `propose`, so translate a test's
+ * answer for it.
  */
 function asPlacement(
   answer: string,
@@ -233,10 +234,11 @@ export async function fakeWorld(
       const usage = { input: 100, output: 20, cost: 0.0001 };
       const textOf = (answer: FakeAnswer) =>
         typeof answer === "string" ? answer : answer.text;
-      // A turn's end describes the thread and chooses its topic in one call,
-      // and a root's start names it and files it. Tests answer the two parts
-      // as they did when they were separate calls: the topic as a placement
-      // answer, the rest as an analysis or opening title.
+      // A turn's end describes the thread and chooses its workstream in one
+      // call, and a top-level thread's start names it and picks its
+      // workstream. Tests answer the two parts as they did when they were
+      // separate calls: the workstream as a workstream-choice answer, the
+      // rest as an analysis or opening title.
       const starting = isStart(input.prompt);
       if (
         input.prompt.includes(TURN_END_WORKSTREAM) ||
@@ -277,7 +279,7 @@ export async function fakeWorld(
         const workstream = JSON.parse(
           asPlacement(
             // Without the description's opening, so fakes that tell the two
-            // calls apart by it answer this part as placement.
+            // calls apart by it answer this part as the workstream choice.
             await ask(
               `${PLACEMENT}\n\n${input.prompt.replace("You describe one agent thread", "This agent thread")}`,
             ),

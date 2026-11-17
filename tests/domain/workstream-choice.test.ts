@@ -36,7 +36,7 @@ const input: WorkstreamChoiceInput = {
 };
 
 describe("workstreamChoicePrompt", () => {
-  it("lists topics by name slug, marking the ones that can't hold threads", () => {
+  it("lists workstreams by name slug, marking the ones that can't hold threads", () => {
     const ids = promptIds(workstreams);
     expect([...ids.entries()]).toEqual([
       ["auto", "automations"],
@@ -71,7 +71,7 @@ describe("workstreamChoicePrompt", () => {
     );
   });
 
-  it("tells topics with the same name apart by their parents", () => {
+  it("tells workstreams with the same name apart by their parents", () => {
     const ids = promptIds([
       workstream("a", "Alpha", null),
       workstream("b", "Beta", null),
@@ -86,7 +86,7 @@ describe("workstreamChoicePrompt", () => {
     ]);
   });
 
-  it("constrains the answer to topics that hold threads", () => {
+  it("constrains the answer to workstreams that hold threads", () => {
     const schema = workstreamChoiceSchema(input) as {
       properties: {
         workstream: { enum: unknown[] };
@@ -109,7 +109,7 @@ describe("parseWorkstreamChoice", () => {
   const parse = (answer: object) =>
     parseWorkstreamChoice(JSON.stringify(answer), input);
 
-  it("maps a slug back to its topic", () => {
+  it("maps a slug back to its workstream", () => {
     expect(
       parse({ workstream: "planning", propose: null, scopeShift: false }),
     ).toEqual({
@@ -119,12 +119,12 @@ describe("parseWorkstreamChoice", () => {
     });
   });
 
-  it("refuses a topic with subtopics, or one it wasn't shown", () => {
+  it("refuses a group, or a workstream it wasn't shown", () => {
     expect(() => parse({ workstream: "automations", propose: null })).toThrow();
     expect(() => parse({ workstream: "billing", propose: null })).toThrow();
   });
 
-  it("anchors a proposal and resolves one that names an existing topic", () => {
+  it("anchors a proposal and resolves one that names an existing workstream", () => {
     expect(
       parse({
         workstream: null,
@@ -158,7 +158,7 @@ describe("parseWorkstreamChoice", () => {
   });
 
   it.each(["planning", "missing", ""])(
-    "rejects a topic and proposal together, including invalid topic %s",
+    "rejects a workstream and proposal together, including invalid workstream %s",
     (workstream) => {
       for (const parent of [null, "automations", "missing"]) {
         expect(() =>
@@ -171,7 +171,7 @@ describe("parseWorkstreamChoice", () => {
     },
   );
 
-  it("reads both fields null as no topic", () => {
+  it("reads both fields null as no workstream", () => {
     expect(parse({ workstream: null, propose: null })).toEqual({
       workstreamId: null,
       proposed: null,
@@ -180,7 +180,7 @@ describe("parseWorkstreamChoice", () => {
   });
 });
 
-describe("placement within a user-chosen group", () => {
+describe("the workstream choice within a user-chosen group", () => {
   const scoped = {
     ...input,
     within: "auto",
@@ -249,7 +249,7 @@ describe("placement within a user-chosen group", () => {
   });
 });
 
-describe("placement evidence", () => {
+describe("workstream choice evidence", () => {
   it("keeps the first, second, and latest substantive requests, unwrapped", () => {
     expect(
       placementRequests([

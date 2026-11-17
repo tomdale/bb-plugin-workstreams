@@ -1,9 +1,10 @@
 /**
- * Placement: what choosing a root's workstream reads, and the closed-set call that
- * asks only that. A thread's start and a turn's end ask the workstream together
- * with their other fields (`question` builds the evidence they share); this
- * call alone serves a move into a multi-workstream group, a workstream preview or
- * repair, and a root that only lacks a workstream.
+ * The workstream choice: what choosing a thread's workstream reads, and the
+ * closed-set call that asks only that. A thread's start and a turn's end ask
+ * the workstream together with their other fields (`question` builds the
+ * evidence they share); this call alone serves a move into a multi-workstream
+ * group, a workstream preview or repair, and a thread that only lacks a
+ * workstream.
  *
  * Its evidence is the generated title, the first, second, and latest
  * substantive requests, the project, and the checkout, plus hints:
@@ -30,7 +31,7 @@ import type { WorkstreamStore } from "./workstreams.ts";
 
 type Sdk = BbPluginApi["sdk"];
 
-/** What placement reads from a BB thread. */
+/** What the workstream choice reads from a BB thread. */
 export type ChoiceThread = {
   readonly id: string;
   readonly title: string | null;
@@ -43,11 +44,11 @@ export type ChoiceThread = {
 export type ChoiceQuestion = {
   input: WorkstreamChoiceInput;
   basis: string;
-  /** The answer when no call is needed: a root with nothing to place by. */
+  /** The answer when no call is needed: a thread with nothing to choose by. */
   settled?: WorkstreamChoiceOutput;
 };
 
-/** Roots that point at other repositories before a checkout coordinates. */
+/** Threads that point at other repositories before a checkout coordinates. */
 const COORDINATION_AT = 2;
 
 const GITHUB_REPO = /github\.com\/([\w.-]+)\/([\w.-]+)/gi;
@@ -89,7 +90,8 @@ export class WorkstreamChoice {
 
   /**
    * Remembers where a new thread was started from when that workstream couldn't
-   * be inherited (it holds workstreams in a group), so placement weighs it.
+   * be inherited (it holds workstreams in a group), so the workstream choice
+   * weighs it.
    */
   hintStart(
     threadId: string,
@@ -118,9 +120,9 @@ export class WorkstreamChoice {
   }
 
   /**
-   * What placing a root from these requests would ask, or null when there is
-   * nothing to settle: you set its workstream, or it was settled from these
-   * requests.
+   * What choosing a thread's workstream from these requests would ask, or null
+   * when there is nothing to settle: you set its workstream, or it was settled
+   * from these requests.
    */
   async question(
     thread: ChoiceThread,
@@ -131,8 +133,8 @@ export class WorkstreamChoice {
     const assignment = workstreamStore.assignment(thread.id);
     if (assignment.provenance === "manual" && !options.within) return null;
     const requests = placementRequests(rawRequests);
-    // With neither a substantive request nor a title there is nothing to
-    // place by; settling "no workstream" keeps the root from being asked again
+    // With neither a substantive request nor a title there is nothing to choose
+    // by; settling "no workstream" keeps the thread from being asked again
     // until a request arrives.
     const blank = requests.length === 0 && !thread.title;
     if (blank && options.within)
@@ -178,8 +180,8 @@ export class WorkstreamChoice {
   }
 
   /**
-   * What filing a composer draft reads before it is a thread: the tree with
-   * its thread counts and the project the draft would start in.
+   * What choosing a composer draft's workstream reads before it is a thread:
+   * the tree with its thread counts and the project the draft would start in.
    */
   draft(
     project: string | null,
@@ -216,7 +218,7 @@ export class WorkstreamChoice {
     return { answer: value, traceId };
   }
 
-  /** The checkout a root ran in when it was last placed. */
+  /** The checkout a thread ran in when its workstream was last chosen. */
   checkoutOf(threadId: string): string | null {
     return (
       (
@@ -287,7 +289,7 @@ export class WorkstreamChoice {
       .run(threadId, checkout, elsewhere ? 1 : 0);
   }
 
-  /** Visible roots assigned to each workstream. */
+  /** Visible top-level threads in each workstream. */
   private counts(): Record<string, number> {
     const out: Record<string, number> = {};
     for (const row of this.deps.db

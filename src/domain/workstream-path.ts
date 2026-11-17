@@ -52,9 +52,9 @@ export type WorkstreamIndex = {
 const indexes = new WeakMap<readonly Workstream[], WorkstreamIndex>();
 
 /**
- * Indexes one immutable entities snapshot for every open row menu and picker.
- * Paths, leaf ordering, and search fields are shared rather than recomputed
- * for each row or keystroke.
+ * Indexes one immutable workstreams snapshot for every open row menu and
+ * picker. Paths, leaf ordering, and search fields are shared rather than
+ * recomputed for each row or keystroke.
  */
 export function workstreamIndex(
   workstreams: readonly Workstream[],

@@ -41,7 +41,7 @@ function setup(route: (prompt: string) => Promise<Preview>) {
 beforeEach(() => vi.useFakeTimers());
 afterEach(() => vi.useRealTimers());
 
-describe("NewWork model: the draft's topic preview", () => {
+describe("NewWork model: the draft's workstream preview", () => {
   it("previews draft text after typing pauses", async () => {
     const { deps, newWork } = setup(async () => withFeature);
     newWork.observe("Fix invoice billing layout");
@@ -117,7 +117,7 @@ describe("NewWork model: the draft's topic preview", () => {
   });
 });
 
-describe("NewWork model: picked, inherited, and no topic", () => {
+describe("NewWork model: picked, inherited, and no workstream", () => {
   it("preserves manual identity when typing further", async () => {
     const { newWork } = setup(async () => withFeature);
     newWork.selectIdentity({ workstreamId: "ent_storage", label: "Storage" });
@@ -145,7 +145,7 @@ describe("NewWork model: picked, inherited, and no topic", () => {
     });
   });
 
-  it("persists a picked No topic", async () => {
+  it("persists a picked No workstream", async () => {
     const { newWork } = setup(async () => withFeature);
     newWork.selectIdentity(null);
     expect(newWork.snapshot().identity).toEqual({
@@ -158,7 +158,7 @@ describe("NewWork model: picked, inherited, and no topic", () => {
     newWork.observe("Some other request");
     await vi.advanceTimersByTimeAsync(DEBOUNCE_MS);
 
-    // Manual unresolved persists
+    // A manual No workstream persists
     expect(newWork.snapshot().identity).toEqual({
       workstreamId: null,
       proposal: null,
@@ -188,7 +188,7 @@ describe("NewWork model: picked, inherited, and no topic", () => {
 });
 
 describe("NewWork model: a workstream's ＋", () => {
-  it("starts with the workstream's topic, which a preview never replaces", async () => {
+  it("starts in the workstream, which a preview never replaces", async () => {
     const { newWork } = setup(async () => withFeature);
     newWork.selectWorkstream({ sectionId: "sec_docs" }, "Docs");
     expect(newWork.snapshot().identity).toEqual({

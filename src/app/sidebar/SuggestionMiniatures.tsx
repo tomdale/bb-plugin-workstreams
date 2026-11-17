@@ -1,9 +1,9 @@
 /**
  * The two small sidebars a suggestion is reviewed on (`suggestionMiniatures`):
- * every workstream as its name over one tick per thread, as it is now and as
- * it would be after accepting. A workstream the change touches takes its
- * color and the threads that move are drawn as ribbons from where they are to
- * where they go; the rest is quiet gray, there for placement.
+ * every workstream as its name over one tick per thread, as it is now and as it
+ * would be after accepting. A workstream the change touches takes its color and
+ * the threads that move are drawn as ribbons from where they are to where they
+ * go; the rest is quiet gray, there for context.
  *
  * Ribbons are measured from the laid-out ticks, since names wrap and so a
  * row's height is not known beforehand. When the two sidebars are taller than

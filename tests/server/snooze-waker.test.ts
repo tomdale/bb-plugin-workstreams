@@ -175,7 +175,7 @@ it("doesn't let an older machine wait hide a newer one", async () => {
   expect(world.woken.map((w) => w.event)).toEqual(["host-stalled"]);
 });
 
-it("wakes on a question a delegate raised after the snooze, without the event", async () => {
+it("wakes on a question a child thread raised after the snooze, without the event", async () => {
   const { world, make, read, snooze } = setup();
   const waker = make();
   read([thread("t1"), thread("d1", { parentThreadId: "t1" })]);
@@ -212,7 +212,7 @@ it("reads a turn's outcome as first known, so re-analysis stays quiet", async ()
   expect(world.woken.map((w) => w.event)).toEqual(["complete"]);
 });
 
-it("wakes when a delegate's failure leaves the work stuck", async () => {
+it("wakes when a child thread's failure leaves the work stuck", async () => {
   const { world, make, read, snooze } = setup();
   const waker = make();
   snooze("t1");

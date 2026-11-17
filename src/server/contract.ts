@@ -381,7 +381,7 @@ const stateFields = {
 
 /**
  * The client snapshot. It covers visible, non-archived threads: recaps and
- * assignments of other threads are read on demand through `recap_get`.
+ * workstreams of other threads are read on demand through `recap_get`.
  */
 const stateSchema = z.object({
   ...stateFields,
@@ -480,9 +480,9 @@ export const rpcContract = defineRpcContract({
     output: z.object({ canceled: z.boolean() }),
   },
   /**
-   * The workstream the New thread composer shows for a draft, reported
-   * as the draft changes so the dispatch hook can file the thread a plain
-   * Enter creates (`ComposedDrafts`). Empty text forgets the draft.
+   * The workstream the New thread composer shows for a draft, reported as the
+   * draft changes so the dispatch hook can move the thread a plain Enter
+   * creates (`ComposedDrafts`). Empty text forgets the draft.
    */
   draftIdentity: {
     input: z.object({

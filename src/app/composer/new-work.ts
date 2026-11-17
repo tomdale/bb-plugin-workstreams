@@ -74,7 +74,7 @@ export function isPicked(identity: IdentityChoice): boolean {
   );
 }
 
-/** What the server files the thread with: the workstream the field shows. */
+/** What the server moves the thread by: the workstream the field shows. */
 export function submittedIdentity(
   state: Pick<NewWorkState, "identity" | "decision" | "text">,
 ): ComposedIdentity {
@@ -522,7 +522,8 @@ export class NewWork {
     try {
       void Promise.resolve(this.deps.reportIdentity!(report)).catch(() => {});
     } catch {
-      // The submit data or automatic classification still files the thread.
+      // The submit data or automatic classification still chooses the thread's
+      // workstream.
     }
   }
 

@@ -78,7 +78,10 @@ export class ThreadRecords {
     }
   }
 
-  /** The snapshot's workstream tree revision moved: assignments may have changed. */
+  /**
+   * The snapshot's workstream tree revision moved: threads' workstreams may
+   * have changed.
+   */
   treeChanged(): void {
     const revision = this.treeRevision();
     for (const entry of this.entries.values())

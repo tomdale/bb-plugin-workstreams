@@ -4,11 +4,11 @@
  * accepting one change, with the flows of threads that change moves.
  *
  * The after state is not sent by the server. The client applies the change's
- * delta (`applyDelta`) to the workstreams and filing it holds and runs the real
- * layout and arrangement on both states (`layoutGroups`, `projectWorkstreams`,
- * `arrangeGroups`, with the user's own sort), so the drawing agrees with the
- * sidebar about nesting, name prefixes and order. Pure, so tests can check it
- * without a browser.
+ * delta (`applyDelta`) to the workstreams and threads' workstreams it holds and
+ * runs the real layout and arrangement on both states (`layoutGroups`,
+ * `projectWorkstreams`, `arrangeGroups`, with the user's own sort), so the
+ * drawing agrees with the sidebar about nesting, name prefixes and order. Pure,
+ * so tests can check it without a browser.
  *
  * What differs from the sidebar, on purpose: every workstream with a visible
  * thread is drawn, including dormant ones and the ones hidden while another
@@ -84,7 +84,10 @@ export type SidebarView = {
     readonly all: readonly MiniGroup[];
     readonly other: MiniGroup;
   };
-  /** The workstreams and groups, each root's workstream, and the workstream colors; absent until read. */
+  /**
+   * The workstreams and groups, each thread's workstream, and the workstream
+   * colors; absent until read.
+   */
   readonly tree:
     | (MiniColors & {
         readonly workstreams: readonly DeltaWorkstream[];
@@ -102,8 +105,9 @@ export type SidebarView = {
 };
 
 /**
- * The sidebar's visible threads, its workstreams and their filing, which
- * every suggestion's miniatures start from. Null before the workstreams are read.
+ * The sidebar's visible threads, its workstreams and which threads they hold,
+ * which every suggestion's miniatures start from. Null before the workstreams
+ * are read.
  */
 export function miniatureBase(
   sidebar: SidebarView,

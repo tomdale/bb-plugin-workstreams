@@ -7,11 +7,11 @@
  * The next thread is Up Next's row after the one in view, wrapping to the top;
  * a thread Up Next doesn't list starts at the top. The order is Up Next as the
  * sidebar draws it (see `upNextOrder`): the open thread keeps its row there
- * after reading it moves its rank, and a child thread sits on its root's row, so
- * "next" is the row the user sees below. A thread being put away when Up Next
- * has nothing else still moves the user on, to the next thread in its
- * workstream and then to the most recently active thread, so it lands on the
- * composer only when no other thread is open.
+ * after reading it moves its rank, and a child thread sits on its parent
+ * thread's row, so "next" is the row the user sees below. A thread being put
+ * away when Up Next has nothing else still moves the user on, to the next
+ * thread in its workstream and then to the most recently active thread, so it
+ * lands on the composer only when no other thread is open.
  */
 import {
   arrangeGroups,
@@ -64,8 +64,9 @@ export function upNextOrder<T extends UpNextThread>(
 }
 
 /**
- * The thread whose Up Next row stands for `threadId`: its root, since Up Next
- * lists only roots and draws a child thread under its root's row.
+ * The thread whose Up Next row stands for `threadId`: the thread at the top of
+ * its tree, since Up Next lists only top-level threads and draws a child thread
+ * under its parent thread's row.
  */
 function upNextPlace<T extends WorkstreamThread>(
   projection: Projection<T>,
@@ -110,12 +111,13 @@ export function nextUpNextThread<T extends WorkstreamThread>(
 
 /**
  * Where the user lands once `threadId`, the thread in view, is put away along
- * with everything in `leaving` (an archived subtree, a snoozed workstream):
- * the next Up Next thread (see `nextUpNextThread`). When Up Next has nothing
- * else, a child thread going away leaves the user on its root; a root goes on to
- * the next thread in its workstream past its subtree, wrapping, and then to
- * the most recently active root. Null only when nothing else is open.
- * `projection` and `order` are read before the thread left.
+ * with everything in `leaving` (an archived subtree, a snoozed workstream): the
+ * next Up Next thread (see `nextUpNextThread`). When Up Next has nothing else,
+ * a child thread going away leaves the user on its parent thread; a top-level
+ * thread goes on to the next thread in its workstream past its subtree,
+ * wrapping, and then to the most recently active top-level thread. Null only
+ * when nothing else is open. `projection` and `order` are read before the
+ * thread left.
  */
 export function nextThreadAfterLeaving<T extends WorkstreamThread>(
   projection: Projection<T>,

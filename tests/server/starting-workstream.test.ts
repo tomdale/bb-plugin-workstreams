@@ -1,7 +1,7 @@
 /**
- * How a new root gets its first topic and title: the topic you
- * picked in the composer, the topic of the workstream whose ＋ opened it, the
- * topic of the thread it was started from, or the start call on its first
+ * How a new thread gets its first workstream and title: the workstream you
+ * picked in the composer, the workstream whose ＋ opened it, the
+ * workstream of the thread it was started from, or the start call on its first
  * request, which also titles it. The composer's own title for the same text
  * is kept.
  */
@@ -25,13 +25,13 @@ const isPlacement = (prompt: string) =>
 const startCalls = (w: World) => w.completions.filter((c) => isStart(c.prompt));
 
 /**
- * Placement of the first request settles the topic a moment later. Unless a
- * test asks for its answer, it fails, so the starting topic stands.
+ * The workstream choice for the first request settles a moment later. Unless
+ * a test asks for its answer, it fails, so the starting workstream stands.
  */
 async function setup(placed?: () => string | null) {
   let workstreamId = "";
   world = await fakeWorld({
-    // The fake asks a start's topic as a placement prompt.
+    // The fake asks a start's workstream as a workstream-choice prompt.
     complete: ({ prompt }) =>
       isPlacement(prompt)
         ? placed
@@ -95,7 +95,7 @@ async function setup(placed?: () => string | null) {
   };
 }
 
-describe("a new root's first topic", () => {
+describe("a new thread's first workstream", () => {
   it("is settled by the start call on the first request", async () => {
     let docsId = "";
     const {
@@ -119,7 +119,7 @@ describe("a new root's first topic", () => {
     });
   });
 
-  it("weighs the workstream it was started from when that topic has subtopics", async () => {
+  it("weighs the workstream it was started from when that is a group", async () => {
     const {
       w,
       workstreamStore: workstreamStore,
@@ -169,7 +169,7 @@ describe("a new root's first topic", () => {
       workstreamId: parser.id,
       provenance: "automatic",
     });
-    // The title leaves out the name of the topic the same answer chose.
+    // The title leaves out the name of the workstream the same answer chose.
     expect(w.threads.get("t1")?.title).toBe("Tab handling");
   });
 
@@ -195,7 +195,7 @@ describe("a new root's first topic", () => {
     await dispatch("t1", "Write the docs");
     await settle();
     expect(startCalls(w)).toHaveLength(0);
-    // The preview was the thread's start, so its topic is settled.
+    // The preview was the thread's start, so its workstream is settled.
     expect(workstreamStore.assignment("t1")).toMatchObject({
       workstreamId: docs.id,
       provenance: "automatic",
@@ -204,7 +204,7 @@ describe("a new root's first topic", () => {
     expect(w.threads.get("t1")?.title).toBe("Docs for tabs");
   });
 
-  it("files by a preview of earlier text until the start call answers the text sent", async () => {
+  it("chooses the workstream by a preview of earlier text until the start call answers the text sent", async () => {
     const {
       w,
       workstreamStore: workstreamStore,
@@ -223,8 +223,8 @@ describe("a new root's first topic", () => {
     });
     await dispatch("t1", "Write the docs");
     await settle();
-    // The start call asks title and topic; here the topic part fails, so the
-    // preview's topic stands.
+    // The start call asks title and workstream; here the workstream part fails,
+    // so the preview's workstream stands.
     expect(startCalls(w)).toHaveLength(1);
     expect(startCalls(w)[0]!.prompt).toContain("<workstream_tree>");
     expect(workstreamStore.assignment("t1")).toMatchObject({
@@ -233,7 +233,7 @@ describe("a new root's first topic", () => {
     });
   });
 
-  it("is the topic you picked, which the start call never replaces", async () => {
+  it("is the workstream you picked, which the start call never replaces", async () => {
     const {
       w,
       workstreamStore: workstreamStore,
@@ -256,7 +256,7 @@ describe("a new root's first topic", () => {
     expect(w.threads.get("t1")?.title).toBe("Parser tab handling");
   });
 
-  it("is the topic you picked even in a project other than its workstream's", async () => {
+  it("is the workstream you picked even in a project other than its own", async () => {
     const {
       w,
       workstreamStore: workstreamStore,
@@ -281,7 +281,7 @@ describe("a new root's first topic", () => {
     });
   });
 
-  it("never files Quick analysis's topic under a workstream with a different project", async () => {
+  it("never moves a thread by the start call into a workstream with a different project", async () => {
     const {
       w,
       workstreamStore: workstreamStore,
@@ -307,7 +307,7 @@ describe("a new root's first topic", () => {
     expect(workstreamStore.assignment("t1").workstreamId).not.toBe(docs.id);
   });
 
-  it("is the topic of the workstream whose ＋ opened the composer", async () => {
+  it("is the workstream whose ＋ opened the composer", async () => {
     const {
       w,
       workstreamStore: workstreamStore,
@@ -335,7 +335,7 @@ describe("a new root's first topic", () => {
     });
   });
 
-  it("is the topic of the thread an agent started it from", async () => {
+  it("is the workstream of the thread an agent started it from", async () => {
     const {
       w,
       workstreamStore: workstreamStore,
@@ -382,7 +382,7 @@ describe("a new root's first topic", () => {
 });
 
 describe("the composer's preview", () => {
-  it("gives a mentioned workstream's topic without a model call, and changes nothing", async () => {
+  it("gives the workstream a mention names without a model call, and changes nothing", async () => {
     const {
       w,
       workstreamStore: workstreamStore,
@@ -400,7 +400,7 @@ describe("the composer's preview", () => {
     expect(workstreamStore.revision()).toBe(revision);
   });
 
-  it("previews a draft with the start call and never creates a topic", async () => {
+  it("previews a draft with the start call and never creates a workstream", async () => {
     let calls = 0;
     world = await fakeWorld({
       complete: () => {

@@ -131,7 +131,7 @@ const rowOf = (slot: Slot, title: string) =>
     .getByRole("button", { name: title })
     .closest('[role="row"]') as HTMLElement;
 
-it("lists a workstream's root threads by status with summary and next steps", async () => {
+it("lists a workstream's top-level threads by status with summary and next steps", async () => {
   const slot = await mount();
   await slot.findByRole("table", { name: "Threads in Alpha" });
   expect(slot.getByRole("heading", { level: 1 }).textContent).toBe("Alpha");
@@ -162,7 +162,7 @@ it("lists a workstream's root threads by status with summary and next steps", as
       name: "Archive",
     }).length,
   ).toBe(2);
-  // Other workstreams' threads and delegates get no row.
+  // Other workstreams' threads and child threads get no row.
   expect(slot.queryByText("Beta work")).toBeNull();
   expect(slot.queryByText("Delegate of finished work")).toBeNull();
   slot.lifecycle.unmount();

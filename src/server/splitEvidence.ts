@@ -3,7 +3,10 @@ import type { SuggestThread } from "../domain/tidy.ts";
 import { requestEvidence } from "./requests.ts";
 import type { WorkstreamStore } from "./workstreams.ts";
 
-/** A workstream division reviews archived filing choices as well as current roots. */
+/**
+ * A workstream division reviews archived threads' workstreams as well as
+ * current threads.
+ */
 export async function workstreamDivisionEvidence(
   sdk: BbPluginApi["sdk"],
   workstreamStore: WorkstreamStore,

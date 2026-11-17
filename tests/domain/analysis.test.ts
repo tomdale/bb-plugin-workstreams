@@ -35,7 +35,7 @@ const base: DescriptionInput = {
   mode: "full",
 };
 
-describe("Full analysis", () => {
+describe("turn-end analysis", () => {
   it("settles an outcome independently of titles and reported headlines", () => {
     const input: DescriptionInput = {
       ...base,
@@ -149,7 +149,7 @@ describe("Full analysis", () => {
     );
     expect(parsed.status?.ask).toHaveLength(80);
   });
-  it("asks for status and goal, never a topic, after a new request with no report", () => {
+  it("asks for status and goal, never a workstream, after a new request with no report", () => {
     const prompt = descriptionPrompt(base);
     expect(prompt).toContain('"recap": string');
     expect(prompt).toContain(
@@ -309,7 +309,7 @@ describe("Full analysis", () => {
     expect(prompt.match(/<\/opening_request>/g)).toHaveLength(1);
   });
 
-  it("redacts secrets and never shows a project outside the topic part", () => {
+  it("redacts secrets and never shows a project outside the workstream part", () => {
     const prompt = descriptionPrompt({
       ...base,
       requests: [

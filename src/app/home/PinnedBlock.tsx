@@ -7,10 +7,10 @@ import { hasStatusMark } from "../sidebar/presentation.ts";
 import { HIDDEN_NOW, HomeThreadRow } from "./HomeRow.tsx";
 
 /**
- * Pinned on Home: the roots the user keeps in reach, directly under Up Next
- * as in the sidebar, each row naming its workstream in the workstream's hue.
- * It lists the pinned roots only; their child threads stay in the workstream
- * groups below, where the tree shows them.
+ * Pinned on Home: the threads the user keeps in reach, directly under Up Next
+ * as in the sidebar, each row naming its workstream in the workstream's hue. It
+ * lists the pinned top-level threads only; their child threads stay in the
+ * workstream groups below, where the tree shows them.
  */
 export function PinnedBlock({
   rows,

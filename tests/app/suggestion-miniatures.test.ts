@@ -29,7 +29,7 @@ const sectionOf: Record<string, string> = {
   docs: "sec_docs",
   infra: "sec_infra",
 };
-/** Thread id, topic, title, last activity in days. */
+/** Thread id, workstream, title, last activity in days. */
 const threads = [
   ["i1", "invoices", "Fix invoice totals", 1],
   ["i2", "invoices", "Add invoice export", 2],
@@ -100,7 +100,7 @@ const flowed = (w: MiniWorkstream) =>
   w.ticks.filter((t) => t.flow !== null).length;
 
 describe("miniature", () => {
-  it("draws every workstream with a visible thread, Unfiled last", () => {
+  it("draws every workstream with a visible thread, Other last", () => {
     const m = miniature(input())!;
     expect(labels(m.now)).toEqual([
       "Billing › Invoices",
@@ -124,7 +124,7 @@ describe("miniature", () => {
     expect(labels(old.now)).toContain("Docs");
   });
 
-  it("draws a refile as one thread moving between two marked workstreams", () => {
+  it("draws a move as one thread moving between two marked workstreams", () => {
     const m = miniature(
       input({
         delta: delta({ op: "move-thread", thread: "d1", workstream: "infra" }),
@@ -519,7 +519,7 @@ describe("miniatureBase", () => {
     now: 9,
   });
 
-  it("takes the root threads of every group, with each one's topic", () => {
+  it("takes the top-level threads of every group, with each one's workstream", () => {
     const base = miniatureBase(
       sidebar({
         workstreams: workstreams,
@@ -540,7 +540,7 @@ describe("miniatureBase", () => {
     });
   });
 
-  it("is null until the topics have been read", () => {
+  it("is null until the workstreams have been read", () => {
     expect(miniatureBase(sidebar(undefined))).toBeNull();
   });
 });

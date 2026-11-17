@@ -130,7 +130,7 @@ const stateOf = (suggestions: Suggestion[]): SuggestionsStateWire => ({
   error: null,
 });
 
-/** Alpha and Beta, with the sidebar's roots filed in them; "loose" is Unfiled. */
+/** Alpha and Beta, with the sidebar's threads in them; "loose" is in Other. */
 const tree = {
   workstreams: [
     {
@@ -590,7 +590,7 @@ it("offers no bulk actions for a single suggestion", async () => {
   ).toEqual(["Open Organize"]);
 });
 
-it("opens Topics from the menu", async () => {
+it("opens Organize from the menu", async () => {
   const { slot, review } = await open([merge]);
   await userEvent.click(review.getByRole("button", { name: "More actions" }));
   await userEvent.click(
@@ -698,7 +698,7 @@ it("draws a change to a workstream whose threads are snoozed, as dashed ticks wi
       workstreams: [{ id: "gamma", name: "Gamma site", parentId: null }],
       removed: [],
       assignments: [],
-      // A root the sidebar does not list: the server names it.
+      // A thread the sidebar does not list: the server names it.
       held: [
         { threadId: "snoozed", workstreamId: "gamma", title: "Snoozed work" },
       ],

@@ -41,10 +41,10 @@ export type WorkstreamTree = {
 };
 
 /**
- * A workstream group with the more specific workstreams nested under it.
- * `rows` are the threads filed in this workstream itself; `total`,
- * `needsYou`, and `lastActiveAt` cover the whole subtree, and the node is
- * `focused` when any workstream in it is focused.
+ * A workstream group with the more specific workstreams nested under it. `rows`
+ * are the threads in this workstream itself; `total`, `needsYou`, and
+ * `lastActiveAt` cover the whole subtree, and the node is `focused` when any
+ * workstream in it is focused.
  */
 export type WorkstreamNode<T extends WorkstreamThread> = Group<T> & {
   /** The workstream it shows; null for a section bound to no known workstream. */
@@ -346,11 +346,11 @@ export function nestGroups<T extends WorkstreamThread>(
 }
 
 /**
- * The threads that snoozing a workstream row snoozes: the root of every
+ * The threads that snoozing a workstream row snoozes: the top thread of every
  * thread tree the row lists, its workstreams' included, whether or not the row
- * or its trees are collapsed. A snoozed root takes its child threads along
+ * or its trees are collapsed. A snoozed thread takes its child threads along
  * (see `projectWorkstreams`), so every thread the row counts leaves it, and
- * each tree wakes whole, just as if each root had been snoozed by itself.
+ * each tree wakes whole, just as if each top thread had been snoozed by itself.
  */
 export function groupThreads<T extends WorkstreamThread>(
   group: Group<T> & { readonly workstreams?: readonly WorkstreamNode<T>[] },

@@ -93,7 +93,7 @@ export function RowMenu({
   );
 }
 
-/** Catalog and action hooks run only for the one menu Radix has opened. */
+/** Workstream and action hooks run only for the one menu Radix has opened. */
 function RowMenuContent({
   thread,
   handlers,

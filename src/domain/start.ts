@@ -1,13 +1,14 @@
 /**
  * A thread's start: one call names a new thread from its opening request and,
- * for a root, chooses its workstream. Pure, so the server, the composer's guess,
- * its trace replays, and the eval share one prompt and parser.
+ * for a thread with no parent, chooses its workstream. Pure, so the server, the
+ * composer's guess, its trace replays, and the eval share one prompt and
+ * parser.
  *
- * Placement is placement's (see workstreamChoice.ts): the same rules, tree,
- * hints, and closed set of answers. The title follows the rules a turn's end
- * uses (`TITLE_RULES`), written as an -ing verb and a subject that code joins,
- * so the form is the output's shape rather than a rule the model may drop.
- * A child thread is listed under its parent's workstream and is only named.
+ * The workstream choice is workstreamChoice.ts's: the same rules, tree, hints,
+ * and closed set of answers. The title follows the rules a turn's end uses
+ * (`TITLE_RULES`), written as an -ing verb and a subject that code joins, so
+ * the form is the output's shape rather than a rule the model may drop. A child
+ * thread is listed under its parent's workstream and is only named.
  */
 import { z } from "zod";
 import {
@@ -42,9 +43,9 @@ export type StartInput = {
   readonly request: string;
   readonly project: string | null;
   /**
-   * What placement reads, for a root; null names a child thread only.
-   * Its `requests` and `title` are ignored: the opening request is the
-   * evidence, and the thread has no title yet.
+   * What the workstream choice reads, for a thread with no parent; null names a
+   * child thread only. Its `requests` and `title` are ignored: the opening
+   * request is the evidence, and the thread has no title yet.
    */
   readonly choice: Omit<WorkstreamChoiceInput, "requests" | "title"> | null;
   /** Where a child thread is listed: its parent's title and workstream. */
@@ -54,7 +55,10 @@ export type StartInput = {
 export type StartOutput = {
   /** The opening title, or null when the request doesn't say what the work is. */
   readonly title: string | null;
-  /** The chosen workstream, for a root; null for a child thread or an invalid one. */
+  /**
+   * The chosen workstream, for a thread with no parent; null for a child thread
+   * or an invalid one.
+   */
   readonly workstream: WorkstreamChoiceOutput | null;
   /** Why the answer's workstream was refused, when it was. */
   readonly workstreamError?: string;
@@ -113,9 +117,10 @@ const outputSchema = z.object({
 });
 
 /**
- * The checked answer. The title drops names its listing shows: for a root,
- * the workstream this answer chose. An invalid workstream is refused on its own
- * (`topicError`), so it never files a thread and the title still stands.
+ * The checked answer. The title drops names its listing shows: for a thread
+ * with no parent, the workstream this answer chose. An invalid workstream is
+ * refused on its own (`topicError`), so it never moves a thread and the title
+ * still stands.
  */
 export function parseStart(text: string, input: StartInput): StartOutput {
   const raw: unknown = JSON.parse(stripFence(text));

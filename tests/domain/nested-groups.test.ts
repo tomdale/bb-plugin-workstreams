@@ -134,7 +134,7 @@ describe("nestGroups", () => {
     expect(nodes[1]!.parentWorkstreamId).toBeNull();
   });
 
-  it("heads subgroups with a topic no section backs", () => {
+  it("heads subgroups with a workstream no section backs", () => {
     const projection = projectWorkstreams(
       [
         thread("i1", { sectionId: "sec_alerts" }),
@@ -230,7 +230,7 @@ describe("nestGroups", () => {
     ]);
   });
 
-  it("leaves a workstream alone without topics or with an unknown topic", () => {
+  it("leaves a workstream alone without a tree or with an unknown workstream", () => {
     const projection = projectWorkstreams(
       [thread("a1", { sectionId: "sec_a" })],
       [
@@ -246,7 +246,7 @@ describe("nestGroups", () => {
     expect(
       outline(nestGroups(projection.all, tree({ sec_a: "gone" }))),
     ).toEqual(["Alpha (1)", "Beta (0)"]);
-    // A section the last pass didn't lay out nests under the nearest topic
+    // A section the last pass didn't lay out nests under the nearest workstream
     // the layout draws, or stands alone in input order without one.
     const emptied = projectWorkstreams(
       [thread("i1", { sectionId: "sec_alerts" })],
@@ -288,7 +288,7 @@ describe("nestGroups", () => {
   });
 });
 
-describe("arrangeGroups with topics", () => {
+describe("arrangeGroups with workstreams", () => {
   const sections = [
     { id: "sec_auto", name: "Beacon › Automations" },
     {
@@ -303,7 +303,7 @@ describe("arrangeGroups with topics", () => {
     sec_ws: "ws",
   });
 
-  it("offers Unfiled as a node with no topic, section, or subgroups", () => {
+  it("offers Other as a node with no workstream, section, or subgroups", () => {
     const projection = projectWorkstreams(
       [thread("loose", { latestAttentionAt: now })],
       sections,
@@ -426,7 +426,7 @@ describe("arrangeGroups with topics", () => {
 });
 
 describe("groupRoots", () => {
-  it("lists the roots of a group and its subgroups, not their children", () => {
+  it("lists the top-level threads of a group and its subgroups, not their children", () => {
     const projection = projectWorkstreams(
       [
         thread("a1", { sectionId: "sec_auto", latestAttentionAt: now }),

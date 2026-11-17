@@ -67,7 +67,7 @@ const tidyEdit = (fields: Record<string, unknown>) => ({
 });
 
 describe("split suggestions", () => {
-  it("previews a lasting topic division on request, and accepting files every thread", async () => {
+  it("previews a lasting workstream split on request, and accepting moves every thread", async () => {
     const { w, workstreamStore, run, decide, rpc } = await setup({
       split: () => ({
         reason: "Planning apart from triggers",
@@ -118,7 +118,7 @@ describe("split suggestions", () => {
         carried: 0,
       })),
     });
-    // The wire carries it as data too: two new topics, and six threads filed.
+    // The wire carries it as data too: two new workstreams, six threads moved.
     expect(split!.delta?.workstreams.map((t) => [t.name, t.parentId])).toEqual([
       ["Planning", auto.id],
       ["Triggers", auto.id],
@@ -149,7 +149,7 @@ describe("split suggestions", () => {
     expect(workstreamStore.assignment("t1").workstreamId).toBe(auto.id);
   });
 
-  it("reviews archived filing choices by name and preserves their provenance", async () => {
+  it("reviews archived threads' workstreams by name and preserves their provenance", async () => {
     const { w, workstreamStore, run, decide, rpc } = await setup({
       split: () => ({
         reason: "Separates billing from access control.",
@@ -190,13 +190,13 @@ describe("split suggestions", () => {
     });
   });
 
-  it("still applies after threads move, close, or join, filing newcomers", async () => {
+  it("still applies after threads move, close, or join, moving newcomers", async () => {
     const prompts: string[] = [];
     const { w, workstreamStore, run, decide, rpc } = await setup({
       split: (prompt) => {
         prompts.push(prompt);
         if (prompts.length > 1)
-          // The newcomer, filed among the proposed subgroups.
+          // The newcomer, moved among the proposed workstreams.
           return {
             reason: "",
             workstreams: [{ name: "Triggers", description: "" }],
@@ -248,7 +248,7 @@ describe("split suggestions", () => {
     expect(workstreamStore.assignment("t6").workstreamId).toBe(other.id);
   });
 
-  it("repairs a topic that holds threads beside subtopics", async () => {
+  it("repairs a group that holds threads beside workstreams", async () => {
     const { w, workstreamStore, run, decide, rpc } = await setup({
       split: (prompt) => {
         expect(prompt).toContain("[triggers] Triggers");
@@ -348,7 +348,7 @@ describe("tidy suggestions", () => {
     expect(next.suggestions.filter((s) => s.status === "pending")).toEqual([]);
   });
 
-  it("drops an edit that would put threads beside subtopics", async () => {
+  it("drops an edit that would put threads beside workstreams", async () => {
     const { w, workstreamStore, run, rpc } = await setup({
       tidy: () => ({
         edits: [
@@ -378,7 +378,7 @@ describe("tidy suggestions", () => {
     ]);
   });
 
-  it("applies a create, then an edit that names the created topic", async () => {
+  it("applies a create, then an edit that names the created workstream", async () => {
     const { w, workstreamStore, run, decide, rpc } = await setup({
       tidy: () => ({
         edits: [
@@ -405,7 +405,7 @@ describe("tidy suggestions", () => {
     const [create, reparent] = (await run()).suggestions;
     expect(reparent!.summary).toBe("Move Beta into Vercel");
     expect(reparent!.headline).toBe("Move Beta into Vercel");
-    // The topic the create would make reads as new until it exists.
+    // The workstream the create would make reads as new until it exists.
     expect(reparent!.change?.moves).toEqual([
       {
         from: [{ name: "Beta", created: false }],
@@ -417,7 +417,7 @@ describe("tidy suggestions", () => {
         carried: 0,
       },
     ]);
-    // Accepted alone, the reparent waits for its topic.
+    // Accepted alone, the reparent waits for its workstream.
     const early = await decide([reparent!.id], "accept");
     expect(early.failed).toHaveLength(1);
     await decide([create!.id, reparent!.id], "accept");
@@ -502,7 +502,7 @@ describe("retiring", () => {
       "Move “Gamma task” to Beta",
       "Move Delta into Beta",
     ]);
-    // Done by hand since: the rename and the refile change nothing now.
+    // Done by hand since: the rename and the move change nothing now.
     // Beta now holds a thread, so moving Delta under it is blocked, but only
     // for now.
     workstreamStore.rename(a.id, "Alpha Two");
@@ -538,7 +538,7 @@ describe("retiring", () => {
   });
 });
 
-describe("moves topic names imply", () => {
+describe("moves workstream names imply", () => {
   it("proposes one without a model call, and applies it with the old name as an alias", async () => {
     let tidyCalls = 0;
     const { w, workstreamStore, run, decide, rpc } = await setup({
@@ -571,7 +571,7 @@ describe("moves topic names imply", () => {
 });
 
 describe("automatic tidy after changes", () => {
-  it("runs for topic and root filing changes, but not repeated checks or title changes", async () => {
+  it("runs for workstream changes and moves of top-level threads, but not repeated checks or title changes", async () => {
     let calls = 0;
     const { w, workstreamStore, run, rpc } = await setup({
       tidy: () => {
@@ -617,7 +617,7 @@ describe("automatic tidy after changes", () => {
     expect(calls).toBe(6);
   });
 
-  it("responds to ordinary topic creation and thread lifecycle events", async () => {
+  it("responds to ordinary workstream creation and thread lifecycle events", async () => {
     let calls = 0;
     const { w, run, rpc } = await setup({
       tidy: () => {
@@ -857,7 +857,7 @@ describe("suggestions CLI", () => {
 });
 
 describe("suggestion checks after organizer passes", () => {
-  it("checks again only when topics, assignments, visible roots, or the preference changed", async () => {
+  it("checks again only when workstreams, threads' workstreams, visible threads, or the preference changed", async () => {
     const host = createTestPluginHost({ pluginId: "suggestion-checks" });
     try {
       const db = openDatabase(host.bb);

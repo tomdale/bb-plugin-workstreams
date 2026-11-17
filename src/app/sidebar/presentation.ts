@@ -10,7 +10,10 @@ export function hasStatusMark(
   return slotMarkFor(thread, work ?? { kind: "none" }) !== null;
 }
 
-/** The row's text and marks, shared by every placement without rendering a thread list. */
+/**
+ * The row's text and marks, shared by every location without rendering a thread
+ * list.
+ */
 export function presentRow(
   thread: PluginSidebarThread,
   work: WorkView | undefined,

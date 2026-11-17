@@ -84,9 +84,9 @@ export async function mount(
     >;
     snoozePrefs?: Record<string, unknown>;
     sections?: ReturnType<typeof section>[];
-    /** Each root thread's topic id, in the catalog's assignments. */
+    /** Each top-level thread's workstream id, as the tree records it. */
     assignments?: Record<string, string>;
-    /** The topic tree and section bindings that nest workstreams. */
+    /** The workstream tree and section bindings that nest workstreams. */
     tree?: {
       workstreams: {
         id: string;

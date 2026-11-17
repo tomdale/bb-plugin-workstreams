@@ -516,7 +516,7 @@ function useOutsideRecord(
 
 /**
  * Whether the snapshot carries this thread's recap and workstream. It covers
- * visible, non-archived threads, each of which has an assignment there.
+ * visible, non-archived threads, each of which has its workstream there.
  */
 export function inSnapshot(server: ServerState, threadId: string): boolean {
   return (

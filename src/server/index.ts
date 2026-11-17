@@ -339,7 +339,7 @@ export default async function plugin(bb: BbPluginApi) {
   };
   /**
    * A workstream one of the analyses chose, applied under the source priority;
-   * the organizer then files the thread by it.
+   * the organizer then lists the thread under it.
    */
   const applyWorkstream = (
     threadId: string,
@@ -384,8 +384,9 @@ export default async function plugin(bb: BbPluginApi) {
     log: (message) => bb.log.warn(message),
   });
   /**
-   * Where a thread is listed, for naming it beside that: its root's workstream
-   * path, and its parent's title when it is a child.
+   * Where a thread is listed, for naming it beside that: the workstream of the
+   * thread at the top of its tree, as a path, and its parent's title when it is
+   * a child.
    */
   const listingOf = (thread: {
     id: string;
@@ -786,7 +787,8 @@ export default async function plugin(bb: BbPluginApi) {
    * or the workstream of the workstream whose ＋ opened it. Returns what the
    * composer's preview already answered for the thread's start: a preview of
    * exactly the text sent is its start, title and workstream both; a preview of
-   * earlier text files the thread until the start call settles it.
+   * earlier text chooses the thread's workstream until the start call settles
+   * it.
    */
   const fileComposedIdentity = (
     thread: OpeningThread,
@@ -794,9 +796,9 @@ export default async function plugin(bb: BbPluginApi) {
   ): StartPreset | undefined => {
     if (!identity) return;
     const threadId = thread.id;
-    // A workstream you picked files the thread in whatever project you chose for
-    // it. An automatic workstream never files a thread under a workstream whose
-    // project differs from its own; the start call files it instead.
+    // A workstream you picked holds the thread in whatever project you chose
+    // for it. An automatic workstream never moves a thread into a workstream
+    // whose project differs from its own; the start call chooses one instead.
     const destination = identity.sectionId
       ? workstreamStore.groups().get(identity.sectionId)
       : (identity.workstreamId ?? identity.proposal?.parentId);
@@ -832,7 +834,8 @@ export default async function plugin(bb: BbPluginApi) {
           ? workstreamStore.getById(identity.workstreamId)
           : null;
       // A picked workstream merged or deleted since, or one that has gained
-      // workstreams in a group, leaves the thread to placement rather than failing.
+      // workstreams in a group, leaves the thread to the workstream choice
+      // rather than failing.
       if (identity.workstreamId && !workstream) {
         bb.log.warn(`Composed thread ${threadId} names an unknown workstream.`);
         return;
@@ -877,14 +880,14 @@ export default async function plugin(bb: BbPluginApi) {
         null,
       );
   };
-  /** The thread a new root was started from, when it was. */
+  /** The thread a new top-level thread was started from, when it was. */
   const startedFrom = (ctx: {
     thread: { sourceThreadId?: string | null };
     senderThreadId: string | null;
   }): string | null => ctx.thread.sourceThreadId ?? ctx.senderThreadId ?? null;
-  // A new root gets its first workstream here: inherited from the thread
-  // or workstream it was started from, the one its composer showed, or Quick
-  // analysis's from its first request. The hook itself always proceeds.
+  // A new top-level thread gets its first workstream here: inherited from the
+  // thread or workstream it was started from, the one its composer showed, or
+  // the start call's from its first request. The hook itself always proceeds.
   bb.experimental_hooks.on("message.dispatch", async (ctx) => {
     const reminder = await recaps.onDispatch(ctx);
     if (reminder) return reminder;
@@ -1115,8 +1118,8 @@ export default async function plugin(bb: BbPluginApi) {
     if (awaitingEvents()) reconcileSoon();
   });
   /**
-   * Whether a thread's status can change a pass: only the organizer's roots
-   * count, and a thread whose parent is hidden or archived is one.
+   * Whether a thread's status can change a pass: only the organizer's top-level
+   * threads count, and a thread whose parent is hidden or archived is one.
    */
   const organizedThread = (thread: {
     visibility: string;

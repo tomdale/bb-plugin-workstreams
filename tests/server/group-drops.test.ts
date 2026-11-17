@@ -28,8 +28,8 @@ async function setup(complete: FakeCompletion) {
   return { w: world, workstreamStore, old, group, labels };
 }
 
-describe("moving into a multi-topic workstream", () => {
-  it("chooses a leaf within the destination, overrides the old manual topic, and files its delegates", async () => {
+describe("moving into a group", () => {
+  it("chooses a workstream within the group, overrides the old manual workstream, and moves its child threads", async () => {
     const { w, workstreamStore, group, labels } = await setup(() =>
       JSON.stringify({
         workstream: "thread-labels",
@@ -115,7 +115,7 @@ describe("moving into a multi-topic workstream", () => {
     },
   );
 
-  it("does not ask a model for a delegate or an unavailable group", async () => {
+  it("does not ask a model for a child thread or an unavailable group", async () => {
     const { w, group } = await setup(() => {
       throw new Error("Model should not be called");
     });

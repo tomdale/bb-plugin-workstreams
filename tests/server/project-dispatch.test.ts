@@ -37,7 +37,7 @@ it.each(["independent", "workstreams"] as const)(
   },
 );
 
-it("records a late plain-Enter draft report even when analysis chose no topic", async () => {
+it("records a late plain-Enter draft report even when analysis chose no workstream", async () => {
   world = await fakeWorld();
   const thread = world.addThread("late", { createdAt: Date.now() });
   await world.harness.registrations.hooks["message.dispatch"]!(

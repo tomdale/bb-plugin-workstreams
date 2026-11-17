@@ -50,7 +50,7 @@ const parse = (...edits: Record<string, unknown>[]) =>
   parseTidy(JSON.stringify({ edits: edits.map(edit) }), input);
 
 describe("parseTidy", () => {
-  it("resolves bracketed topic IDs only when they are in the supplied tree", () => {
+  it("resolves bracketed workstream IDs only when they are in the supplied tree", () => {
     expect(
       parse({ op: "rename", workstream: "[automations]", name: "Runs" })[0]
         ?.edit,
@@ -97,7 +97,7 @@ describe("parseTidy", () => {
     ).toEqual([]);
   });
 
-  it("accepts moves only for displayed topic and Unfiled threads, preserving their prompt IDs", () => {
+  it("accepts moves only for displayed workstream and Other threads, preserving their prompt IDs", () => {
     const threads = [
       ...Array.from({ length: 13 }, (_, n) => ({
         id: `filed-${n + 1}`,
@@ -150,7 +150,7 @@ describe("parseTidy", () => {
     ]);
   });
 
-  it("reads a move that renames the topic", () => {
+  it("reads a move that renames the workstream", () => {
     expect(parse({ name: "Code Review" })).toEqual([
       {
         edit: {
@@ -164,7 +164,7 @@ describe("parseTidy", () => {
     ]);
   });
 
-  it("reads a move to where the topic already is as a rename", () => {
+  it("reads a move to where the workstream already is as a rename", () => {
     expect(parse({ workstream: "automations", name: "Runs" })[0]!.edit).toEqual(
       {
         op: "rename",
@@ -174,7 +174,7 @@ describe("parseTidy", () => {
     );
   });
 
-  it("drops a rename to the name the topic has, or an invalid one", () => {
+  it("drops a rename to the name the workstream has, or an invalid one", () => {
     for (const name of ["Beacon Code Review", "beacon code review", "A › B"])
       expect(parse({ name })[0]!.edit).toEqual({
         op: "move-workstream",
@@ -246,7 +246,7 @@ describe("tidyPrompt", () => {
     expect(prompt).toContain("without changing an entry's scope or group");
   });
 
-  it("asks for bare topic and thread IDs", () => {
+  it("asks for bare workstream and thread IDs", () => {
     const prompt = tidyPrompt(input);
     expect(prompt).toContain(
       'the IDs inside the square brackets, without the brackets: [settings] is "settings" and [r12] is "r12"',

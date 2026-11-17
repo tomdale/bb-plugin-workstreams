@@ -23,7 +23,7 @@ const asking = (latestAttentionAt: number, sectionId = "ws") => ({
   latestAttentionAt,
 });
 
-/** Up Next ranks first, second, third; quiet and the delegate are not in it. */
+/** Up Next ranks first, second, third; quiet and the child are not in it. */
 const listing = [
   thread("first", asking(300)),
   thread("child", { ...asking(400), parentThreadId: "first" }),
@@ -47,7 +47,7 @@ describe("nextUpNextThread", () => {
     expect(nextUpNextThread(projection, [], null)).toBeNull();
   });
 
-  it("places a delegate on its root's row", () => {
+  it("places a child thread on its parent thread's row", () => {
     expect(nextUpNextThread(projection, order, "child")).toBe("second");
   });
 
@@ -83,13 +83,13 @@ describe("nextThreadAfterLeaving", () => {
       sections,
       { now: 0 },
     );
-    // A delegate going away leaves the user on its root.
+    // A child thread going away leaves the user on its parent thread.
     expect(nextThreadAfterLeaving(quiet, [], "child", new Set())).toBe("root");
-    // A root goes on in its workstream, past its own subtree.
+    // A top-level thread goes on in its workstream, past its own subtree.
     expect(nextThreadAfterLeaving(quiet, [], "root", new Set(["child"]))).toBe(
       "sibling",
     );
-    // With its workstream empty, the most recently active root.
+    // With its workstream empty, the most recently active thread.
     expect(
       nextThreadAfterLeaving(quiet, [], "sibling", new Set(["root", "child"])),
     ).toBe("recent");

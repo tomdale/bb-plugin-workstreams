@@ -635,7 +635,7 @@ describe.skipIf(browserUnavailable)("gallery sidebar", () => {
   );
 
   browserTest.concurrent(
-    "uses fixture topic colors and scoped status tokens in both sidebar previews",
+    "uses fixture workstream colors and scoped status tokens in both sidebar previews",
     async ({ page }) => {
       const errors: string[] = [];
       page.on("pageerror", (error) => errors.push(error.message));

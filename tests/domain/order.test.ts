@@ -58,7 +58,7 @@ describe("manual order in the projection", () => {
     thread("c1", { sectionId: "sec_c", latestAttentionAt: now }),
   ];
 
-  it("orders workstreams, new ones last, and roots, new ones first", () => {
+  it("orders workstreams, new ones last, and threads, new ones first", () => {
     const p = projectWorkstreams(threads, sections, {
       now,
       order: {

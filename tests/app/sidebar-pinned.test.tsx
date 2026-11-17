@@ -14,7 +14,7 @@ afterEach(() => {
 
 const sections = [section("sec_a", "Alpha"), section("sec_b", "Beta")];
 
-it("lists pinned roots in BB's pin order under Up Next", async () => {
+it("lists pinned threads in BB's pin order under Up Next", async () => {
   const slot = await mountWithBands(
     [
       sidebarThread("keyed", {

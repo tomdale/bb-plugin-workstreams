@@ -68,13 +68,13 @@ describe("prefixMoves", () => {
     held: TreeState["held"] = {},
   ): TreeState => ({ workstreams, held, threadWorkstream: {} });
 
-  it("moves a top-level topic under the topic its name begins with", () => {
+  it("moves a top-level workstream under the group its name begins with", () => {
     const moves = prefixMoves(
       tree([
         { id: "va", name: "Vercel Agent", parentId: null },
         { id: "auto", name: "Automations", parentId: "va" },
         { id: "cr", name: "Vercel Agent Code Review", parentId: null },
-        // A topic without subtopics isn't a group to move under.
+        // A workstream with no children isn't a group to move under.
         { id: "v", name: "Vercel", parentId: null },
       ]),
     );
@@ -112,7 +112,7 @@ describe("prefixMoves", () => {
     ]);
   });
 
-  it("matches whole words and leaves nested topics where they are", () => {
+  it("matches whole words and leaves nested workstreams where they are", () => {
     expect(
       prefixMoves(
         tree([
@@ -128,7 +128,7 @@ describe("prefixMoves", () => {
     ).toEqual([]);
   });
 
-  it("doesn't move a topic under one that holds threads", () => {
+  it("doesn't move a workstream under one that holds threads", () => {
     expect(
       prefixMoves(
         tree(
@@ -137,7 +137,7 @@ describe("prefixMoves", () => {
             { id: "w-ui", name: "UI", parentId: "w" },
             { id: "wp", name: "Workstreams Plugin", parentId: null },
           ],
-          // A legacy topic holding threads beside its subtopics.
+          // A legacy group holding threads beside its workstreams.
           { w: 2 },
         ),
       ),

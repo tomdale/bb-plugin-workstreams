@@ -122,7 +122,7 @@ describe("findFinalMessage", () => {
     });
   });
 
-  it("finds a root turn behind many delegated turns and many tool items", async () => {
+  it("finds a root turn behind many subagent turns and many tool items", async () => {
     const log = eventLog();
     log.startTurn("t1");
     log.message("t1", "t1-final", "Done after delegating.");
@@ -338,7 +338,7 @@ describe("PostTurnPresenter", () => {
     expect(off.presenter.appliesTo({ parentThreadId: null })).toBe(false);
   });
 
-  it("composes on idle for a visible root thread", async () => {
+  it("composes on idle for a visible thread with no parent", async () => {
     const w = await setup();
     w.log.turn("t1", "Answer.");
     w.presenter.onIdle(w.thread, "Answer.");

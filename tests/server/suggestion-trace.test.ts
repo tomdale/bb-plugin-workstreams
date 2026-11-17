@@ -62,7 +62,7 @@ function world(
   return { db, traces, linked };
 }
 
-it("gives a split the call that named its topic", () => {
+it("gives a split the call that named its workstream", () => {
   const { db, traces, linked } = world([
     {
       id: "s1",
@@ -116,7 +116,7 @@ it("leaves a suggestion alone when no call still explains it", () => {
       at: NOW - 1_000,
       body: { op: "rename", workstream: WORKSTREAM },
     },
-    // Only a call about a different topic is stored, and it is hours old.
+    // Only a call about a different workstream is stored, and it is hours old.
     {
       id: "s1",
       kind: "split",
@@ -125,8 +125,8 @@ it("leaves a suggestion alone when no call still explains it", () => {
     },
   ]);
   traces.add(
-    // An answer that names neither the topic the rename is about nor anything
-    // else, so it cannot be the pass that wrote the row.
+    // An answer that names neither the workstream the rename is about nor
+    // anything else, so it cannot be the pass that wrote the row.
     trace({ at: NOW - 2_000, response: '{"edits":[]}' }),
   );
   traces.add(

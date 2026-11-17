@@ -12,7 +12,7 @@ import { mount } from "./sidebar-fixture.tsx";
 const sections = [section("sec_a", "Alpha"), section("sec_b", "Beta")];
 const now = Date.now();
 
-/** Two workstreams of work: a root with a child, and a second root. */
+/** Two workstreams of work: a thread with a child, and a second thread. */
 function snapshot(title = "Root task"): PluginSidebarThread[] {
   return [
     sidebarThread("root", {

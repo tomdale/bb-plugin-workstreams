@@ -1,7 +1,7 @@
 /**
- * Drag and drop for the sidebar: workstream headers reorder workstreams, and
- * a thread's row reorders its tree or moves it to another workstream's group.
- * Children follow their root and never drag alone.
+ * Drag and drop for the sidebar: workstream headers reorder workstreams, and a
+ * thread's row reorders its tree or moves it to another workstream's group.
+ * Children follow their parent thread and never drag alone.
  *
  * Drags use mouse and touch sensors rather than pointer events so BB's
  * split drag, which starts from the row anchor's pointerdown and engages only
@@ -49,7 +49,7 @@ export type Drop =
       threadId: string;
       fromGroupId: string;
       toGroupId: string;
-      /** The root the dragged tree lands on; null for a group header. */
+      /** The thread the dragged tree lands on; null for a group header. */
       overThreadId: string | null;
       /** Whether the dragged tree ended below the middle of `overThreadId`. */
       below: boolean;

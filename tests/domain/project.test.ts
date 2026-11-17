@@ -17,7 +17,7 @@ const sections = [
 const rowIds = (g: Group<TestThread>) => g.rows.map((r) => r.thread.id);
 
 describe("projectWorkstreams", () => {
-  it("files whole trees by the root's section, ignoring children's sections", () => {
+  it("groups whole trees by the parent thread's section, ignoring children's sections", () => {
     const p = projectWorkstreams(
       [
         thread("root", { sectionId: "sec_a", latestAttentionAt: now }),
@@ -78,7 +78,7 @@ describe("projectWorkstreams", () => {
     expect(p.dormant.map((g) => g.id)).toEqual(["sec_a"]);
   });
 
-  it("puts unsectioned and unknown-section roots in Unfiled", () => {
+  it("puts unsectioned and unknown-section threads in Other", () => {
     const p = projectWorkstreams(
       [
         thread("loose", { latestAttentionAt: now }),
@@ -110,7 +110,7 @@ describe("projectWorkstreams", () => {
     expect(p.rowOf.get("kid")?.workstreamId).toBe("sec_b");
   });
 
-  it("orders pinned roots first, then by recent attention; children by creation", () => {
+  it("orders pinned threads first, then by recent attention; children by creation", () => {
     const p = projectWorkstreams(
       [
         thread("old", { sectionId: "sec_a", latestAttentionAt: now - 5 }),
@@ -258,7 +258,7 @@ describe("pinned threads", () => {
   const pinned = (id: string, overrides = {}) =>
     thread(id, { sectionId: "sec_a", isPinned: true, ...overrides });
 
-  it("lists pinned roots in BB's pin order without leaving their groups", () => {
+  it("lists pinned threads in BB's pin order without leaving their groups", () => {
     const p = projectWorkstreams(
       [
         pinned("newer", { pinnedAt: 300, latestAttentionAt: now - 3 }),
@@ -368,7 +368,7 @@ describe("snoozed threads", () => {
   });
 });
 
-describe("prioritized workstreams", () => {
+describe("focused workstreams", () => {
   const order = (focused: string[]) => ({
     workstreams: ["sec_a", "sec_b", "sec_empty"],
     threads: {},
@@ -381,7 +381,7 @@ describe("prioritized workstreams", () => {
   ];
   const all = [...sections, { id: "sec_old", name: "Old" }];
 
-  it("pins prioritized workstreams first, in manual order, and never dormant", () => {
+  it("pins focused workstreams first, in manual order, and never dormant", () => {
     const p = projectWorkstreams(threads, all, {
       now,
       order: order(["sec_old", "sec_b", "sec_empty", "other"]),

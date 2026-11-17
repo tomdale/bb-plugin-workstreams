@@ -2,13 +2,13 @@
  * The one projection behind the sidebar and the Workstreams page.
  *
  * A workstream is a native BB section. Threads are grouped the way BB's own
- * sidebar groups them: build the complete parent/child forest first, then file
- * each tree under its root's section. Every visible, non-archived
- * thread appears in exactly one group row, or in Snoozed: a snoozed
- * thread leaves its group, with its descendants, until it wakes. Up Next and
- * Recent (see `upNext.ts`), and Pinned, are overlays that reference the group
- * rows; they never replace them, and never show snoozed threads. Focused
- * workstreams (`focused`) lead the groups and never go dormant.
+ * sidebar groups them: build the complete parent/child forest first, then list
+ * each tree under the section of the thread at its top. Every visible,
+ * non-archived thread appears in exactly one group row, or in Snoozed: a
+ * snoozed thread leaves its group, with its descendants, until it wakes. Up
+ * Next and Recent (see `upNext.ts`), and Pinned, are overlays that reference
+ * the group rows; they never replace them, and never show snoozed threads.
+ * Focused workstreams (`focused`) lead the groups and never go dormant.
  */
 import { applyOrder, type ManualOrder } from "./order.ts";
 import {
@@ -57,10 +57,11 @@ export type Group<T extends WorkstreamThread> = {
 export type Projection<T extends WorkstreamThread> = {
   readonly needsYou: readonly Row<T>[];
   /**
-   * Pinned roots in BB's pin order, for the Pinned band under Up Next. An
-   * overlay like `needsYou`: each row's thread also stays in its group. A
-   * pinned thread that is snoozed waits in Snoozed until it wakes, and a
-   * pinned child thread stays under its root rather than appearing alone.
+   * Pinned top-level threads in BB's pin order, for the Pinned band under Up
+   * Next. An overlay like `needsYou`: each row's thread also stays in its
+   * group. A pinned thread that is snoozed waits in Snoozed until it wakes, and
+   * a pinned child thread stays under its parent thread rather than appearing
+   * alone.
    */
   readonly pinnedThreads: readonly Row<T>[];
   /**
@@ -93,9 +94,9 @@ export type Projection<T extends WorkstreamThread> = {
 };
 
 /**
- * The virtual group of threads filed in no workstream, shown as
- * {@link UNFILED_NAME}. Its id keeps its original value because stored
- * manual order is keyed by it.
+ * The virtual group of threads with no workstream, shown as
+ * {@link UNFILED_NAME}. Its id keeps its original value because stored manual
+ * order is keyed by it.
  */
 export const OTHER_ID = "other";
 export const OTHER_NAME = "Other";
@@ -188,7 +189,7 @@ export function comparePinned(
   return (b.pinnedAt ?? 0) - (a.pinnedAt ?? 0) || a.id.localeCompare(b.id);
 }
 
-/** Pinned roots first in pin order, then most recent attention first. */
+/** Pinned threads first in pin order, then most recent attention first. */
 function compareThreads(a: WorkstreamThread, b: WorkstreamThread): number {
   if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
   if (a.isPinned) return comparePinned(a, b);

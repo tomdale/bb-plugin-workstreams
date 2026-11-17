@@ -104,7 +104,7 @@ export async function listSections(sdk: Sdk): Promise<Section[]> {
   }));
 }
 
-/** True when no thread in any lifecycle or visibility is filed in the section. */
+/** True when no thread in any lifecycle or visibility is in the section. */
 export async function sectionIsEmpty(
   sdk: Sdk,
   sectionId: string,

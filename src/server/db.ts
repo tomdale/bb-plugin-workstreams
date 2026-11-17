@@ -2,7 +2,8 @@ import type { BbPluginApi } from "@get-bb/plugin-sdk";
 
 export type Database = ReturnType<BbPluginApi["storage"]["database"]>;
 
-// The established ws_corpus_* table names hold workstreams, assignments, and section bindings.
+// The established ws_corpus_* table names hold workstreams, each thread's
+// workstream, and section bindings.
 /**
  * A JSON value read at `path` in `column`, as json_set should write it back:
  * json_extract alone returns booleans as 0 or 1 and objects as text.
@@ -366,8 +367,8 @@ const MIGRATIONS = [
   // `classified` is the earlier name for an automatic workstream, which is `full`.
   "UPDATE ws_corpus_subject SET source = 'full' WHERE source = 'classified'",
   "ALTER TABLE ws_corpus_entity ADD COLUMN partitioned INTEGER NOT NULL DEFAULT 0",
-  // Each root's checkout, and whether its requests point at other
-  // repositories, for placement's checkout hints.
+  // Each thread's checkout, and whether its requests point at other
+  // repositories, for the workstream choice's checkout hints.
   `CREATE TABLE ws_thread_checkout (
     thread_id TEXT PRIMARY KEY,
     path TEXT NOT NULL,
@@ -452,7 +453,7 @@ const MIGRATIONS = [
   "UPDATE ws_agent_recap SET recap = json_remove(recap, '$.task') WHERE json_type(recap, '$.task') IS NOT NULL",
   "UPDATE ws_agent_recap SET recap = json_remove(recap, '$.tasks') WHERE json_type(recap, '$.tasks') IS NOT NULL",
   // Workstream records carried the projects and thread evidence a page showed
-  // and the subjects its earlier design filed; nothing reads or writes them.
+  // and the subjects its earlier design kept; nothing reads or writes them.
   "ALTER TABLE ws_workstream DROP COLUMN subjects",
   "ALTER TABLE ws_workstream DROP COLUMN projects",
   "ALTER TABLE ws_workstream DROP COLUMN evidence",
@@ -517,7 +518,7 @@ const MIGRATIONS = [
   // A suggestion's own model call, so the debug UI can start a thread that
   // carries the prompt and response behind it.
   "ALTER TABLE ws_suggestion ADD COLUMN trace_id TEXT",
-  // The project and title BB last reported for each visible, undeleted root
+  // The project and title BB last reported for each visible, undeleted thread
   // that nothing derived. Project learning plans from it rather than listing
   // every thread BB has.
   `CREATE TABLE ws_project_root (
@@ -620,7 +621,7 @@ const MIGRATIONS = [
   "ALTER TABLE ws_workstream_color RENAME COLUMN topic_id TO workstream_id",
   "ALTER TABLE ws_project_suggestion RENAME COLUMN entity_id TO workstream_id",
   "ALTER TABLE ws_project_root RENAME TO ws_project_listing",
-  // A backup is the workstreams and assignments before an accepted
+  // A backup is the workstreams and threads' workstreams before an accepted
   // suggestion, kept as raw rows, so its rows take the new column names.
   "ALTER TABLE ws_topic_snapshot RENAME TO ws_backup",
   "ALTER TABLE ws_backup RENAME COLUMN entities TO workstreams",

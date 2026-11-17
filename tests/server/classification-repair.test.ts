@@ -6,13 +6,13 @@ let world: Awaited<ReturnType<typeof fakeWorld>> | undefined;
 afterEach(async () => {
   await world?.harness.lifecycle.dispose();
 });
-/** The composer's preview, which asks the start call for a title and topic. */
+/** The composer's preview, asking the start call for a title and workstream. */
 const preview = (w: NonNullable<typeof world>) =>
   w.harness.behavior.callRpc("preview", {
     prompt: "Audit the release pipeline",
   }) as Promise<{ title: string | null; workstreamId?: string | null }>;
 describe("bounded classification repair", () => {
-  it("repairs an invalid topic ID without losing the independently valid title", async () => {
+  it("repairs an invalid workstream ID without losing the independently valid title", async () => {
     let workstreamId = "";
     let n = 0;
     world = await fakeWorld({
@@ -45,7 +45,7 @@ describe("bounded classification repair", () => {
       "workstream must be exactly an ID in square brackets in <workstream_tree>",
     );
   });
-  it("keeps a usable title and leaves topic unresolved after two invalid responses", async () => {
+  it("keeps a usable title and leaves the thread with no workstream after two invalid responses", async () => {
     world = await fakeWorld({
       complete: () =>
         JSON.stringify({
@@ -64,7 +64,7 @@ describe("bounded classification repair", () => {
     });
     expect(w.completions).toHaveLength(2);
   });
-  it("preserves the stored assignment and catalog when automatic Placement returns a topic and proposal", async () => {
+  it("preserves the stored workstream and tree when the automatic workstream choice returns a workstream and proposal", async () => {
     world = await fakeWorld({
       complete: () =>
         JSON.stringify({
@@ -101,7 +101,7 @@ describe("bounded classification repair", () => {
     expect(state.analysis.t?.workstreamError).toContain("never both");
   });
 
-  it("retains valid Full status and title without clearing the topic on invalid output", async () => {
+  it("retains valid turn-end status and title without clearing the workstream on invalid output", async () => {
     world = await fakeWorld({
       complete: () =>
         JSON.stringify({

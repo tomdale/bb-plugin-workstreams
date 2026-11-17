@@ -1,14 +1,15 @@
 /**
- * Placement: the one call that chooses a root's workstream from its requests.
- * Pure, so the server, its trace replays, and the eval share one prompt and
- * parser.
+ * The workstream choice: the one call that chooses a thread's workstream from
+ * its requests. Pure, so the server, its trace replays, and the eval share one
+ * prompt and parser.
  *
- * The choice is closed: only a workstream without workstreams in a group holds threads, so a
- * workstream with workstreams in a group is listed for context but can't be chosen. When no
- * workstream fits, the answer may propose one new workstream, named for a lasting area
- * of work. Quick's composer preview can propose a missing product and its
- * capability together; Placement supplies one new name and an existing parent.
- * Hints (continuations and checkouts) inform the choice without overriding it.
+ * The choice is closed: only a workstream without workstreams in a group holds
+ * threads, so a workstream with workstreams in a group is listed for context
+ * but can't be chosen. When no workstream fits, the answer may propose one new
+ * workstream, named for a lasting area of work. The start call's composer
+ * preview can propose a missing product and its capability together; the
+ * workstream choice supplies one new name and an existing parent. Hints
+ * (continuations and checkouts) inform the choice without overriding it.
  *
  * Workstream IDs are long and opaque, so the prompt names workstreams by slugs of their
  * names (`fork-core`), and the parser maps them back from the same input.
@@ -50,7 +51,7 @@ export type WorkstreamChoiceInput = {
   readonly project: string | null;
   readonly checkout: string | null;
   readonly workstreams: readonly ChoiceWorkstream[];
-  /** Visible roots assigned to each workstream. */
+  /** Visible top-level threads in each workstream. */
   readonly counts?: Readonly<Record<string, number>>;
   /** Evidence about where it belongs: continuations, checkouts. */
   readonly hints: readonly string[];
@@ -151,8 +152,8 @@ const CHOICE_RULES = `Choose the workstream this thread's work belongs to: the m
 A workstream about a different product is never a fit, however close: when the requests name the product, platform, or tool the work belongs to, a workstream beneath a different owner doesn't fit however closely its description matches, and a new workstream under the named owner is the answer. A tool used only as the method for otherwise unspecified work doesn't make the work about that tool, and a bare URL or reference supports at most a product the requests name; with no supported owner, give no workstream. When proposing a new top-level workstream, use the owner's recognizable product name, not that name joined to a capability or an implementation layer. In this call, propose supplies one new workstream; parent names an existing top-level entry or is null. When the product is absent, establish its recognizable product name at the top level first. Work on a product's SDK establishes that product first too, rather than a top-level workstream named for the product plus SDK. An independently named tool product keeps its whole name. Name new workstreams in Title Case, keeping product names' own spelling. Hints are evidence, not rules.`;
 
 /**
- * Where an answer files the thread, as its listing names it: the chosen
- * workstream's path, or a proposal's name; null when it files nothing.
+ * Where an answer moves the thread, as its listing names it: the chosen
+ * workstream's path, or a proposal's name; null when it moves nothing.
  */
 export function chosenPath(
   answer: WorkstreamChoiceOutput,
@@ -276,7 +277,7 @@ export function choiceKeys(input: WorkstreamChoiceOptions): string[] {
       ];
 }
 
-/** The user's destination, as placement's instruction. */
+/** The user's destination, as the workstream choice's instruction. */
 export function choiceRules(input: WorkstreamChoiceOptions): string {
   return input.within
     ? `The user moved this thread into the destination identified by the group block. Choose the existing workstream within that group whose scope best covers the thread's work. This destination is the user's decision: the old workstream, project, checkout, and hints cannot move it outside that group. Choose a workstream, never a group. Do not propose a new workstream or leave the thread in no workstream.`
@@ -384,7 +385,10 @@ export function parseWorkstreamChoice(
   return parseChoiceFields(JSON.parse(stripFence(text)), input);
 }
 
-/** Checks the workstream fields of an already-decoded answer (see `parsePlacement`). */
+/**
+ * Checks the workstream fields of an already-decoded answer (see
+ * `parseWorkstreamChoice`).
+ */
 export function parseChoiceFields(
   raw: unknown,
   input: WorkstreamChoiceOptions,

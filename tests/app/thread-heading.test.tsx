@@ -142,7 +142,7 @@ it("names the thread exactly as BB lists it, whatever the analysis inferred", as
   slot.lifecycle.unmount();
 });
 
-it("uses the root topic's color for a delegate in a different native section", async () => {
+it("uses the parent thread's workstream color for a child thread in a different native section", async () => {
   const child = sidebarThread("child", {
     title: "Child",
     parentThreadId: "root",

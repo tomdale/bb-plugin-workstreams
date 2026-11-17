@@ -45,8 +45,8 @@
  * unread or awaiting the user, and can be empty.
  *
  * Nested threads never appear on their own (BB doesn't mark a child thread
- * unread when its turn ends); they show under their root's row. Parent
- * links decide this even when the parent is absent from the visible tree.
+ * unread when its turn ends); they show under their parent's row. Parent links
+ * decide this even when the parent is absent from the visible tree.
  */
 import {
   DAY_MS,

@@ -202,7 +202,7 @@ describe("idle analysis", () => {
     expect(analyses(w)).toHaveLength(0);
   });
 
-  it("settles a root's title and topic after a new request", async () => {
+  it("settles a thread's title and workstream after a new request", async () => {
     let workstreamId = "";
     const w = await setup(() =>
       JSON.stringify({
@@ -219,7 +219,7 @@ describe("idle analysis", () => {
     w.converse("t1", ["Add themes to the markdown viewer"]);
     await w.harness.behavior.callRpc("refresh", null);
     await w.harness.behavior.runCli(["analyze", "t1"]);
-    // One call describes the turn and chooses the topic by its short ID.
+    // One call describes the turn and chooses the workstream by its short ID.
     expect(w.completions).toHaveLength(1);
     expect(analyses(w).at(-1)!.prompt).toContain("[viewer] Viewer");
     expect(analyses(w).at(-1)!.prompt).not.toContain(workstreamId);
@@ -299,7 +299,7 @@ describe("idle analysis", () => {
     });
   });
 
-  it("never asks for the topic of a thread whose topic you set", async () => {
+  it("never asks for the workstream of a thread whose workstream you set", async () => {
     const w = await setup();
     const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
     const mine = workstreamStore.create("Mine", "");
@@ -311,7 +311,7 @@ describe("idle analysis", () => {
     expect(workstreamStore.assignment("t1").provenance).toBe("manual");
   });
 
-  it("gives a delegate a status and title, never a topic of its own", async () => {
+  it("gives a child thread a status and title, never a workstream of its own", async () => {
     const w = await setup();
     w.addThread("parent", { status: "idle" });
     w.addThread("child", { parentThreadId: "parent", status: "idle" });
@@ -399,7 +399,7 @@ describe("idle analysis", () => {
       title: "Make onboarding easier to complete",
     });
     // A current result without an independent outcome is backfilled even
-    // when the thread's topic is already settled.
+    // when the thread's workstream is already settled.
     new WorkstreamStore(openDatabase(w.bb)).assign("t1", null, {
       provenance: "manual",
     });
@@ -471,7 +471,7 @@ describe("idle analysis", () => {
     let peak = 0;
     const release: (() => void)[] = [];
     const w = await setup(async ({ prompt }) => {
-      // Each run's placement call runs beside its Full analysis call.
+      // Each run's workstream choice runs beside its turn-end call.
       if (!prompt.includes("You describe one agent thread"))
         return JSON.stringify({ workstream: null, propose: null });
       inFlight++;

@@ -378,7 +378,7 @@ describe("selectUpNext", () => {
     ).toEqual(["or1"]);
   });
 
-  it("lists Unfiled and dormant threads too", () => {
+  it("lists Other and dormant threads too", () => {
     const old = now - 60 * DAY_MS;
     const projection = projectWorkstreams(
       [
@@ -395,7 +395,7 @@ describe("selectUpNext", () => {
     ]);
   });
 
-  it("focuses on prioritized workstreams while one has a thread blocked on you", () => {
+  it("narrows to focused workstreams while one has a thread blocked on you", () => {
     const projection = projectWorkstreams(
       [
         t("rr1", 1, { sectionId: "sec_b" }),
@@ -413,11 +413,11 @@ describe("selectUpNext", () => {
       focused: new Set(["sec_b"]),
     });
     expect(focused.focused).toBe(true);
-    // The rules then apply to prioritized threads alone.
+    // The rules then apply to focused threads alone.
     expect(ids(focused.rows)).toEqual(["rr1", "or1"]);
   });
 
-  it("doesn't focus while prioritized workstreams have nothing blocked on you", () => {
+  it("doesn't narrow while focused workstreams have nothing blocked on you", () => {
     const projection = projectWorkstreams(
       [
         t("ou1", 9, { sectionId: "sec_b" }),

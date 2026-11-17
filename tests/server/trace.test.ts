@@ -131,7 +131,8 @@ describe("debug mode on", () => {
       summary: "review · no workstream",
       threads: ["t1"],
     });
-    // The same call settles the topic: there is no separate placement call.
+    // The same call settles the workstream: there is no separate
+    // workstream-choice call.
     expect(
       recorded.find((t) => t.kind === "workstream-choice"),
     ).toBeUndefined();

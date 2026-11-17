@@ -64,7 +64,7 @@ it("installs with current storage and no retired state or banner tables", async 
     await host.harness.lifecycle.dispose();
   }
 });
-it("removes populated name observations while preserving analysis and topics", async () => {
+it("removes populated name observations while preserving analysis and workstreams", async () => {
   const host = createTestPluginHost({ pluginId: "name-retirement" });
   try {
     const migrate = host.bb.storage.migrate.bind(host.bb.storage);

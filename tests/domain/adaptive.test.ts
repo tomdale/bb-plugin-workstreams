@@ -10,7 +10,7 @@ const workstreams: Workstream[] = [
 ];
 
 describe("activeHome", () => {
-  it("homes a topic at its nearest active ancestor", () => {
+  it("homes a workstream at its nearest active ancestor", () => {
     expect(activeHome("leaf", ["p"], workstreams)).toBe("p");
     expect(activeHome("leaf", ["p", "f"], workstreams)).toBe("f");
     expect(activeHome("leaf", ["g"], workstreams)).toBeNull();

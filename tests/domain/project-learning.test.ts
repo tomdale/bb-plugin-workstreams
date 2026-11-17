@@ -30,7 +30,7 @@ const threads = (
   }));
 const available = new Set(["p1", "p2"]);
 
-it("requires three distinct roots agreeing on one available project", () => {
+it("requires three distinct threads agreeing on one available project", () => {
   const t = workstream("a");
   expect(projectLearningPlan([t], threads("a", "p1", 2), available)).toEqual(
     [],
@@ -57,7 +57,7 @@ it("requires three distinct roots agreeing on one available project", () => {
   );
 });
 
-it("learns narrow topics first and associates parents only when all children agree", () => {
+it("learns narrow workstreams first and associates parents only when all children agree", () => {
   const workstreams = [
     workstream("parent"),
     workstream("a", "parent"),

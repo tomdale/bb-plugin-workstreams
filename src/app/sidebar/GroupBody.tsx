@@ -51,7 +51,10 @@ export type ThreadTreesProps = {
   isCollapsed: (id: string, byDefault?: boolean) => boolean;
 };
 
-/** A sortable root and its visible descendants, with drag-only surface updates. */
+/**
+ * A sortable top-level thread and its visible descendants, with drag-only
+ * surface updates.
+ */
 export function SortableThreadTree({
   tree,
   groupId,
@@ -103,9 +106,9 @@ export function SortableThreadTree({
 }
 
 /**
- * A group's rows as sortable trees; the root row drags the whole tree.
- * Every group decides its status slot together, so titles line up from
- * one group to the next.
+ * A group's rows as sortable trees; the top row drags the whole tree. Every
+ * group decides its status slot together, so titles line up from one group to
+ * the next.
  */
 export const ThreadTrees = memo(
   function ThreadTrees({

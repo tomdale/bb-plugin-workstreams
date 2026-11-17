@@ -6,7 +6,7 @@ afterEach(async () => {
   await world?.harness.lifecycle.dispose();
 });
 
-describe("what Full analysis reads besides the thread", () => {
+describe("what the turn-end analysis reads besides the thread", () => {
   it("reads a continuation reference supplied after the opening request", async () => {
     world = await fakeWorld();
     const w = world;

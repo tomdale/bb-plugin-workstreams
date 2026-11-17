@@ -51,7 +51,7 @@ const CARD_ZOOM = 1.15;
 export type QueueHeading = {
   /** The workstream path, joined for display ("Vercel Agent › Automations"). */
   path: string | null;
-  /** The workstream's workstream color, if filed. */
+  /** The workstream's color, if the thread has a workstream. */
   color: WorkstreamColor | null;
   title: string;
 };

@@ -349,7 +349,7 @@ it("places the workstream picker in the host picker row", async () => {
   );
 });
 
-it("leaves a preview with no topic out of the host submit metadata", async () => {
+it("leaves a preview with no workstream out of the host submit metadata", async () => {
   const unsure: Preview = {
     ...identityDecision,
     id: "route-unsure",
@@ -374,7 +374,7 @@ it("leaves a preview with no topic out of the host submit metadata", async () =>
   });
 });
 
-it("submits a picked No topic when selecting it", async () => {
+it("submits a picked No workstream when selecting it", async () => {
   const { slot } = mount(identityDecision);
   await typePrompt(slot, "Some unresolvable request");
   fireEvent.click(
@@ -441,7 +441,7 @@ it("does not render routing controls or intercept submits when inside a dialog",
   expect(route).not.toHaveBeenCalled();
 });
 
-it("reports the draft's identity so a plain Enter can be filed", async () => {
+it("reports the draft's identity so a plain Enter gets its workstream", async () => {
   const { slot, draftIdentity } = mount(identityDecision);
   await typePrompt(slot, "Fix the parser in Alpha");
   await screen.findByRole("button", { name: "Workstream: Alpha" });
@@ -472,7 +472,7 @@ it("reports the draft's identity so a plain Enter can be filed", async () => {
   );
 });
 
-it("starts with the topic of the workstream whose ＋ opened it", async () => {
+it("starts in the workstream whose ＋ opened it", async () => {
   setComposerPreset({ sectionId: "section-docs" }, "Docs");
   const { slot } = mount(identityDecision);
   await typePrompt(slot, "Add an example");
@@ -512,7 +512,7 @@ const projectWorkstreams = [
   },
 ];
 
-it("uses the associated project after Quick analysis selects a topic", async () => {
+it("uses the associated project after the start call selects a workstream", async () => {
   const { slot, route, draftIdentity } = mount(identityDecision, {
     workstreams: projectWorkstreams,
   });
@@ -534,7 +534,7 @@ it("uses the associated project after Quick analysis selects a topic", async () 
   );
 });
 
-it("uses a manually selected topic's project and moves to No project for an unassociated topic", async () => {
+it("uses a manually selected workstream's project and moves to No project for an unassociated workstream", async () => {
   const { slot } = mount(identityDecision, { workstreams: projectWorkstreams });
   fireEvent.click(
     await screen.findByRole("button", { name: "Workstream: Automatic" }),
@@ -560,7 +560,7 @@ it("uses the project of a workstream whose plus button opened the composer", asy
   );
 });
 
-it("does not apply a stale project's lookup after selecting another topic", async () => {
+it("does not apply a stale project's lookup after selecting another workstream", async () => {
   const { slot, projectList } = mount(identityDecision, {
     workstreams: [
       projectWorkstreams[0]!,
@@ -602,7 +602,7 @@ it("ignores an associated project that is no longer available", async () => {
   expect(slot.inspection.composer.selections).toEqual([]);
 });
 
-it("keeps a picked topic in a project you choose for this thread only", async () => {
+it("keeps a picked workstream in a project you choose for this thread only", async () => {
   const { slot, metadataUpdates } = mount(identityDecision, {
     component: ComposerWithProjectPick,
   });
@@ -642,7 +642,7 @@ it("keeps a picked topic in a project you choose for this thread only", async ()
   expect(metadataUpdates).not.toHaveBeenCalled();
 });
 
-it("keeps a picked topic when you choose another project and BB remounts the composer", async () => {
+it("keeps a picked workstream when you choose another project and BB remounts the composer", async () => {
   draftKey.fixed = "root-draft";
   const { slot } = mount(identityDecision, { component: RemountingComposer });
   fireEvent.click(
@@ -700,7 +700,7 @@ it("changes the workstream's project to the one you chose when asked", async () 
   });
 });
 
-it("moves to a newly picked topic's project after a project you chose", async () => {
+it("moves to a newly picked workstream's project after a project you chose", async () => {
   const { slot } = mount(identityDecision, {
     component: ComposerWithProjectPick,
     workstreams: [
@@ -723,7 +723,7 @@ it("moves to a newly picked topic's project after a project you chose", async ()
   expect(screen.queryByRole("button", { name: /as default for/ })).toBeNull();
 });
 
-it("leaves an automatic topic unfiled rather than moving a thread out of its project", async () => {
+it("leaves an automatic workstream unset rather than moving a thread out of its project", async () => {
   const { slot } = mount(identityDecision, {
     workstreams: [
       {

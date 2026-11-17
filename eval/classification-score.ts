@@ -116,8 +116,8 @@ export function scoreClassification(
     capability,
     hierarchy,
     exact,
-    // A call proposes one topic, so an empty tree can establish only its root
-    // owner; capability and hierarchy are advisory.
+    // A call proposes one workstream, so an empty tree can establish only its
+    // top owner; capability and hierarchy are advisory.
     pass: owner,
   };
 }

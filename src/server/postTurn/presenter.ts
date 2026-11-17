@@ -1,5 +1,5 @@
 /**
- * Enhanced responses: after a turn in a visible root thread ends, find the
+ * Enhanced responses: after a turn in a visible top-level thread ends, find the
  * assistant message it ended with, compose an enhanced document for it, and
  * store the document under that message's id for the app to draw below it.
  *

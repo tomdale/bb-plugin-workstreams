@@ -31,7 +31,7 @@ describe("workstream colors", () => {
       ),
     ).toBe(true);
   });
-  it("resolves topic identity across section recreation and gives unbound sections a fallback", () => {
+  it("resolves workstream identity across section recreation and gives unbound sections a fallback", () => {
     const tree = {
       groups: { old: "workstream", recreated: "workstream" },
       colors: { workstream: { hue: 25, level: 1 as const } },

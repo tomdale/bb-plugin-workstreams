@@ -12,8 +12,8 @@ const workstreams = [
   { id: "automations", name: "Automations", parentId: "agent" },
 ];
 
-describe("durable topic layout", () => {
-  it("lists a one-level product and each populated second-level topic", () => {
+describe("durable workstream layout", () => {
+  it("lists a one-level product and each populated second-level workstream", () => {
     const layout = layoutGroups({
       workstreams,
       counts: { vertex: 1, review: 4, automations: 4 },
@@ -28,7 +28,7 @@ describe("durable topic layout", () => {
       layout.nodes.every((node) => node.lists && node.children.length === 0),
     ).toBe(true);
   });
-  it("does not change section identity or topic shape with volume", () => {
+  it("does not change section identity or workstream shape with volume", () => {
     const small = layoutGroups({
       workstreams,
       counts: { vertex: 1, review: 1 },
@@ -42,7 +42,7 @@ describe("durable topic layout", () => {
       busy.nodes.map(({ total, ...identity }) => identity),
     );
   });
-  it("does not list empty topics", () => {
+  it("does not list empty workstreams", () => {
     expect(layoutGroups({ workstreams, counts: {} })).toEqual({
       nodes: [],
       listed: [],
@@ -71,7 +71,7 @@ describe("durable topic layout", () => {
       }),
     ).toThrow("at most two levels");
   });
-  it("refuses threads beside child topics until a filing plan is reviewed", () => {
+  it("refuses threads beside child workstreams until a reviewed plan moves them", () => {
     expect(() =>
       layoutGroups({ workstreams, counts: { agent: 1, review: 4 } }),
     ).toThrow("preview where its own threads go");

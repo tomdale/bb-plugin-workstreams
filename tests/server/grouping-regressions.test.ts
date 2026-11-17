@@ -21,7 +21,7 @@ const DONE = JSON.stringify({
 });
 describe("grouping regressions", () => {
   it.each([1, 4])(
-    "keeps topic workstreams stable with %i done roots as population changes",
+    "keeps workstreams stable with %i done threads as population changes",
     async (doneCount) => {
       world = await fakeWorld();
       const w = world;
@@ -57,7 +57,8 @@ describe("grouping regressions", () => {
         ]),
       );
 
-      // Completion and population leave topic section identities unchanged.
+      // Completion and population leave workstream section identities
+      // unchanged.
       w.threads.get("t5")!.archivedAt = null;
       const split = (await rebuild(w)).state;
       expect(split.groups.map((g: { name: string }) => g.name).sort()).toEqual([
@@ -70,7 +71,7 @@ describe("grouping regressions", () => {
         completedThreads: doneCount,
       });
 
-      // Small populations still keep the same two topic-backed sections.
+      // Small populations still keep the same two workstream sections.
       w.threads.get("t0")!.archivedAt = 20;
       w.threads.get("t1")!.archivedAt = 20;
       expect((await rebuild(w)).state.groups).toHaveLength(2);
@@ -91,7 +92,7 @@ describe("grouping regressions", () => {
       );
     },
   );
-  it("replans when completion changes while projection is fetching a live root", async () => {
+  it("replans when completion changes while projection is fetching a live thread", async () => {
     world = await fakeWorld();
     const w = world;
     const db = openDatabase(w.bb);
@@ -150,7 +151,7 @@ describe("grouping regressions", () => {
       );
     }
   });
-  it("counts completed roots in each workstream of a split group", async () => {
+  it("counts completed threads in each workstream of a split group", async () => {
     world = await fakeWorld();
     const w = world;
     const db = openDatabase(w.bb);
@@ -187,7 +188,7 @@ describe("grouping regressions", () => {
       ]),
     );
   });
-  it("replans rather than applying a topic that changed while fetching a live root", async () => {
+  it("replans rather than applying a workstream that changed while fetching a live thread", async () => {
     world = await fakeWorld();
     const w = world;
     const workstreamStore = new WorkstreamStore(openDatabase(w.bb));

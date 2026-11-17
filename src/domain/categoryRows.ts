@@ -2,7 +2,7 @@ import type { CategoryGeneration } from "./categories.ts";
 
 type TreeRow = { depth: number; thread: { id: string } };
 
-/** Categories move whole root trees in the view, leaving section IDs untouched. */
+/** Categories move whole thread trees in the view, leaving section IDs as is. */
 export function categoryRows<R extends TreeRow>(
   rows: readonly R[],
   generation?: CategoryGeneration,

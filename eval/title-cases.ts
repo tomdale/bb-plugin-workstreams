@@ -7,7 +7,7 @@
 export type TitleCase = {
   id: string;
   request: string;
-  /** The workstream the thread is listed under, as a topic path. */
+  /** The workstream the thread is listed under, as a path. */
   group?: string;
   /** The parent thread's title, for a child thread. */
   parent?: string;

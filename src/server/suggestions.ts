@@ -1,13 +1,15 @@
 /*
- * Reviewed changes to durable workstream identity. Placement can identify a lasting
- * area within a populated top-level workstream; its division request asks for a
- * complete filing plan rather than adding a child around existing threads.
- * Asking for suggestions also considers divisions explicitly. Volume-based
- * categories have their own lifecycle and never change this tree.
+ * Reviewed changes to durable workstream identity. The workstream choice can
+ * identify a lasting area within a populated top-level workstream; its division
+ * request asks for a complete plan of where every thread moves rather than
+ * adding a child around existing threads. Asking for suggestions also considers
+ * divisions explicitly. Volume-based categories have their own lifecycle and
+ * never change this tree.
  *
- * Tidy tracks changes to the workstreams and groups and root filing, and remembers
- * accepted and declined suggestions. Every accepted edit passes the workstream
- * store's two-level and leaf-only guards and records a guarded snapshot for Undo.
+ * Tidy tracks changes to the workstreams and groups and each thread's
+ * workstream, and remembers accepted and declined suggestions. Every accepted
+ * edit passes the workstream store's two-level and leaf-only guards and records
+ * a guarded snapshot for Undo.
  */
 import { randomUUID } from "node:crypto";
 import type { ModelChoice } from "../domain/prefs.ts";
@@ -67,9 +69,9 @@ type SuggestionView = {
    */
   change: SuggestionChange | null;
   /**
-   * Accepting it as data, for drawing the sidebar after. Null when `change`
-   * is, and when it can't be drawn: it needs a workstream another suggestion
-   * creates, or threads that joined its group are still to be filed.
+   * Accepting it as data, for drawing the sidebar after. Null when `change` is,
+   * and when it can't be drawn: it needs a workstream another suggestion
+   * creates, or threads that joined its group are still to be moved.
    */
   delta: ChangeDelta | null;
   /** What it does in a sentence, while `change` is known; else `summary`. */
@@ -111,7 +113,7 @@ type TidyMemo = {
   fingerprint?: string;
 };
 
-/** A visible root as suggestions read it. */
+/** A visible top-level thread as suggestions read it. */
 type TitledThread = { id: string; title: string };
 
 /** An edit that needs a workstream another suggestion of its pass creates. */
@@ -133,9 +135,9 @@ const refs = (edit: TidyEdit): (string | null)[] => {
 };
 
 /**
- * The delta as the client receives it: the archived threads it files are
- * counted (`archived`) but not listed, since a workstream can hold thousands and
- * a drawing never shows them.
+ * The delta as the client receives it: the archived threads it moves are
+ * counted (`archived`) but not listed, since a workstream can hold thousands
+ * and a drawing never shows them.
  */
 function wireDelta(
   delta: ChangeDelta | null,
@@ -172,7 +174,7 @@ export class Suggestions {
       model: () => Promise<ModelChoice>;
       /** Whether automatic suggestions are on. */
       enabled: () => boolean;
-      /** Visible, non-archived roots. */
+      /** Visible, non-archived top-level threads. */
       threads: () => readonly TitledThread[];
       splitThreads?: (workstreamId: string) => Promise<SuggestThread[]>;
       checkout: (threadId: string) => string | null;
@@ -277,9 +279,9 @@ export class Suggestions {
 
   /**
    * `check`, unless nothing it reads changed since the last one. Besides the
-   * suggestions it keeps itself, it reads the workstreams and groups and assignments,
-   * which move the workstream tree revision whenever they change, and the visible
-   * roots and the preference.
+   * suggestions it keeps itself, it reads the workstreams and groups and each
+   * thread's workstream, which move the workstream tree revision whenever they
+   * change, and the visible threads and the preference.
    */
   checkIfChanged(): void {
     if (this.inputs() !== this.checked) this.check();
@@ -505,7 +507,10 @@ export class Suggestions {
     return { at: null };
   }
 
-  /** Workstream definitions and visible root filing, excluding titles and status. */
+  /**
+   * Workstream definitions and visible threads' workstreams, excluding titles
+   * and status.
+   */
   private fingerprint(): string {
     const workstreams = this.deps.workstreamStore.list();
     const assignments = this.deps.workstreamStore.assignments();
@@ -672,7 +677,10 @@ export class Suggestions {
       .run(status, this.now(), detail, id);
   }
 
-  /** Stored root assignments, so a reviewed division includes archived filing. */
+  /**
+   * Stored threads' workstreams, so a reviewed division includes archived
+   * threads.
+   */
   private held(): Held {
     const out: Record<string, number> = {};
     const assignments = this.deps.workstreamStore.assignments();
@@ -787,8 +795,8 @@ export class Suggestions {
     };
     return {
       change: suggestionChange(edit, context),
-      // Threads that joined a split's group are filed by a model call when
-      // it is accepted, so the filing after is not known yet.
+      // Threads that joined a split's group are moved by a model call when it
+      // is accepted, so where they end up is not known yet.
       delta: now?.arrivals.length
         ? null
         : wireDelta(changeDelta(edit, context), context),
@@ -892,7 +900,7 @@ export class Suggestions {
 
   /**
    * A split as it applies now, with the threads that joined its group since
-   * filed by one split call; undefined for other suggestions. The call's
+   * moved by one split call; undefined for other suggestions. The call's
    * failure leaves the suggestion waiting.
    */
   private async filed(row: Row): Promise<Split | undefined> {
@@ -1028,8 +1036,8 @@ export class Suggestions {
             workstreamStore.assign(edit.thread, edit.workstream, {
               provenance:
                 current.provenance === "manual" ? "manual" : "automatic",
-              // An accepted refile keeps the basis it was settled from, so
-              // placement leaves it alone until a new request arrives.
+              // An accepted move keeps the basis it was settled from, so the
+              // workstream choice leaves it alone until a new request arrives.
               evidence: workstreamStore.basis(edit.thread),
             });
             threads.push({

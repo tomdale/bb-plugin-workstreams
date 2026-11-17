@@ -30,7 +30,7 @@ const rpc = <T = unknown>(w: World, method: string, input: unknown) =>
 const log = async (w: World, external = true) =>
   (await rpc<{ entries: Entry[] }>(w, "journal", { external })).entries;
 
-describe("service: retired manual placement APIs", () => {
+describe("service: retired manual move APIs", () => {
   it("rejects removed manual RPC endpoints", async () => {
     const w = await setup();
     await expect(

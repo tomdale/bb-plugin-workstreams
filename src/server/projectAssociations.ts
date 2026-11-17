@@ -67,13 +67,14 @@ const derived = (
   );
 
 /**
- * Learns workstream projects from the threads stored in `ws_project_thread` (who
- * chose each project) and `ws_project_listing` (what BB last reported about each
- * thread that may vote), joined with workstream assignments. Archived roots keep their rows and
- * keep voting. The rows follow dispatches, deletions, and the reconciler's
- * active threads; a full sweep of BB's threads runs once to bootstrap
- * historical work and daily after that, because BB has no event for a
- * project move and deletions can be missed while the plugin is down.
+ * Learns workstream projects from the threads stored in `ws_project_thread`
+ * (who chose each project) and `ws_project_listing` (what BB last reported
+ * about each thread that may vote), joined with each thread's workstream.
+ * Archived threads keep their rows and keep voting. The rows follow dispatches,
+ * deletions, and the reconciler's active threads; a full sweep of BB's threads
+ * runs once to bootstrap historical work and daily after that, because BB has
+ * no event for a project move and deletions can be missed while the plugin is
+ * down.
  */
 export class ProjectAssociations {
   private pending: Promise<void> | null = null;
@@ -129,8 +130,9 @@ export class ProjectAssociations {
   }
 
   /**
-   * Records what BB reports about a thread: its project and title while it
-   * is a visible, undeleted root that nothing derived, and nothing otherwise.
+   * Records what BB reports about a thread: its project and title while it is a
+   * visible, undeleted top-level thread that nothing derived, and nothing
+   * otherwise.
    */
   observe(thread: Observed): void {
     if (
@@ -172,7 +174,10 @@ export class ProjectAssociations {
     })();
   }
 
-  /** A late draft report may confirm an unknown root, but never rehabilitates a supplied project. */
+  /**
+   * A late draft report may confirm an unknown thread, but never rehabilitates
+   * a supplied project.
+   */
   recordChoice(
     thread: Observed,
     choice: ProjectChoice | null | undefined,
@@ -357,9 +362,9 @@ export class ProjectAssociations {
   }
 
   /**
-   * Independent roots that vote: observed as eligible, outside Personal,
-   * still in the project their choice recorded, and filed in a workstream.
-   * Archived roots count.
+   * Independent top-level threads that vote: observed as eligible, outside
+   * Personal, still in the project their choice recorded, and in a workstream.
+   * Archived threads count.
    */
   private roots(): ProjectThread[] {
     return this.deps.db

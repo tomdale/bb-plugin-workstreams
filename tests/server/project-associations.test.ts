@@ -110,7 +110,7 @@ function world() {
   };
 }
 
-it("learns from three independent historical roots, including archived work, and journals supporting threads once", async () => {
+it("learns from three independent historical threads, including archived work, and journals supporting threads once", async () => {
   const w = world();
   w.history();
   await w.learning.reconcile();
@@ -130,7 +130,7 @@ it("learns from three independent historical roots, including archived work, and
   expect(w.journal.list()).toHaveLength(1);
 });
 
-it("does not count delegates, forks, plugin-created roots, hidden work, or Personal", async () => {
+it("does not count child threads, forks, plugin-created threads, hidden work, or Personal", async () => {
   const w = world();
   w.add("one");
   for (let i = 0; i < 3; i++) {
@@ -144,12 +144,12 @@ it("does not count delegates, forks, plugin-created roots, hidden work, or Perso
   expect(w.current().projectId).toBeNull();
   w.add("two");
   w.add("three");
-  // Historical roots arrive only with a sweep of BB's threads.
+  // Historical threads arrive only with a sweep of BB's threads.
   await w.learning.reconcile({ sweep: true });
   expect(w.current().projectId).toBe("p1");
 });
 
-it("requires provenance for new roots and never lets supplied projects reinforce learning", async () => {
+it("requires provenance for new threads and never lets supplied projects reinforce learning", async () => {
   const w = world();
   const fresh = Array.from({ length: 3 }, (_, i) =>
     w.add(`new-${i}`, { createdAt: Date.now() + 1000 }),
@@ -307,7 +307,7 @@ it("paginates archived history and declines unavailable project candidates", asy
   expect(w.journal.list()[0]?.threads).toHaveLength(101);
 });
 
-it("plans from stored history after its first sweep, counting archived roots, and sweeps again after a day", async () => {
+it("plans from stored history after its first sweep, counting archived threads, and sweeps again after a day", async () => {
   const w = world();
   w.add("archived-1", { archivedAt: 2 });
   w.add("archived-2", { archivedAt: 2 });
@@ -315,7 +315,7 @@ it("plans from stored history after its first sweep, counting archived roots, an
   expect(w.listings.threads).toBe(2);
   expect(w.current().projectId).toBeNull();
 
-  // A restart reads no threads, and a new independent root joins the
+  // A restart reads no threads, and a new independent thread joins the
   // archived ones without another listing.
   w.restart();
   w.addIndependent("fresh", "p1");
@@ -347,7 +347,7 @@ it("reads projects again only when stale or when a thread uses one it has not se
   expect(w.listings.projects).toBe(2);
 });
 
-it("stops counting a root whose project moved, and forgets one the sweep no longer finds", async () => {
+it("stops counting a thread whose project moved, and forgets one the sweep no longer finds", async () => {
   const w = world();
   w.history();
   w.add("root-3");
@@ -356,7 +356,7 @@ it("stops counting a root whose project moved, and forgets one the sweep no long
   await w.learning.reconcile();
   expect(w.learning.state()).toHaveLength(1);
 
-  // The reconciler sees the active root move to the learned project.
+  // The reconciler sees the active thread move to the learned project.
   const moved = w.threads.find((thread) => thread.id === "other")!;
   w.learning.observeActive([
     {

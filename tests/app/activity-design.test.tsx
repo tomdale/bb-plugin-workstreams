@@ -54,7 +54,7 @@ async function page(
   );
 }
 
-it("labels status and topic, explains review on focus, and hides metrics by default", async () => {
+it("labels status and workstream, explains review on focus, and hides metrics by default", async () => {
   const slot = await page("review · goal “Fix parser tabs” · BB");
   const row = (await slot.findByText("Fix parser", { exact: true })).closest(
     "li",

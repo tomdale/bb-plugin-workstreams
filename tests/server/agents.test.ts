@@ -105,7 +105,7 @@ describe("configure", () => {
       .filter((text): text is string => text !== null)
       .join("\n\n");
 
-  it("configures tools independently of thread hierarchy and workstream placement", async () => {
+  it("configures tools independently of thread hierarchy and workstream choice", async () => {
     const w = await setup();
     const task = await resolve(w, { id: "task" });
     expect(task.instructions).not.toContain("Alpha");
@@ -206,7 +206,7 @@ describe("configure", () => {
     );
   });
 
-  it("gives root threads the plain response contract in place of reply blocks while Enhanced responses is on", async () => {
+  it("gives top-level threads the plain response contract in place of reply blocks while Enhanced responses is on", async () => {
     const w = await setup();
     await w.harness.behavior.callRpc("setRecapPrefs", {
       patch: { replies: true },

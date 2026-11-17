@@ -99,9 +99,9 @@ describe("nested workstreams", () => {
     settings: { showRecent: false, showUpNext: false },
   };
 
-  it("draws a topic's workstreams as subgroups of its group", async () => {
+  it("draws a group's workstreams as subgroups of its group", async () => {
     const slot = await mount(nestedThreads(), options);
-    // The catalog arrives after the first frame, which draws flat groups.
+    // The tree arrives after the first frame, which draws flat groups.
     const top = () =>
       slot.getByRole("region", { name: "Beacon › Automations" });
     const alerts = () =>
@@ -400,7 +400,7 @@ describe("small groups", () => {
     slot.lifecycle.unmount();
   });
 
-  it("renders categories as row headings within the same workstream and keeps delegates with their roots", async () => {
+  it("renders categories as row headings within the same workstream and keeps child threads with their parents", async () => {
     const threads = Array.from({ length: 7 }, (_, i) =>
       sidebarThread(`t${i}`, { title: `Task ${i}`, sectionId: "sec_vertex" }),
     );
@@ -652,7 +652,7 @@ describe("small groups", () => {
     expect(chevron.className).toContain("transition-transform");
     expect(chevron.className).toContain("rotate-90");
 
-    // Thread row heights: root thread is 21px, child thread is 28px (h-7)
+    // Thread row heights: top-level thread is 21px, child thread is 28px (h-7)
     const rootRow = within(studioApp)
       .getByRole("link", { name: "Studio App root" })
       .closest(".ws-row") as HTMLElement;

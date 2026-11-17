@@ -23,7 +23,10 @@ import { takesThreads } from "../../domain/workstreams.ts";
 import type { ReorderChange } from "../useWorkstreams.ts";
 import type { Drop } from "./dnd.tsx";
 
-/** A cross-group drop sets the root's workstream before saving its destination order. */
+/**
+ * A cross-group drop sets the dragged thread's workstream before saving its
+ * destination order.
+ */
 type DropPlan = {
   assign?: { threadId: string; workstreamId: string | null; within?: true };
   reorder: ReorderChange | null;
@@ -110,7 +113,8 @@ export function planDrop<T extends WorkstreamThread>(
   const group = groups.find((g) => g.id === drop.toGroupId);
   if (!group) {
     const target = destination(drop.toGroupId, workstreams);
-    // A workstream-only header has no section order; its chosen leaf determines placement.
+    // A workstream-only header has no section order; its chosen leaf determines
+    // where the thread goes.
     return target &&
       drop.overThreadId === null &&
       drop.fromGroupId !== drop.toGroupId

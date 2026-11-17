@@ -46,7 +46,7 @@ describe("category fit check", () => {
     ).toHaveProperty("threads");
   });
 
-  it("files every changed thread where the check put it", () => {
+  it("moves every changed thread where the check put it", () => {
     const fit = parseCategoryFit(
       JSON.stringify({
         threads: [

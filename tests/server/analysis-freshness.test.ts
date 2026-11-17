@@ -124,7 +124,7 @@ describe("inference application freshness", () => {
       pending.release(answer(a.id));
       await new Promise((resolve) => setTimeout(resolve, 20));
       expect(w.threads.get("t")?.title).toBeNull();
-      // The topic still files the thread until its turn's end decides.
+      // The thread keeps its workstream until its turn's end decides.
       expect(workstreamStore.assignment("t").workstreamId).toBe(a.id);
     },
   );

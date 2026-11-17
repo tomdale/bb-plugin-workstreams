@@ -3,11 +3,11 @@
  * remounts the routing model. Two transfers carry the workstream into the
  * replacement:
  *
- * - When Workstreams moves the composer to the workstream's project, the selected
- *   workstream travels only while that change is in flight, with its original
- *   provenance and preview so automatic choices still title and file the
- *   submitted thread. The project marker travels too, so the replacement does
- *   not report a supplied project as an independent choice.
+ * - When Workstreams moves the composer to the workstream's project, the
+ *   selected workstream travels only while that change is in flight, with its
+ *   original provenance and preview so automatic choices still title and move
+ *   the submitted thread. The project marker travels too, so the replacement
+ *   does not report a supplied project as an independent choice.
  * - When you choose another project yourself, a workstream you picked travels to
  *   the next model for the same draft in another project, marked as a
  *   project for this thread only. An automatic workstream does not: the new

@@ -1099,7 +1099,8 @@ it("accents Change labels with the thread's workstream color", async () => {
   const label = filed.container.querySelector("[data-reply-change-row] dt");
   expect(label?.className).toContain("--ws-reply-accent");
   filed.lifecycle.unmount();
-  // An unfiled thread sets no identity color, so labels fall back to muted.
+  // A thread with no workstream sets no identity color, so labels fall back
+  // to muted.
   const unfiled = await draw(body(COMPONENT_EXAMPLES.change));
   expect(
     unfiled.container

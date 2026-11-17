@@ -14,8 +14,8 @@ import { createTestPluginHost } from "./test-host.ts";
 /**
  * What the client draws from a suggestion's delta must be what accepting it
  * does. Each case builds the same small world, takes the delta the server
- * sends, accepts the suggestion through the real path, and compares the topic
- * tree and every thread's filing.
+ * sends, accepts the suggestion through the real path, and compares the
+ * workstream tree and every thread's workstream.
  */
 
 const hosts: ReturnType<typeof createTestPluginHost>[] = [];
@@ -28,7 +28,7 @@ type Ids = Record<string, string>;
 /**
  * Billing holds Invoices and Payments (alias "Pay", with an archived thread);
  * Web holds Invoices; Docs and Infra hold threads; Wrap holds an empty Inner; Support
- * holds a thread beside its subtopic Triage; u1 is unfiled.
+ * holds a thread beside its child workstream Triage; u1 has no workstream.
  */
 function world(pluginId: string) {
   const host = createTestPluginHost({ pluginId });
@@ -72,7 +72,7 @@ function world(pluginId: string) {
   file("f1", "infra");
   file("tr1", "triage");
   workstreamStore.assign("u1", null);
-  // A thread filed beside a subtopic, which only a repair files.
+  // A thread beside a child workstream, which only a repair moves.
   workstreamStore.assign("s1", id.infra!);
   db.prepare(
     "UPDATE ws_thread_workstream SET workstream_id = ? WHERE thread_id = 's1'",
@@ -116,9 +116,9 @@ const filingOf = (workstreamStore: WorkstreamStore) =>
   ) as Record<string, string | null>;
 
 /**
- * The tree with every topic named by its path unless it already existed, so a
- * topic the accepted change created, under an id the store drew, equals the
- * one the delta named.
+ * The tree with every workstream named by its path unless it already existed,
+ * so a workstream the accepted change created, under an id the store drew,
+ * equals the one the delta named.
  */
 function canonical(
   workstreams: readonly DeltaWorkstream[],
@@ -158,8 +158,8 @@ async function accept(
   const [suggestion] = w.suggestions.state().suggestions;
   expect(suggestion?.problem).toBeNull();
   expect(suggestion?.delta).not.toBeNull();
-  // The wire omits archived threads' filing, so the comparison uses the whole
-  // delta, which the server derives from the same tree.
+  // The wire omits archived threads' workstreams, so the comparison uses the
+  // whole delta, which the server derives from the same tree.
   const whole = changeDelta(body, {
     workstreams: w.workstreamStore.list(),
     threadWorkstream: Object.fromEntries(
@@ -213,7 +213,7 @@ describe("a suggestion's delta equals accepting it", () => {
       thread: "d1",
       workstream: id.infra!,
     })),
-    edit("refile of an unfiled thread", (id) => ({
+    edit("move of a thread with no workstream", (id) => ({
       op: "move-thread",
       thread: "u1",
       workstream: id.docs!,
@@ -234,34 +234,34 @@ describe("a suggestion's delta equals accepting it", () => {
       parent: null,
       name: "Billing Invoices",
     })),
-    edit("merge of leaf topics", (id) => ({
+    edit("merge of leaf workstreams", (id) => ({
       op: "merge",
       from: id.docs!,
       into: id.infra!,
     })),
-    edit("merge of a topic with an archived thread", (id) => ({
+    edit("merge of a workstream with an archived thread", (id) => ({
       op: "merge",
       from: id.payments!,
       into: id.invoices!,
     })),
-    edit("merge joining subtopics of the same name", (id) => ({
+    edit("merge joining child workstreams of the same name", (id) => ({
       op: "merge",
       from: id.web!,
       into: id.billing!,
     })),
-    edit("merge into a topic below the source", (id) => ({
+    edit("merge into a workstream below the source", (id) => ({
       op: "merge",
       from: id.wrap!,
       into: id.inner!,
     })),
-    edit("create adopting topics", (id) => ({
+    edit("create adopting workstreams", (id) => ({
       op: "group",
       name: "Writing",
       description: "",
       parent: null,
       children: [id.docs!, id.infra!],
     })),
-    edit("create with no topics to adopt", () => ({
+    edit("create with no workstreams to adopt", () => ({
       op: "group",
       name: "Platform",
       description: "",
@@ -269,7 +269,7 @@ describe("a suggestion's delta equals accepting it", () => {
       children: [],
     })),
     [
-      "split into new subtopics",
+      "split into new workstreams",
       "split",
       (id) => ({
         workstreamId: id.docs!,
@@ -280,7 +280,7 @@ describe("a suggestion's delta equals accepting it", () => {
       }),
     ],
     [
-      "repair filing a topic's own threads beside its subtopics",
+      "repair moving a workstream's threads beside its children",
       "split",
       (id) => ({
         workstreamId: id.support!,
@@ -302,7 +302,7 @@ describe("threads the sidebar does not list", () => {
       (
         w.suggestions as unknown as { propose: (...args: unknown[]) => void }
       ).propose("pass", "edit", body, "Because", null);
-    // "archived" is filed under Payments but is not among the visible roots.
+    // "archived" is in Payments but is not among the visible threads.
     propose({ op: "rename", workstream: w.id.payments!, name: "Pay" });
     const [rename] = w.suggestions.state().suggestions;
     expect(rename!.delta!.held.map((h) => h.threadId).sort()).toEqual([
@@ -313,7 +313,7 @@ describe("threads the sidebar does not list", () => {
     propose({ op: "merge", from: w.id.payments!, into: w.id.invoices! });
     const merge = w.suggestions.state().suggestions[1]!;
     expect(merge.delta!.archived).toBe(1);
-    // Only the two listed threads are filed on the wire.
+    // Only the two listed threads have a workstream on the wire.
     expect(merge.delta!.assignments.map((a) => a.threadId).sort()).toEqual([
       "p1",
       "p2",

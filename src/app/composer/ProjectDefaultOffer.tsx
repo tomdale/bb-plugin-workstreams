@@ -15,7 +15,7 @@ import {
 import type { NewWork, NewWorkViewState } from "./new-work.ts";
 
 type Offer = {
-  /** Placement and project this offer answers. */
+  /** Workstream and project this offer answers. */
   identity: NewWorkViewState["identity"];
   workstreamId: string;
   label: string;

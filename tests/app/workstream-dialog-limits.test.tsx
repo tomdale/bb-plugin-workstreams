@@ -16,7 +16,7 @@ const workstream = {
   aliases: [],
 };
 
-/** The topic tree's editor, opened on the one topic it lists. */
+/** The tree's editor, opened on the one workstream it lists. */
 function mountEditor(call = vi.fn()) {
   renderSlot(
     { component: WorkstreamTree },
@@ -34,7 +34,7 @@ function mountEditor(call = vi.fn()) {
   return within(document.body);
 }
 
-it("bounds topic name and description fields to their RPC limits", () => {
+it("bounds workstream name and description fields to their RPC limits", () => {
   renderSlot(
     { component: CreateWorkstreamDialog },
     {
@@ -52,7 +52,7 @@ it("bounds topic name and description fields to their RPC limits", () => {
   );
 });
 
-it("bounds the topic editor's name and description to their RPC limits", () => {
+it("bounds the workstream editor's name and description to their RPC limits", () => {
   const body = mountEditor();
   expect(body.getByLabelText("Name").getAttribute("maxlength")).toBe("200");
   expect(body.getByLabelText("Description").getAttribute("maxlength")).toBe(
@@ -60,7 +60,7 @@ it("bounds the topic editor's name and description to their RPC limits", () => {
   );
 });
 
-it("explains oversized aliases before creating a topic", async () => {
+it("explains oversized aliases before creating a workstream", async () => {
   const call = vi.fn();
   renderSlot(
     { component: CreateWorkstreamDialog },
@@ -87,7 +87,7 @@ it("explains oversized aliases before creating a topic", async () => {
   expect(call).not.toHaveBeenCalled();
 });
 
-it("explains oversized aliases before the editor saves a topic", async () => {
+it("explains oversized aliases before the editor saves a workstream", async () => {
   const call = vi.fn();
   const body = mountEditor(call);
   fireEvent.change(body.getByLabelText("Aliases"), {

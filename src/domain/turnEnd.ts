@@ -1,14 +1,14 @@
 /**
  * A turn's end: one call describes the thread (title, goal, digest, and the
- * turn's status when the agent didn't report it) and, after a new request to
- * a root, decides its workstream. Pure, so the server, its trace replays, and the
- * eval share one prompt and parser.
+ * turn's status when the agent didn't report it) and, after a new request to a
+ * thread with no parent, chooses its workstream. Pure, so the server, its trace
+ * replays, and the eval share one prompt and parser.
  *
- * The description is the turn-end call's own (see analysis.ts); placement is
- * placement's (see workstreamChoice.ts), asked only when `placement` is supplied.
- * The digest is this call's own memory: it reads the digest it settled last
- * time and returns a revised one, so a single later request refines what the
- * thread is about instead of replacing it.
+ * The description is the turn-end call's own (see analysis.ts); the workstream
+ * choice is workstreamChoice.ts's, asked only when `placement` is supplied. The
+ * digest is this call's own memory: it reads the digest it settled last time
+ * and returns a revised one, so a single later request refines what the thread
+ * is about instead of replacing it.
  */
 import {
   descriptionParts,
@@ -33,9 +33,10 @@ import {
 
 export type TurnEndInput = DescriptionInput & {
   /**
-   * What placement reads, or null when the thread's workstream needs no
-   * decision: a child thread, a workstream you set, or no new request since it was
-   * last settled. Its requests, title, and digest are already in the prompt.
+   * What the workstream choice reads, or null when the thread's workstream
+   * needs no decision: a child thread, a workstream you set, or no new request
+   * since it was last settled. Its requests, title, and digest are already in
+   * the prompt.
    */
   readonly choice: WorkstreamChoiceInput | null;
 };
@@ -92,10 +93,10 @@ export function turnEndSchema(input: TurnEndInput): Record<string, unknown> {
 }
 
 /**
- * The checked answer. An invalid workstream is refused on its own (`topicError`),
- * so it never files the thread or clears a valid assignment, and the turn's
- * description still stands. A new title drops names its listing shows: the
- * workstream this answer chose when it chose one.
+ * The checked answer. An invalid workstream is refused on its own
+ * (`topicError`), so it never moves the thread or clears a valid workstream,
+ * and the turn's description still stands. A new title drops names its listing
+ * shows: the workstream this answer chose when it chose one.
  */
 export function parseTurnEnd(text: string, input: TurnEndInput): TurnEndOutput {
   const raw: unknown = JSON.parse(stripFence(text));

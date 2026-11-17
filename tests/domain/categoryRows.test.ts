@@ -15,7 +15,7 @@ const generation = {
 };
 
 describe("category rows", () => {
-  it("keeps delegates with their root and preserves workstream identity", () => {
+  it("keeps child threads with their parent thread and preserves workstream identity", () => {
     const rows = [row("a"), row("a-child", 1), row("b"), row("b-child", 1)];
     const buckets = categoryRows(rows, generation);
     expect(
@@ -55,7 +55,7 @@ describe("category rows", () => {
     const rows = [row("a"), row("child", 1)];
     expect(categoryRows(rows)).toEqual([{ id: null, name: null, rows }]);
   });
-  it("keeps each category's place when a sibling has nothing filed in it", () => {
+  it("keeps each category's place when a sibling has no threads in it", () => {
     const empty = {
       id: "g",
       categories: [

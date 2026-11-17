@@ -60,15 +60,15 @@ export type ChangeContext = {
     aliases?: readonly string[];
   }[];
   /**
-   * Each filed root's workstream, archived ones included; null for Other. A
-   * suggestion can name any of them.
+   * Each top-level thread's workstream, archived ones included; null for Other.
+   * A suggestion can name any of them.
    */
   readonly threadWorkstream: Readonly<Record<string, string | null>>;
   readonly title: (threadId: string) => string;
   /**
-   * Whether a thread shows in the sidebar. The threads a merge or workstream move
-   * lists and counts are only these, since review describes what the user
-   * sees move; archived assignments move too. Every thread, when absent.
+   * Whether a thread shows in the sidebar. The threads a merge or workstream
+   * move lists and counts are only these, since review describes what the user
+   * sees move; archived threads move too. Every thread, when absent.
    */
   readonly visible?: (threadId: string) => boolean;
   /**
@@ -85,10 +85,10 @@ const normalize = (name: string) => name.trim().toLowerCase();
 
 /**
  * Accepting a suggestion as data: the workstreams it creates, renames, moves or
- * removes, and the threads it files elsewhere, all by id. A client applies it
- * to the workstreams and filing it already holds (`applyDelta`) to see the tree
- * after accepting, so the server never needs to know how the client lays the
- * sidebar out.
+ * removes, and the threads it moves elsewhere, all by id. A client applies it
+ * to the workstreams and thread workstreams it already holds (`applyDelta`) to
+ * see the tree after accepting, so the server never needs to know how the
+ * client lays the sidebar out.
  */
 export type ChangeDelta = {
   /**
@@ -108,11 +108,12 @@ export type ChangeDelta = {
     readonly workstreamId: string | null;
   }[];
   /**
-   * Every root in the sidebar's population (not archived or hidden) filed,
-   * before the change, in a workstream it touches, with its title: where a thread
-   * is moving from, a workstream that is renamed or merged, or a workstream threads
-   * arrive in. The client reads only the filing of the threads its sidebar
-   * lists, so this is how it learns of the snoozed ones a change acts on.
+   * Every top-level thread in the sidebar's population (not archived or hidden)
+   * that was, before the change, in a workstream it touches, with its title:
+   * where a thread is moving from, a workstream that is renamed or merged, or a
+   * workstream threads arrive in. The client reads only the workstreams of the
+   * threads its sidebar lists, so this is how it learns of the snoozed ones a
+   * change acts on.
    */
   readonly held: readonly {
     readonly threadId: string;
@@ -125,7 +126,7 @@ export type ChangeDelta = {
    */
   readonly archived: number;
   /**
-   * The workstreams the change touches: the ones it changes, removes or files
+   * The workstreams the change touches: the ones it changes, removes or moves
    * threads into or out of. A drawing shows each, even one whose threads are
    * all archived and so unknown to the client.
    */
@@ -306,8 +307,8 @@ function delta(body: TidyEdit | Split, context: ChangeContext): ChangeDelta {
 }
 
 /**
- * The workstreams and filing after accepting: `delta` applied to `workstreams` and to
- * `filing`, each thread's workstream id (null for Other).
+ * The workstreams and thread workstreams after accepting: `delta` applied to
+ * `workstreams` and to `filing`, each thread's workstream id (null for Other).
  */
 export function applyDelta(
   workstreams: readonly DeltaWorkstream[],
@@ -366,7 +367,7 @@ function describe(
     if (!(id in threadWorkstream)) throw new Error("That thread is gone.");
     return { id, title: context.title(id) };
   };
-  /** Visible threads filed in a workstream or any workstream below it. */
+  /** Visible threads in a workstream or any workstream below it. */
   const shown = Object.entries(threadWorkstream).filter(
     ([id]) => context.visible?.(id) ?? true,
   );

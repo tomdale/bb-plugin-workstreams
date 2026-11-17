@@ -277,7 +277,7 @@ it("keeps Up Next open and names each row's workstream", async () => {
     at,
     model: "m",
   });
-  // The delegate's older question folds into its manager's newer one.
+  // The child thread's older question folds into its parent's newer one.
   const slot = await mountWithBands(
     [
       sidebarThread("manager", {

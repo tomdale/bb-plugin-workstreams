@@ -319,7 +319,7 @@ it("sorts workstreams alphabetically by default and lets the view menu change so
   slot.lifecycle.unmount();
 });
 
-it("shows Unfiled after the populated workstreams, and nothing for an emptied one", async () => {
+it("shows Other after the populated workstreams, and nothing for an emptied one", async () => {
   const slot = await mount(undefined, {
     settings: { showRecent: false, showUpNext: false, groupSort: "manual" },
     order: { workstreams: ["sec_z", "sec_b", "sec_a"], threads: {} },
@@ -562,7 +562,7 @@ it("persists collapse state per group", async () => {
   second.lifecycle.unmount();
 });
 
-it("offers a Topic submenu in the row menu", async () => {
+it("offers a Move to submenu in the row menu", async () => {
   const slot = await mount(undefined, { settings: { showRecent: false } });
   const link = within(slot.getByRole("region", { name: "Alpha" })).getByRole(
     "link",

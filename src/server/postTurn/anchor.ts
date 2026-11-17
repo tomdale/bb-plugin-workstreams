@@ -25,9 +25,9 @@ export type FinalMessageLookup =
   { ok: true; message: FinalMessage } | { ok: false; reason: string };
 
 /**
- * Turn events read back from the thread's end. Delegated turns count too, so
- * a root turn that started more than this many nested turns is not found and
- * gets no document.
+ * Turn events read back from the thread's end. Nested turns count too, so a
+ * root turn that started more than this many nested turns is not found and gets
+ * no document.
  */
 const TURN_WINDOW = "100";
 /**

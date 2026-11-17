@@ -24,7 +24,7 @@ describe("buildForest", () => {
     expect(forest.rootOf.get("d")?.id).toBe("a");
   });
 
-  it("promotes threads with missing parents to roots and reports them", () => {
+  it("promotes threads with missing parents to the top and reports them", () => {
     const forest = buildForest([
       thread("child", { parentThreadId: "archived-parent" }),
       thread("root"),
@@ -47,7 +47,7 @@ describe("buildForest", () => {
     expect([...forest.cycleIds].sort()).toEqual(["x", "y", "z"]);
   });
 
-  it("treats a self-parented thread as a root", () => {
+  it("treats a self-parented thread as a top-level thread", () => {
     const forest = buildForest([thread("s", { parentThreadId: "s" })]);
     expect(ids(forest)).toEqual(["s"]);
   });

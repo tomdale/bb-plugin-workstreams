@@ -98,7 +98,7 @@ export function draftSubject(decision: Preview, request: string): DebugSubject {
   };
 }
 
-/** A thread's analysis: the workstream it filed it under and its status. */
+/** A thread's analysis: the workstream it chose and its status. */
 export function analysisSubject({
   threadId,
   analysis,

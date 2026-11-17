@@ -8,11 +8,12 @@
  * What a run asks depends on what changed:
  *
  * - After a new request from you, the call settles the title and goal,
- *   describes the turn when the agent didn't report, and for a root decides
- *   its workstream in the same answer. It keeps a title Workstreams wrote unless
- *   the goal changed, and never names over one you gave.
- * - A root that only lacks a workstream (an earlier turn was analyzed before it
- *   had one) gets a placement call alone (see `Placement`).
+ *   describes the turn when the agent didn't report, and for a thread with no
+ *   parent chooses its workstream in the same answer. It keeps a title
+ *   Workstreams wrote unless the goal changed, and never names over one you
+ *   gave.
+ * - A thread that only lacks a workstream (an earlier turn was analyzed before
+ *   it had one) gets a workstream choice call alone (see `WorkstreamChoice`).
  * - After a turn with no new request (a waiting check, a bare "continue"),
  *   only the turn's status is new: with an agent report nothing is asked and
  *   the settled title carries forward; without one, only the status is asked.
@@ -90,7 +91,7 @@ export class Analyzer {
     string,
     { revision: number; text: string | null }
   >();
-  /** Roots with no workstream yet, queued for a run despite a current result. */
+  /** Threads with no workstream yet, queued to run despite a current result. */
   private readonly settleWorkstream = new Set<string>();
   private disposed = false;
   lastError: string | null = null;
@@ -109,7 +110,7 @@ export class Analyzer {
         report: AgentReport;
         status: Pick<StoredAnalysis, "recap" | "state" | "ask">;
       } | null;
-      /** Workstreams, for settling a root's workstream with its goal. */
+      /** Workstreams, for settling a thread's workstream with its goal. */
       workstreams?: {
         workstreams(): Workstream[];
         assignment(threadId: string): WorkstreamAssignment;
@@ -126,7 +127,7 @@ export class Analyzer {
         id: string;
         parentThreadId?: string | null;
       }) => ThreadListing;
-      /** Asks where a root belongs (see `Placement`). */
+      /** Asks where a thread belongs (see `WorkstreamChoice`). */
       workstreamChoice?: {
         question(
           thread: ChoiceThread,
@@ -268,8 +269,8 @@ export class Analyzer {
     let queued = 0;
     for (const thread of idle) {
       const previous = stored.get(thread.id);
-      // A root that never had a workstream is settled even when its latest turn
-      // was analyzed, for example after the plugin first loads.
+      // A thread that never had a workstream is settled even when its latest
+      // turn was analyzed, for example after the plugin first loads.
       const unworkstreamed =
         this.deps.workstreams !== undefined &&
         thread.parentThreadId === null &&
@@ -309,7 +310,10 @@ export class Analyzer {
     return this.run(threadId, true);
   }
 
-  /** A placement preview shares production evidence and parsing but writes no facts. */
+  /**
+   * A workstream choice preview shares production evidence and parsing but
+   * writes no facts.
+   */
   async previewWorkstream(threadId: string, options: { within?: string } = {}) {
     const sdk = this.deps.sdk();
     const thread = await sdk.threads.get({ threadId });
@@ -424,8 +428,8 @@ export class Analyzer {
         !this.settleWorkstream.has(threadId)
       )
         return previous;
-      // A run only to give an already-analyzed root its first workstream leaves
-      // the turn's goal and status as they were.
+      // A run only to give an already-analyzed thread its first workstream
+      // leaves the turn's goal and status as they were.
       const workstreamOnly =
         this.settleWorkstream.delete(threadId) &&
         !force &&
@@ -448,8 +452,8 @@ export class Analyzer {
             )
           : null;
       const full = force || !settled || previous?.goal === undefined;
-      // Whether the turn needs describing, or only its workstream (a root's first
-      // workstream after an earlier analysis), or nothing new at all.
+      // Whether the turn needs describing, or only its workstream (a thread's
+      // first workstream after an earlier analysis), or nothing new at all.
       const describe =
         !(workstreamOnly && previous) && !(!full && reported && previous);
       // One call per turn: the description settles the workstream with it. Only a
@@ -761,8 +765,8 @@ export class Analyzer {
   }
 
   /**
-   * The thread's workstream is its root's section, walked through
-   * the reconciler's snapshot of parent links.
+   * The thread's workstream is the section of the thread at the top of its
+   * tree, walked through the reconciler's snapshot of parent links.
    */
   private placement(threadId: string): {
     sectionId: string | null;

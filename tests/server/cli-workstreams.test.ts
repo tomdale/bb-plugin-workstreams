@@ -63,8 +63,8 @@ async function setup(options: { onPrompt?: (prompt: string) => void } = {}) {
   };
 }
 
-describe("CLI topics commands", () => {
-  it("topics list prints sorted lexical complete list and supports --json", async () => {
+describe("CLI workstream commands", () => {
+  it("tree prints sorted lexical complete list and supports --json", async () => {
     const { w, storage, shelves } = await setup();
 
     // Human output
@@ -87,7 +87,7 @@ describe("CLI topics commands", () => {
     ).toEqual(["Shelves", "Storage"]);
   });
 
-  it("topics show displays full details by name, alias, or ID and supports --json", async () => {
+  it("describe displays full details by name, alias, or ID and supports --json", async () => {
     const { w, storage, shelves, rootThread: thread } = await setup();
 
     // Show by exact name
@@ -118,7 +118,7 @@ describe("CLI topics commands", () => {
     expect(parsed.path).toBe("Storage › Shelves");
     expect(parsed.threads).toContain(thread.id);
 
-    // Unknown entity throws clean error
+    // Unknown workstream throws clean error
     const showUnknown = await w.harness.behavior.runCli([
       "describe",
       "NonExistent",
@@ -126,7 +126,7 @@ describe("CLI topics commands", () => {
     expect(showUnknown.exitCode).not.toBe(0);
   });
 
-  it("topics create creates a new product or feature with parent and aliases", async () => {
+  it("create creates a new product or feature with parent and aliases", async () => {
     const { w, workstreamStore: workstreamStore } = await setup();
 
     const createRes = await w.harness.behavior.runCli([
@@ -150,7 +150,7 @@ describe("CLI topics commands", () => {
     expect(created.parentId).toBe(storage.id);
   });
 
-  it("topics edit updates name, description, and aliases atomically", async () => {
+  it("edit updates name, description, and aliases atomically", async () => {
     const { w, workstreamStore: workstreamStore, shelves } = await setup();
 
     const editRes = await w.harness.behavior.runCli([
@@ -171,10 +171,10 @@ describe("CLI topics commands", () => {
     expect(updated.aliases).toEqual(["Industrial Racks"]);
   });
 
-  it("topics reparent moves an entity under a new parent or to root", async () => {
+  it("move moves a workstream under a new parent or to the top", async () => {
     const { w, workstreamStore: workstreamStore, shelves } = await setup();
 
-    // Reparent shelves to root
+    // Move shelves to the top
     const toRoot = await w.harness.behavior.runCli([
       "move",
       shelves.id,
@@ -196,7 +196,7 @@ describe("CLI topics commands", () => {
     expect(workstreamStore.getById(shelves.id)!.parentId).toBe(storage.id);
   });
 
-  it("topics merge merges source into target and preserves assignments", async () => {
+  it("merge merges source into target and preserves assignments", async () => {
     const {
       w,
       workstreamStore: workstreamStore,
@@ -220,11 +220,12 @@ describe("CLI topics commands", () => {
     expect(workstreamStore.assignment(thread.id).workstreamId).toBe(shelves.id);
   });
 
-  it("topics edit failure on alias conflict is atomic and rolls back name changes", async () => {
+  it("edit failure on alias conflict is atomic and rolls back name changes", async () => {
     const { w, workstreamStore: workstreamStore, shelves } = await setup();
 
-    // Storage already has alias "Warehouse" in root scope.
-    // Shelves is a child of Storage. Let's create an entity with an alias in Shelves' scope.
+    // Storage already has alias "Warehouse" in top-level scope.
+    // Shelves is a child of Storage. Let's create a workstream with an alias
+    // in Shelves' scope.
     workstreamStore.create("Drawers", "Drawers feature", shelves.parentId, [
       "Cabinets",
     ]);
@@ -246,12 +247,12 @@ describe("CLI topics commands", () => {
     expect(current.aliases).toEqual(["Racks"]);
   });
 
-  it("topics mutations notify realtime views", async () => {
+  it("workstream mutations notify realtime views", async () => {
     const { w, shelves, storage } = await setup();
 
     const count0 = w.harness.inspection.realtimeSignals.length;
 
-    // catalog create
+    // workstream create
     const createRes = await w.harness.behavior.runCli([
       "create",
       "Pallets",
@@ -266,7 +267,7 @@ describe("CLI topics commands", () => {
 
     const count1 = w.harness.inspection.realtimeSignals.length;
 
-    // catalog edit
+    // workstream edit
     const editRes = await w.harness.behavior.runCli([
       "edit",
       shelves.id,
@@ -281,7 +282,7 @@ describe("CLI topics commands", () => {
 
     const count2 = w.harness.inspection.realtimeSignals.length;
 
-    // catalog reparent
+    // workstream move
     const reparentRes = await w.harness.behavior.runCli([
       "move",
       shelves.id,
@@ -296,7 +297,7 @@ describe("CLI topics commands", () => {
 
     const count3 = w.harness.inspection.realtimeSignals.length;
 
-    // catalog merge
+    // workstream merge
     const mergeRes = await w.harness.behavior.runCli([
       "merge",
       shelves.id,
@@ -310,11 +311,11 @@ describe("CLI topics commands", () => {
   });
 });
 
-describe("CLI thread topic commands", () => {
-  it("thread show displays thread assignment, status, provenance, and root inheritance", async () => {
+describe("CLI thread workstream commands", () => {
+  it("thread show displays thread workstream, status, provenance, and parent inheritance", async () => {
     const { w, rootThread, childThread, shelves } = await setup();
 
-    // Root thread show
+    // Parent thread show
     const rootRes = await w.harness.behavior.runCli([
       "thread",
       "show",
@@ -330,7 +331,7 @@ describe("CLI thread topic commands", () => {
       "Source:          chosen automatically from its requests",
     );
 
-    // Child thread inherits root
+    // Child thread inherits its parent's workstream
     const childRes = await w.harness.behavior.runCli([
       "thread",
       "show",
@@ -360,7 +361,7 @@ describe("CLI thread topic commands", () => {
     expect(parsed.assignment.workstreamId).toBe(shelves.id);
   });
 
-  it("thread assign manually sets identity and updates root for child threads", async () => {
+  it("thread assign manually sets identity and updates the parent of child threads", async () => {
     const {
       w,
       workstreamStore: workstreamStore,
@@ -370,7 +371,7 @@ describe("CLI thread topic commands", () => {
     } = await setup();
     const docks = workstreamStore.create("Docks", "Docks feature", storage.id);
 
-    // Assign via child thread -> must mutate root task!
+    // Assign via child thread -> must mutate parent task!
     const assignRes = await w.harness.behavior.runCli([
       "thread",
       "move",
@@ -391,7 +392,7 @@ describe("CLI thread topic commands", () => {
     expect(childAssign.inheritedFrom).toBe(rootThread.id);
   });
 
-  it("thread clear clears thread assignment to unresolved and mutates root", async () => {
+  it("thread clear clears the thread's workstream to none and mutates the parent", async () => {
     const {
       w,
       workstreamStore: workstreamStore,
@@ -413,7 +414,7 @@ describe("CLI thread topic commands", () => {
     expect(threadAssignment.workstreamId).toBeNull();
   });
 
-  it("thread reclassify re-runs classification against the Catalog", async () => {
+  it("thread reclassify re-runs classification against the workstream tree", async () => {
     const {
       w,
       workstreamStore: workstreamStore,
@@ -492,7 +493,7 @@ describe("CLI thread topic commands", () => {
     );
   });
 
-  it("thread reclassify on a child settles its root at once, and organizing asks nothing more", async () => {
+  it("thread reclassify on a child settles its parent thread at once, and organizing asks nothing more", async () => {
     const prompts: string[] = [];
     const {
       w,
@@ -527,7 +528,7 @@ describe("CLI thread topic commands", () => {
     expect(prompts.length).toBe(before);
   });
 
-  it("reads and retries organization via CLI and rejects removed manual placement commands", async () => {
+  it("reads and retries organization via CLI and rejects removed manual workstream commands", async () => {
     const { w } = await setup();
 
     // 1. organization read
@@ -547,7 +548,7 @@ describe("CLI thread topic commands", () => {
     const retryState = JSON.parse(retryRes.stdout);
     expect(retryState.status).toBe("idle");
 
-    // 3. Removed manual placement commands are not recognized
+    // 3. Removed manual workstream commands are not recognized
     for (const cmd of [
       "file",
       "new",

@@ -1,6 +1,6 @@
 /**
- * A thread BB's New thread view creates is filed like a New work start: with
- * the Product or feature its banner showed, even when a plain Enter sent no
+ * A thread BB's New thread view creates gets its workstream like a New work
+ * start: the workstream its banner showed, even when a plain Enter sent no
  * submit data, and journaled as started.
  */
 import { afterEach, describe, expect, it } from "vitest";
@@ -32,7 +32,7 @@ describe("ComposedDrafts", () => {
     expect(drafts.claim("t2", "Fix the parser")).toBeUndefined();
   });
 
-  it("files a dispatch that arrives before its draft's report", () => {
+  it("matches a dispatch that arrives before its draft's report", () => {
     const drafts = new ComposedDrafts();
     expect(drafts.claim("t1", "Write docs")).toBeUndefined();
     expect(drafts.report("d1", "Write docs", null)).toEqual({ threadId: "t1" });
@@ -111,7 +111,7 @@ describe("message.dispatch for the New thread view", () => {
           threads: { id: string }[];
         }[];
       };
-      // Starts only; the organizer's own filing is a separate entry.
+      // Starts only; the organizer's own move is a separate entry.
       return entries.filter(
         (e) =>
           e.action === "thread-started" &&
@@ -129,7 +129,7 @@ describe("message.dispatch for the New thread view", () => {
     };
   }
 
-  it("files a plain Enter with the identity the banner reported", async () => {
+  it("moves a plain Enter's thread to the workstream the banner reported", async () => {
     const {
       w,
       workstreamStore: workstreamStore,
@@ -162,7 +162,7 @@ describe("message.dispatch for the New thread view", () => {
     ]);
   });
 
-  it("files a report that arrives after the dispatch", async () => {
+  it("uses a report that arrives after the dispatch", async () => {
     const {
       w,
       workstreamStore: workstreamStore,
@@ -218,7 +218,7 @@ describe("message.dispatch for the New thread view", () => {
     expect(await starts("t-stale")).toHaveLength(1);
   });
 
-  it("files and journals nothing for an agent-started thread", async () => {
+  it("moves and journals nothing for an agent-started thread", async () => {
     const {
       w,
       workstreamStore: workstreamStore,

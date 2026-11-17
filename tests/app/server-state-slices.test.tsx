@@ -304,7 +304,7 @@ describe("records of threads outside the snapshot", () => {
       threadIds: ["live"],
     });
     await waitFor(() => expect(s.stateSlices).toHaveBeenCalledTimes(1));
-    // So does a change that names no threads and leaves topics alone.
+    // So does a change that names no threads and leaves workstreams alone.
     s.bump("analysis", "recaps", "order", "snoozes", "suggestions");
     await slot.behavior.emitRealtime("changed", s.world.changes);
     await waitFor(() => expect(s.stateSlices).toHaveBeenCalledTimes(2));
@@ -329,7 +329,7 @@ describe("records of threads outside the snapshot", () => {
     await waitFor(() => expect(text("turn-old")).toBe("false"));
     expect(recapGet).toHaveBeenCalledTimes(2);
 
-    // A topic change moves the catalog revision, which may relabel it.
+    // A workstream change moves the tree revision, which may relabel it.
     s.world.state.tree = { ...s.world.state.tree, revision: 2 };
     s.bump("tree");
     await slot.behavior.emitRealtime("changed", s.world.changes);
