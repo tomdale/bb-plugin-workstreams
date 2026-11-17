@@ -960,9 +960,10 @@ it is on:
   An interrupted or failed turn, a turn with no final text, a reply block, and a
   response over 24,000 characters get nothing.
 - Workstreams draws the document below the original response, which stays as the
-  agent wrote it. BB's stored messages, the CLI, exports, notifications, forks,
-  and the agent's own context keep the original. **Copy** copies the document's
-  complete text form, folded check rows included.
+  agent wrote it. A `@thread:<id>` mention in the document's text draws as a
+  clickable thread chip. BB's stored messages, the CLI, exports, notifications,
+  forks, and the agent's own context keep the original. **Copy** copies the
+  document's complete text form, folded check rows included.
 - Composition is a bounded loop with one tool, `preview_document`. The model
   receives the response, the thread's title, and its workstream; each preview
   validates the candidate and, when it is valid, returns screenshots at 720px

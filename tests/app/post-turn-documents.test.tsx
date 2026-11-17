@@ -87,6 +87,30 @@ describe("PostTurnDocuments", () => {
     expect(presentations).toHaveBeenCalledTimes(1);
   });
 
+  it("draws a thread mention in the document as a thread chip", async () => {
+    const target = row(T1);
+    mount(() => [
+      {
+        messageId: T1,
+        document: {
+          version: 1,
+          blocks: [
+            {
+              type: "paragraph",
+              text: ["@thread:thr_ahqvgud24k runs ", { code: "dormant-path" }],
+            },
+          ],
+        },
+      },
+    ]);
+    await waitFor(() => expect(drawn(target)).toHaveLength(1));
+    expect(
+      target.querySelector('a[href$="/threads/thr_ahqvgud24k"]'),
+    ).not.toBeNull();
+    expect(target.textContent).not.toContain("@thread:");
+    expect(target.textContent).toContain("dormant-path");
+  });
+
   it("draws one copy per pane and never doubles one", async () => {
     const left = document.createElement("section");
     const right = document.createElement("section");

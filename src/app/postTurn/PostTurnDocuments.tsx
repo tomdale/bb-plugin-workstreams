@@ -38,7 +38,8 @@ import {
   type DocumentWorkstream,
 } from "../../domain/postTurn/message.ts";
 import { mutationTargetElement } from "../mutationRecords.ts";
-import { DocumentView } from "./DocumentView.tsx";
+import { ActivityThreadLink } from "../page/ActivityThreadLink.tsx";
+import { DocumentView, ThreadMention } from "./DocumentView.tsx";
 
 const ROW = "[data-timeline-row-id]";
 const ANCHOR = "data-ws-post-turn-anchor";
@@ -66,6 +67,10 @@ class Boundary extends Component<{ children: ReactNode }, { failed: boolean }> {
   }
 }
 
+const drawThread = (threadId: string) => (
+  <ActivityThreadLink threadId={threadId} fallback={threadId} />
+);
+
 function DocumentPanel({ item }: { item: Item }) {
   const scope = usePortalScopeProps();
   const [copied, setCopied] = useState(false);
@@ -81,23 +86,27 @@ function DocumentPanel({ item }: { item: Item }) {
       data-ws-post-turn=""
       className="mt-4 mb-2"
     >
-      <DocumentView
-        document={item.document}
-        workstream={item.workstream}
-        copy={{
-          label: copied ? "Copied" : "Copy",
-          icon: <Icon name="Copy" aria-hidden className="size-3.5 shrink-0" />,
-          onClick: () => {
-            // A refused clipboard leaves the label as it was.
-            void navigator.clipboard
-              ?.writeText(documentText(item.document))
-              .then(
-                () => setCopied(true),
-                () => {},
-              );
-          },
-        }}
-      />
+      <ThreadMention.Provider value={drawThread}>
+        <DocumentView
+          document={item.document}
+          workstream={item.workstream}
+          copy={{
+            label: copied ? "Copied" : "Copy",
+            icon: (
+              <Icon name="Copy" aria-hidden className="size-3.5 shrink-0" />
+            ),
+            onClick: () => {
+              // A refused clipboard leaves the label as it was.
+              void navigator.clipboard
+                ?.writeText(documentText(item.document))
+                .then(
+                  () => setCopied(true),
+                  () => {},
+                );
+            },
+          }}
+        />
+      </ThreadMention.Provider>
     </div>
   );
 }

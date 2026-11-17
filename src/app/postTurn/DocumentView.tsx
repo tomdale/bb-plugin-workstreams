@@ -11,7 +11,12 @@
  * Every string is rendered as React text, so a document's content can never
  * become markup.
  */
-import type { CSSProperties, ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import {
   checksSummary,
   foldedTotals,
@@ -22,6 +27,7 @@ import {
   type EnhancedDocument,
   type RichText,
 } from "../../domain/postTurn/document.ts";
+import { splitThreadMentions } from "../../domain/threadMentions.ts";
 import type { DocumentWorkstream } from "../../domain/postTurn/message.ts";
 import { workstreamColorStyle } from "../../domain/workstreamColor.ts";
 import { Glyph, MARK_CLASS } from "../recap/marks.tsx";
@@ -36,13 +42,46 @@ const CHEVRON = "M6 4 10 8 6 12";
 const INFO =
   "M8 2.75a5.25 5.25 0 1 0 0 10.5 5.25 5.25 0 1 0 0-10.5Z M8 7.25v3.5 M8 5.25v.01";
 
+/**
+ * Draws a thread mention. The caller supplies it because a thread chip needs
+ * the SDK; without one, as in the preview, a mention stays the text it was
+ * written as.
+ */
+export const ThreadMention = createContext<
+  ((threadId: string) => ReactNode) | null
+>(null);
+
+/** A literal string, with each `@thread:<id>` mention drawn by `ThreadMention`. */
+function Literal({ text }: { text: string }) {
+  const mention = useContext(ThreadMention);
+  if (!mention) return <>{text}</>;
+  return (
+    <>
+      {splitThreadMentions(text).map((part, i) =>
+        typeof part === "string" ? (
+          part
+        ) : (
+          <span
+            key={i}
+            className="-my-[0.5em] inline-block max-w-[16rem] align-middle leading-none [&>a]:text-[0.85em]"
+          >
+            {mention(part.threadId)}
+          </span>
+        ),
+      )}
+    </>
+  );
+}
+
 function Rich({ text }: { text: RichText }) {
-  if (typeof text === "string") return <>{text}</>;
+  if (typeof text === "string") return <Literal text={text} />;
   return (
     <>
       {text.map((span, i) =>
         typeof span === "string" ? (
-          <span key={i}>{span}</span>
+          <span key={i}>
+            <Literal text={span} />
+          </span>
         ) : (
           <code
             key={i}
