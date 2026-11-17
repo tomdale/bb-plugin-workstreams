@@ -1304,7 +1304,7 @@ section[data-testid="plugin-interaction-shell"]:has(.ws-question-portaled) {
 }
 
 /* Workstream control on the Workstreams page: plain text, no outline */
-.ws-task-identity {
+.ws-thread-workstream {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -1321,21 +1321,21 @@ section[data-testid="plugin-interaction-shell"]:has(.ws-question-portaled) {
     background-color 120ms ease,
     color 120ms ease;
 }
-.ws-task-identity:hover:not(:disabled) {
+.ws-thread-workstream:hover:not(:disabled) {
   background: var(--accent);
   color: var(--foreground);
 }
-.ws-task-identity:disabled {
+.ws-thread-workstream:disabled {
   cursor: default;
 }
-.ws-task-identity:focus-visible {
+.ws-thread-workstream:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
-.ws-task-identity-none {
+.ws-thread-workstream-none {
   font-style: italic;
 }
-.ws-task-identity-label {
+.ws-thread-workstream-label {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

@@ -42,7 +42,7 @@ import {
   type LedgerRow,
 } from "../../../domain/ledger.ts";
 import { ghostButton, primaryButton, secondaryButton } from "../controls.ts";
-import { TaskIdentity } from "../../task/TaskIdentity.tsx";
+import { ThreadWorkstream } from "../../thread/ThreadWorkstream.tsx";
 import { Repair } from "../RepairPreview.tsx";
 import type { useWorkstreams } from "../../useWorkstreams.ts";
 import { WorkstreamTree } from "./WorkstreamTree.tsx";
@@ -336,25 +336,25 @@ export function OrganizeTab({ ws, query }: { ws: Workstreams; query: string }) {
         threads,
         noWorkstream.length ? (
           <>
-            {noWorkstream.map((task) => (
+            {noWorkstream.map((thread) => (
               <div
-                key={task.id}
+                key={thread.id}
                 className={cn(
                   GRID,
                   BLOCK,
                   "border-t border-border first:border-t-0",
                 )}
               >
-                <span className="min-w-0 font-medium">{task.title}</span>
+                <span className="min-w-0 font-medium">{thread.title}</span>
                 <span className="truncate italic text-muted-foreground/70">
                   No workstream
                 </span>
                 <span className="min-w-0">
-                  <TaskIdentity threadId={task.id} />
+                  <ThreadWorkstream threadId={thread.id} />
                 </span>
-                {task.reason ? (
+                {thread.reason ? (
                   <p className="col-span-full mt-1 text-xs text-muted-foreground">
-                    {task.reason}
+                    {thread.reason}
                   </p>
                 ) : null}
               </div>

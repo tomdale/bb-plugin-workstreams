@@ -2,7 +2,7 @@
 import { renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { TaskIdentity } from "../../src/app/task/TaskIdentity.tsx";
+import { ThreadWorkstream } from "../../src/app/thread/ThreadWorkstream.tsx";
 import type {
   Workstream,
   WorkstreamState,
@@ -99,10 +99,10 @@ const treeState: WorkstreamState = {
 
 /** Mounts the workstream control as the Workstreams page renders it. */
 function WorkstreamControl({ threadId }: { threadId: string }) {
-  return <TaskIdentity threadId={threadId} />;
+  return <ThreadWorkstream threadId={threadId} />;
 }
 
-async function mountTaskIdentity(
+async function mountThreadWorkstream(
   threadId: string,
   options: {
     threads?: ReturnType<typeof sidebarThread>[];
@@ -159,21 +159,6 @@ async function mountTaskIdentity(
             },
           };
         },
-        taskClear: (args: unknown) => {
-          options.rpcCalls?.push({ method: "taskClear", args });
-          return {
-            assignment: {
-              threadId,
-              workstreamId: null,
-              status: "none",
-              provenance: null,
-              label: null,
-              ancestorIds: [],
-              evidence: null,
-              inheritedFrom: null,
-            },
-          };
-        },
         threadAutomatic: (args: unknown) => {
           options.rpcCalls?.push({ method: "threadAutomatic", args });
           return {
@@ -196,7 +181,7 @@ async function mountTaskIdentity(
 
 describe("Workstream control", () => {
   it("shows a workstream the user chose", async () => {
-    const slot = await mountTaskIdentity("t-parent");
+    const slot = await mountThreadWorkstream("t-parent");
     const button = await slot.findByRole("button", {
       name: "Workstream: Platform › Auth (moved there by you)",
     });
@@ -213,7 +198,7 @@ describe("Workstream control", () => {
   });
 
   it("defaults to Automatic and shows the classifier result below it", async () => {
-    const slot = await mountTaskIdentity("t-auto");
+    const slot = await mountThreadWorkstream("t-auto");
     const button = await slot.findByRole("button", {
       name: "Workstream: Platform › Auth (automatic)",
     });
@@ -230,11 +215,11 @@ describe("Workstream control", () => {
   });
 
   it("shows No workstream when Workstreams found none", async () => {
-    const slot = await mountTaskIdentity("t-unresolved-in-workstream");
+    const slot = await mountThreadWorkstream("t-unresolved-in-workstream");
     const button = await slot.findByRole("button", {
       name: "Workstream: No workstream (automatic)",
     });
-    expect(button.className).toContain("ws-task-identity-none");
+    expect(button.className).toContain("ws-thread-workstream-none");
     fireEvent.click(button);
     const automatic = await screen.findByRole("button", { name: /^Automatic/ });
     expect(automatic.textContent).toBe("AutomaticNo workstream");
@@ -242,7 +227,7 @@ describe("Workstream control", () => {
   });
 
   it("shows a fork's parent thread's workstream without letting it change", async () => {
-    const slot = await mountTaskIdentity("t-child");
+    const slot = await mountThreadWorkstream("t-child");
     const button = (await slot.findByRole("button", {
       name: "Workstream: Platform › Auth (follows its parent thread)",
     })) as HTMLButtonElement;
@@ -253,7 +238,7 @@ describe("Workstream control", () => {
 
   it("picking a workstream saves it as the user's choice", async () => {
     const rpcCalls: { method: string; args: unknown }[] = [];
-    const slot = await mountTaskIdentity("t-auto", { rpcCalls });
+    const slot = await mountThreadWorkstream("t-auto", { rpcCalls });
     fireEvent.click(
       await slot.findByRole("button", { name: /^Workstream: Platform › Auth/ }),
     );
@@ -274,7 +259,7 @@ describe("Workstream control", () => {
 
   it("choosing Automatic hands the thread back to the classifier", async () => {
     const rpcCalls: { method: string; args: unknown }[] = [];
-    const slot = await mountTaskIdentity("t-parent", { rpcCalls });
+    const slot = await mountThreadWorkstream("t-parent", { rpcCalls });
     fireEvent.click(
       await slot.findByRole("button", { name: /^Workstream: Platform › Auth/ }),
     );
@@ -288,7 +273,7 @@ describe("Workstream control", () => {
   });
 
   it("Automatic can't be chosen again while it's already on", async () => {
-    const slot = await mountTaskIdentity("t-auto");
+    const slot = await mountThreadWorkstream("t-auto");
     fireEvent.click(
       await slot.findByRole("button", { name: /^Workstream: Platform › Auth/ }),
     );

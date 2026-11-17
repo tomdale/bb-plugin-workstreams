@@ -28,7 +28,7 @@ import {
   useThreadRecordSelector,
 } from "../serverState.ts";
 import { useCloseOnFoldLeave } from "./Fold.tsx";
-import { isAutomaticWorkstream } from "../task/TaskIdentity.tsx";
+import { isAutomaticWorkstream } from "../thread/ThreadWorkstream.tsx";
 import { SnoozeMenuItems, type MenuKit } from "../snooze/SnoozeMenuItems.tsx";
 
 const NO_WORKSTREAMS: readonly Workstream[] = [];

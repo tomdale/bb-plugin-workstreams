@@ -168,7 +168,7 @@ export type RepairPreview = z.infer<typeof repairPreviewSchema>;
  * composer preview's guess, which holds the thread until its start call
  * settles it. `inherited` is the workstream whose ＋ opened the composer.
  */
-const taskIdentitySubmissionSchema = z.object({
+const draftWorkstreamSchema = z.object({
   workstreamId: z.string().min(1).nullable().optional(),
   proposal: draftWorkstreamProposalSchema.nullable().optional(),
   provenance: z.enum(["manual", "automatic", "inherited"]).optional(),
@@ -482,7 +482,7 @@ export const rpcContract = defineRpcContract({
     input: z.object({
       draftKey: z.string().min(1).max(500),
       text: z.string().max(20_000),
-      identity: taskIdentitySubmissionSchema.nullable(),
+      identity: draftWorkstreamSchema.nullable(),
       projectChoice: projectChoiceSchema.nullable().optional(),
     }),
     output: z.object({ filed: z.boolean() }),

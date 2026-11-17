@@ -85,8 +85,8 @@ function WorkstreamButton({
       }
       title={isLoading ? undefined : `Workstream: ${displayLabel} (${source})`}
       aria-busy={isLoading || undefined}
-      className={`ws-task-identity ${
-        label ? "" : "ws-task-identity-none"
+      className={`ws-thread-workstream ${
+        label ? "" : "ws-thread-workstream-none"
       }${isLoading ? " invisible" : ""}`}
     >
       <Icon
@@ -96,7 +96,7 @@ function WorkstreamButton({
         }`}
         aria-hidden="true"
       />
-      <span className="ws-task-identity-label">{displayLabel}</span>
+      <span className="ws-thread-workstream-label">{displayLabel}</span>
     </button>
   );
 }
@@ -273,11 +273,11 @@ function WorkstreamPicker({
   );
 }
 
-type TaskIdentityProps = {
+type ThreadWorkstreamProps = {
   threadId: string;
 };
 
-export function TaskIdentity({ threadId }: TaskIdentityProps) {
+export function ThreadWorkstream({ threadId }: ThreadWorkstreamProps) {
   const { server, rpc, refresh } = useSharedServerState();
   const [open, setOpen] = useState(false);
   const [classifying, setClassifying] = useState(false);

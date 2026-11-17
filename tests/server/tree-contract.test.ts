@@ -52,7 +52,7 @@ describe("workstream tree and thread workstream RPC contract", () => {
     });
     const w = world;
     const alpha = w.addSection("Alpha");
-    const thread = w.addThread("t-task", {
+    const thread = w.addThread("t-thread", {
       sectionId: alpha.id,
       title: "My Task",
     });
@@ -75,7 +75,7 @@ describe("workstream tree and thread workstream RPC contract", () => {
     });
     await w.harness.behavior.callRpc("organizeStatus", { action: "rebuild" });
     const engineering = w.sections.find((s) => s.name === "Engineering")!;
-    expect(w.threads.get("t-task")?.sectionId).toBe(engineering.id);
+    expect(w.threads.get("t-thread")?.sectionId).toBe(engineering.id);
     const tree = (await w.harness.behavior.callRpc(
       "tree",
       null,
@@ -97,7 +97,7 @@ describe("workstream tree and thread workstream RPC contract", () => {
       provenance: "manual",
     });
     await w.harness.behavior.callRpc("organizeStatus", { action: "rebuild" });
-    expect(w.threads.get("t-task")?.sectionId).toBeNull();
+    expect(w.threads.get("t-thread")?.sectionId).toBeNull();
   });
 
   it("workstreamRename, workstreamMove, and workstreamMerge maintain referential integrity", async () => {
