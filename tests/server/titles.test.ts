@@ -23,7 +23,7 @@ type Entry = {
  * retain it on later turns. The last response repeats.
  */
 const requests: string[] = [];
-async function setup(goals: (string | null)[], prefs?: PrefsPatch) {
+async function setup(titles: (string | null)[], prefs?: PrefsPatch) {
   requests.length = 0;
   let call = 0;
   world = await fakeWorld({
@@ -35,7 +35,7 @@ async function setup(goals: (string | null)[], prefs?: PrefsPatch) {
         recap: "Working.",
         state: "needs-input",
         title: prompt.includes("You describe one agent thread")
-          ? (goals[Math.min(call++, goals.length - 1)] ?? null)
+          ? (titles[Math.min(call++, titles.length - 1)] ?? null)
           : null,
       }),
   });

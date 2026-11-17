@@ -528,7 +528,7 @@ describe("automatic update coordinator lifecycle", () => {
 
     // Existing section named Beta already bound to Alpha
     const sec = w.addSection("Beta");
-    workstreamStore.bindGroup(sec.id, prodA.id);
+    workstreamStore.bindSection(sec.id, prodA.id);
 
     // Thread t1 assigned to Beta
     w.addThread("t1", { title: "Beta task" });

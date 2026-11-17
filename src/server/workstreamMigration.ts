@@ -15,7 +15,7 @@ import type { WorkstreamStore } from "./workstreams.ts";
 import type { Journal } from "./journal.ts";
 import { UserError } from "./service.ts";
 
-type Subject = {
+type Assignment = {
   thread_id: string;
   workstream_id: string | null;
   source: string;
@@ -33,18 +33,18 @@ export class WorkstreamMigration {
     },
   ) {}
 
-  private subjects(): Subject[] {
+  private assignments(): Assignment[] {
     return this.deps.db
       .prepare(
         "SELECT thread_id, workstream_id, source, evidence FROM ws_thread_workstream ORDER BY thread_id",
       )
-      .all() as Subject[];
+      .all() as Assignment[];
   }
 
   private fingerprint(): string {
     return createHash("sha256")
       .update(
-        JSON.stringify([this.deps.workstreamStore.list(), this.subjects()]),
+        JSON.stringify([this.deps.workstreamStore.list(), this.assignments()]),
       )
       .digest("hex");
   }
@@ -119,8 +119,10 @@ export class WorkstreamMigration {
         siblings.set(key, workstream.id);
       }
     }
-    const subjects = this.subjects();
-    const known = new Set(subjects.map((subject) => subject.thread_id));
+    const assignments = this.assignments();
+    const known = new Set(
+      assignments.map((assignment) => assignment.thread_id),
+    );
     const choices = new Map<string, string>();
     for (const choice of input.choices) {
       if (!known.has(choice.threadId) || choices.has(choice.threadId))
@@ -143,28 +145,28 @@ export class WorkstreamMigration {
     const resets: WorkstreamMigrationPlan["resets"] = [];
     const changes: WorkstreamMigrationPlan["changes"] = [];
     const blockers: WorkstreamMigrationPlan["blockers"] = [];
-    for (const subject of subjects) {
-      if (resetIds.has(subject.thread_id)) {
-        if (subject.source === "manual")
+    for (const assignment of assignments) {
+      if (resetIds.has(assignment.thread_id)) {
+        if (assignment.source === "manual")
           throw new UserError("A migration reset can't undo a move you made.");
-        if (!subject.workstream_id)
+        if (!assignment.workstream_id)
           throw new UserError("That thread already has no workstream.");
         resets.push({
-          threadId: subject.thread_id,
-          from: workstreamPath(subject.workstream_id, workstreams),
-          source: subject.source,
+          threadId: assignment.thread_id,
+          from: workstreamPath(assignment.workstream_id, workstreams),
+          source: assignment.source,
         });
         continue;
       }
-      if (!subject.workstream_id) {
-        if (choices.has(subject.thread_id))
+      if (!assignment.workstream_id) {
+        if (choices.has(assignment.thread_id))
           throw new UserError(
             "A migration doesn't move threads that have no workstream.",
           );
         continue;
       }
       const destination =
-        choices.get(subject.thread_id) ?? fold.get(subject.workstream_id);
+        choices.get(assignment.thread_id) ?? fold.get(assignment.workstream_id);
       const target = proposed.find(
         (workstream) => workstream.id === destination,
       );
@@ -172,19 +174,19 @@ export class WorkstreamMigration {
         throw new UserError("A migration choice names an unknown destination.");
       if (!takesThreads(target.id, proposed)) {
         blockers.push({
-          threadId: subject.thread_id,
+          threadId: assignment.thread_id,
           workstreamId: target.id,
           reason: "Choose a meaningfully named workstream for this thread.",
         });
         continue;
       }
-      if (target.id !== subject.workstream_id)
+      if (target.id !== assignment.workstream_id)
         changes.push({
-          threadId: subject.thread_id,
-          from: workstreamPath(subject.workstream_id, workstreams),
+          threadId: assignment.thread_id,
+          from: workstreamPath(assignment.workstream_id, workstreams),
           to: workstreamPath(target.id, proposed),
           workstreamId: target.id,
-          source: subject.source,
+          source: assignment.source,
         });
     }
     for (const workstream of removed) {
@@ -242,10 +244,10 @@ export class WorkstreamMigration {
           workstreams: this.deps.db
             .prepare("SELECT * FROM ws_workstream")
             .all(),
-          subjects: this.deps.db
+          assignments: this.deps.db
             .prepare("SELECT * FROM ws_thread_workstream")
             .all(),
-          groups: this.deps.db
+          sections: this.deps.db
             .prepare("SELECT * FROM ws_workstream_section")
             .all(),
           layout: getMeta(this.deps.db, "layout"),

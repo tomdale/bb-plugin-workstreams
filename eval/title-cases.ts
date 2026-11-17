@@ -8,7 +8,7 @@ export type TitleCase = {
   id: string;
   request: string;
   /** The workstream the thread is listed under, as a path. */
-  group?: string;
+  workstream?: string;
   /** The parent thread's title, for a child thread. */
   parent?: string;
   /** Each list needs one of its words in the title (case-insensitive). */
@@ -22,7 +22,7 @@ export type TitleCase = {
 export const titleCases: TitleCase[] = [
   {
     id: "child-phase",
-    group: "Harbor › Sandbox Plugin",
+    workstream: "Harbor › Sandbox Plugin",
     parent: "Build Harbor Access sandbox tunnel",
     request:
       "Implement Phase 0 of the Harbor Access plan in docs/access-plan.md: the machine registry and the tunnel handshake stub. Stop after Phase 0 and report.",
@@ -31,7 +31,7 @@ export const titleCases: TitleCase[] = [
   },
   {
     id: "child-review",
-    group: "Harbor › Sandbox Plugin",
+    workstream: "Harbor › Sandbox Plugin",
     parent: "Build Harbor Access sandbox tunnel",
     request:
       "Review the Phase 1 transport implementation on branch tunnel-phase-1 for security problems and boundary violations. Read-only: report findings, don't edit.",
@@ -40,7 +40,7 @@ export const titleCases: TitleCase[] = [
   },
   {
     id: "child-checkpoint",
-    group: "Harbor › Sandbox Plugin",
+    workstream: "Harbor › Sandbox Plugin",
     parent: "Build Harbor Access sandbox tunnel",
     request:
       "Checkpoint review of Phase 2: check the lifecycle of relay connections (open, idle timeout, teardown) against the plan before we continue.",
@@ -49,7 +49,7 @@ export const titleCases: TitleCase[] = [
   },
   {
     id: "pr-number",
-    group: "Beacon › Code Review",
+    workstream: "Beacon › Code Review",
     request:
       "Review beacon/agents PR 4842. It adds a live status comment that the review bot updates while a review runs, instead of posting a new comment each time.",
     must: [["status", "comment"]],
@@ -57,7 +57,7 @@ export const titleCases: TitleCase[] = [
   },
   {
     id: "pr-checks",
-    group: "Ledger › Billing",
+    workstream: "Ledger › Billing",
     request:
       "The checks on ledger/api PR 89240 are failing: lint errors and a type error in the invoice webhook handler. Fix them and push.",
     must: [["webhook", "invoice", "checks", "lint"]],
@@ -65,7 +65,7 @@ export const titleCases: TitleCase[] = [
   },
   {
     id: "plan-doc",
-    group: "Streams Plugin",
+    workstream: "Streams Plugin",
     request:
       "Turn the design in docs/Ideal Hierarchies.md into a plan, then implement it. It covers the partition rule, the depth cap and promotion, placement with a model, and tidy passes.",
     must: [["hierarch", "partition", "workstream", "placement"]],
@@ -73,7 +73,7 @@ export const titleCases: TitleCase[] = [
   },
   {
     id: "group-name",
-    group: "Inside Harbor",
+    workstream: "Inside Harbor",
     request:
       "Rewrite the Inside Harbor book series in the new house voice: shorter sentences, fewer asides, and a summary box per chapter.",
     must: [["voice", "rewrite", "series", "book"]],
@@ -81,7 +81,7 @@ export const titleCases: TitleCase[] = [
   },
   {
     id: "group-feature",
-    group: "Beacon › Code Review",
+    workstream: "Beacon › Code Review",
     request:
       "Explain how Beacon's security review works end to end: which service starts it, where findings are stored, and how they reach the PR.",
     must: [["security"]],
@@ -89,7 +89,7 @@ export const titleCases: TitleCase[] = [
   },
   {
     id: "long-object",
-    group: "Streams Plugin › Recap Cards",
+    workstream: "Streams Plugin › Recap Cards",
     request:
       "Recap cards lost the completed tasks list and the next action after the refactor. Bring both back, matching the old layout.",
     must: [["task", "next action"]],

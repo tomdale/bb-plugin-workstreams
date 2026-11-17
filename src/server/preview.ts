@@ -117,7 +117,7 @@ export class ComposerPreview {
   ): Preview | null {
     const sectionId = /@section:([A-Za-z0-9_-]+)/.exec(text)?.[1];
     const workstreamId = sectionId
-      ? this.deps.workstreamStore.groups().get(sectionId)
+      ? this.deps.workstreamStore.sectionBindings().get(sectionId)
       : undefined;
     if (!workstreamId) return null;
     const label = workstreamPath(

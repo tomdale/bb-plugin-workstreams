@@ -159,8 +159,8 @@ describe("grouping regressions", () => {
     const p = workstreamStore.create("Product", "Product");
     const a = workstreamStore.create("Planning", "Planning", p.id);
     const f = workstreamStore.create("Feature", "Feature", p.id);
-    workstreamStore.bindGroup(w.addSection("Product › Planning").id, a.id);
-    workstreamStore.bindGroup(w.addSection("Product › Feature").id, f.id);
+    workstreamStore.bindSection(w.addSection("Product › Planning").id, a.id);
+    workstreamStore.bindSection(w.addSection("Product › Feature").id, f.id);
     for (let i = 0; i < 8; i++) {
       w.addThread(`t${i}`, { status: "idle", latestAttentionAt: 10 });
       workstreamStore.assign(`t${i}`, i === 0 ? a.id : f.id);

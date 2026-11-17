@@ -75,7 +75,7 @@ const identityDecision: Preview = {
   confidence: "high",
   reason: "Belongs in Alpha",
   subject: "Alpha",
-  workstreamId: "ent_alpha",
+  workstreamId: "ws_alpha",
   title: "Alpha parser",
 };
 
@@ -304,7 +304,7 @@ function mount(
           tree: {
             workstreams: options.workstreams ?? [
               {
-                id: "ent_alpha",
+                id: "ws_alpha",
                 name: "Alpha",
                 description: "Alpha product",
                 parentId: null,
@@ -320,7 +320,7 @@ function mount(
         tree: () => ({
           workstreams: options.workstreams ?? [
             {
-              id: "ent_alpha",
+              id: "ws_alpha",
               name: "Alpha",
               description: "Alpha product",
               parentId: null,
@@ -371,7 +371,7 @@ it("fills the field with the classified identity and submits it through host sub
       draftKey: expect.any(String),
       projectChoice: { projectId: "project-alpha", source: "independent" },
       identity: {
-        workstreamId: "ent_alpha",
+        workstreamId: "ws_alpha",
         proposal: null,
         provenance: "automatic",
       },
@@ -491,7 +491,7 @@ it("reports the draft's identity so a plain Enter gets its workstream", async ()
       text: "Fix the parser in Alpha",
       projectChoice: { projectId: "project-alpha", source: "independent" },
       identity: {
-        workstreamId: "ent_alpha",
+        workstreamId: "ws_alpha",
         proposal: null,
         provenance: "automatic",
       },
@@ -534,7 +534,7 @@ it("starts in the workstream whose ＋ opened it", async () => {
 
 const projectWorkstreams = [
   {
-    id: "ent_alpha",
+    id: "ws_alpha",
     name: "Alpha",
     description: "",
     parentId: null,
@@ -604,7 +604,7 @@ it("sends in the workstream's project when you send while it is looked up", asyn
   expect(slot.inspection.composer.submits[0]).toMatchObject({
     experimental_data: {
       projectChoice: { projectId: "project-beta", source: "workstreams" },
-      identity: { workstreamId: "ent_alpha", provenance: "automatic" },
+      identity: { workstreamId: "ws_alpha", provenance: "automatic" },
     },
   });
 });
@@ -747,7 +747,7 @@ it("keeps a manually chosen project when you first pick a workstream", async () 
 });
 
 it("uses the project of a workstream whose plus button opened the composer", async () => {
-  setComposerPreset({ workstreamId: "ent_alpha" }, "Alpha");
+  setComposerPreset({ workstreamId: "ws_alpha" }, "Alpha");
   const { slot } = mount(identityDecision, { workstreams: projectWorkstreams });
   await waitFor(() =>
     expect(slot.inspection.composer.selection?.projectId).toBe("project-beta"),
@@ -822,7 +822,7 @@ it.each([
       experimental_data: {
         projectChoice: { projectId, source: "independent" },
         identity: {
-          workstreamId: "ent_alpha",
+          workstreamId: "ws_alpha",
           provenance: "automatic",
         },
       },
@@ -866,7 +866,7 @@ it("keeps a picked workstream in a project you choose for this thread only", asy
       draftKey: expect.any(String),
       projectChoice: { projectId: "project-beta", source: "independent" },
       identity: {
-        workstreamId: "ent_alpha",
+        workstreamId: "ws_alpha",
         proposal: null,
         provenance: "manual",
       },
@@ -951,7 +951,7 @@ it("changes the workstream's project to the one you chose when asked", async () 
   );
   await screen.findByText("Saved");
   expect(metadataUpdates).toHaveBeenCalledWith({
-    workstreamId: "ent_alpha",
+    workstreamId: "ws_alpha",
     projectId: "project-beta",
   });
 });
@@ -987,7 +987,7 @@ it("keeps an automatic workstream and uses its No project default", async () => 
   const { slot } = mount(identityDecision, {
     workstreams: [
       {
-        id: "ent_alpha",
+        id: "ws_alpha",
         name: "Alpha",
         description: "",
         parentId: null,

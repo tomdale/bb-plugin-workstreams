@@ -523,7 +523,7 @@ export default async function plugin(bb: BbPluginApi) {
   const composePresentation: Compose = async ({
     response,
     title,
-    topic,
+    workstream,
     prefs,
     signal,
   }) => {
@@ -535,7 +535,7 @@ export default async function plugin(bb: BbPluginApi) {
       };
     const result = await hostRpc.call(
       "present",
-      { model, response, title, topic, theme: "dark" },
+      { model, response, title, workstream, theme: "dark" },
       {
         hostId: await analysisHost(),
         timeoutMs: PRESENTATION_HOST_TIMEOUT_MS,
@@ -558,14 +558,14 @@ export default async function plugin(bb: BbPluginApi) {
       const thread = service.threads().find((t) => t.id === threadId);
       return thread ? displayTitle(thread) : "";
     },
-    topic: (threadId) => {
+    workstream: (threadId) => {
       const { workstreamId } = workstreamStore.assignment(threadId);
       if (!workstreamId) return null;
       const workstreams = workstreamStore.list();
       if (!workstreams.some((w) => w.id === workstreamId)) return null;
       const colors = workstreamColors.snapshot(
         workstreams,
-        Object.fromEntries(workstreamStore.groups()),
+        Object.fromEntries(workstreamStore.sectionBindings()),
       );
       return {
         name: workstreamPath(workstreamId, workstreams),
@@ -672,7 +672,7 @@ export default async function plugin(bb: BbPluginApi) {
         source: "workstreams",
         rationale: reason,
         threads: [],
-        workstreams: [...workstreamStore.groups()]
+        workstreams: [...workstreamStore.sectionBindings()]
           .filter(([, id]) => id === workstreamId)
           .map(([id]) => ({ id, name: label })),
         undo: null,
@@ -793,7 +793,7 @@ export default async function plugin(bb: BbPluginApi) {
     // the project yourself.
     if (identity.provenance === "inherited") {
       const workstreamId = identity.sectionId
-        ? workstreamStore.groups().get(identity.sectionId)
+        ? workstreamStore.sectionBindings().get(identity.sectionId)
         : identity.workstreamId;
       if (
         workstreamId &&
@@ -1171,7 +1171,7 @@ export default async function plugin(bb: BbPluginApi) {
     }),
     tree: () => {
       const workstreams = workstreamStore.list();
-      const groups = Object.fromEntries(workstreamStore.groups());
+      const groups = Object.fromEntries(workstreamStore.sectionBindings());
       return {
         tree: {
           workstreams,
@@ -1585,9 +1585,9 @@ export default async function plugin(bb: BbPluginApi) {
         enabled: true,
         items: presentations
           .list(threadId)
-          .map(({ messageId, topic, document }) => ({
+          .map(({ messageId, workstream, document }) => ({
             messageId,
-            topic,
+            workstream,
             document,
           })),
       };
@@ -1749,7 +1749,7 @@ export default async function plugin(bb: BbPluginApi) {
       listActiveThreads(bb.sdk),
       listSections(bb.sdk),
     ]);
-    const groups = Object.fromEntries(workstreamStore.groups());
+    const groups = Object.fromEntries(workstreamStore.sectionBindings());
     const workstreams = workstreamStore.list();
     return {
       threads,

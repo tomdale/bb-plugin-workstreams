@@ -16,7 +16,7 @@ import { WORK_STATES } from "../domain/analysis.ts";
 import { prefsPatchSchema, prefsSchema } from "../domain/prefs.ts";
 import { recapPrefsSchema } from "../domain/recapPrefs.ts";
 import { presentationPrefsSchema } from "../domain/postTurn/prefs.ts";
-import { documentTopicSchema } from "../domain/postTurn/message.ts";
+import { documentWorkstreamSchema } from "../domain/postTurn/message.ts";
 import { recapSchema } from "../domain/recap.ts";
 import { snoozePrefsPatchSchema, snoozePrefsSchema } from "../domain/snooze.ts";
 import {
@@ -615,7 +615,7 @@ export const rpcContract = defineRpcContract({
       items: z.array(
         z.object({
           messageId: z.string(),
-          topic: documentTopicSchema.nullable(),
+          workstream: documentWorkstreamSchema.nullable(),
           document: z.unknown(),
         }),
       ),

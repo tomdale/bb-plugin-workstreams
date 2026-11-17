@@ -5,7 +5,7 @@
  */
 import { DOCUMENT_LIMITS } from "../../../domain/postTurn/document.ts";
 import { PRESENTATION_LIMITS } from "../../../domain/postTurn/limits.ts";
-import type { DocumentTopic } from "../../../domain/postTurn/message.ts";
+import type { DocumentWorkstream } from "../../../domain/postTurn/message.ts";
 
 export const PREVIEW_TOOL = "preview_document";
 
@@ -53,12 +53,12 @@ Call ${PREVIEW_TOOL} with the complete candidate. Look at both screenshots: hier
 export function presentationRequest(input: {
   response: string;
   title: string;
-  topic: DocumentTopic | null;
+  workstream: DocumentWorkstream | null;
 }): string {
   return `The finished response and its thread, as JSON data:\n${JSON.stringify(
     {
       threadTitle: input.title || null,
-      workstream: input.topic?.name ?? null,
+      workstream: input.workstream?.name ?? null,
       response: input.response,
     },
     null,

@@ -92,7 +92,7 @@ function Source({ source }: { source: string }) {
 function IntroductionPreview() {
   return (
     <div className="gallery-intro-preview">
-      <div className="gallery-topic">
+      <div className="gallery-workstream">
         <WorkstreamIcon />
         <WorkstreamName name="Workstreams: Design system" />
       </div>

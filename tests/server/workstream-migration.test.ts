@@ -68,10 +68,10 @@ describe("reviewed workstream migration", () => {
       evidence: "original evidence",
     });
     const backup = migration.backup(result.backupId) as {
-      subjects: Array<{ thread_id: string }>;
+      assignments: Array<{ thread_id: string }>;
     };
     expect(
-      backup.subjects.some((subject) => subject.thread_id === "broad"),
+      backup.assignments.some((assignment) => assignment.thread_id === "broad"),
     ).toBe(true);
   });
 
@@ -137,15 +137,15 @@ describe("reviewed workstream migration", () => {
     expect(workstreamStore.getById(feature.id)?.aliases).toContain(
       "Harbor › Code Review › Approvals",
     );
-    expect(workstreamStore.groups().has("old-section")).toBe(false);
+    expect(workstreamStore.sectionBindings().has("old-section")).toBe(false);
     const backup = migration.backup(result.backupId) as {
       workstreams: Array<{ id: string }>;
-      subjects: Array<{ thread_id: string; workstream_id: string }>;
+      assignments: Array<{ thread_id: string; workstream_id: string }>;
     };
     expect(
       backup.workstreams.some((workstream) => workstream.id === "old"),
     ).toBe(true);
-    expect(backup.subjects).toContainEqual(
+    expect(backup.assignments).toContainEqual(
       expect.objectContaining({ thread_id: "deep", workstream_id: "old" }),
     );
     expect(getMeta(db, "workstream_categories")).toContain("stable");

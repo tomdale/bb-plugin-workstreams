@@ -1210,7 +1210,7 @@ export function registerCli(
             );
             const workstreams = workstreamStore.list();
             const label = workstreamPath(workstream.id, workstreams);
-            const groups = workstreamStore.groups();
+            const groups = workstreamStore.sectionBindings();
             const home = activeHome(
               workstream.id,
               [...groups.values()],

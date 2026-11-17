@@ -53,7 +53,7 @@ export async function presentOnHost(options: {
       input: options.input,
       model: gatewayToolModel({ model: options.model, apiKey }),
       preview: (document, signal) =>
-        opened.render(document, options.input.topic, signal),
+        opened.render(document, options.input.workstream, signal),
       signal: options.signal,
     });
   } catch (error) {

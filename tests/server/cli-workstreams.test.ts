@@ -38,7 +38,7 @@ async function setup(options: { onPrompt?: (prompt: string) => void } = {}) {
     ["Racks"],
   );
   shelvesId = shelves.id;
-  workstreamStore.bindGroup(section.id, storage.id);
+  workstreamStore.bindSection(section.id, storage.id);
   const thread = w.addThread("t_parent", {
     sectionId: section.id,
     title: "Parent shelves task",

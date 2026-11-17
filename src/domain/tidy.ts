@@ -296,11 +296,11 @@ export function parseSplit(text: string, input: SplitInput): SplitOutput {
   );
   const existing = fileable(input).map((t) => t.name);
   const names = new Map<string, { name: string; description: string }>();
-  for (const group of parsed.workstreams) {
-    if (!validName(group.name) || /^(general|other)$/i.test(group.name))
-      throw new Error(`Unsupported workstream name: ${group.name}`);
-    const key = group.name.toLowerCase();
-    if (!names.has(key)) names.set(key, group);
+  for (const proposed of parsed.workstreams) {
+    if (!validName(proposed.name) || /^(general|other)$/i.test(proposed.name))
+      throw new Error(`Unsupported workstream name: ${proposed.name}`);
+    const key = proposed.name.toLowerCase();
+    if (!names.has(key)) names.set(key, proposed);
   }
   for (const name of existing)
     if (!names.has(name.toLowerCase()))

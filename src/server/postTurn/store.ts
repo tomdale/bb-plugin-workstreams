@@ -6,8 +6,8 @@
  */
 import { validateDocument } from "../../domain/postTurn/document.ts";
 import {
-  documentTopicSchema,
-  type DocumentTopic,
+  documentWorkstreamSchema,
+  type DocumentWorkstream,
   type StoredPresentation,
 } from "../../domain/postTurn/message.ts";
 import type { Database } from "../db.ts";
@@ -16,7 +16,7 @@ type Row = {
   message_id: string;
   thread_id: string;
   turn_id: string;
-  topic: string | null;
+  workstream: string | null;
   document: string;
   created_at: number;
 };
@@ -37,14 +37,14 @@ export class PresentationStore {
   save(entry: StoredPresentation): boolean {
     const result = this.db
       .prepare(
-        `INSERT INTO ws_post_turn_document (message_id, thread_id, turn_id, topic, document, created_at)
+        `INSERT INTO ws_post_turn_document (message_id, thread_id, turn_id, workstream, document, created_at)
          VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(message_id) DO NOTHING`,
       )
       .run(
         entry.messageId,
         entry.threadId,
         entry.turnId,
-        entry.topic ? JSON.stringify(entry.topic) : null,
+        entry.workstream ? JSON.stringify(entry.workstream) : null,
         JSON.stringify(entry.document),
         entry.createdAt,
       );
@@ -63,12 +63,14 @@ export class PresentationStore {
       .all(threadId, THREAD_LIMIT) as Row[];
     return rows.flatMap((row) => {
       let raw: unknown;
-      let topic: DocumentTopic | null = null;
+      let workstream: DocumentWorkstream | null = null;
       try {
         raw = JSON.parse(row.document);
-        if (row.topic) {
-          const parsed = documentTopicSchema.safeParse(JSON.parse(row.topic));
-          topic = parsed.success ? parsed.data : null;
+        if (row.workstream) {
+          const parsed = documentWorkstreamSchema.safeParse(
+            JSON.parse(row.workstream),
+          );
+          workstream = parsed.success ? parsed.data : null;
         }
       } catch {
         return [];
@@ -80,7 +82,7 @@ export class PresentationStore {
           messageId: row.message_id,
           threadId: row.thread_id,
           turnId: row.turn_id,
-          topic,
+          workstream,
           document: valid.document,
           createdAt: row.created_at,
         },

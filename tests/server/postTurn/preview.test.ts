@@ -26,7 +26,7 @@ describe("preview page", () => {
   it("is static markup with no script and a policy that blocks fetches", () => {
     const html = previewPage({
       document: DEPLOYED_CHANGE,
-      topic: { name: "Snooze", color: null },
+      workstream: { name: "Snooze", color: null },
       styles: "body{}</style><script>alert(1)</script>",
       theme: "light",
     });
@@ -48,7 +48,7 @@ describe("preview page", () => {
           },
         ],
       },
-      topic: null,
+      workstream: null,
       styles: "",
       theme: "light",
     });

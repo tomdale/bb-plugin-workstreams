@@ -15,7 +15,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import Copy01Icon from "@hugeicons/core-free-icons/Copy01Icon";
 import { DocumentView } from "../../../app/postTurn/DocumentView.tsx";
 import type { EnhancedDocument } from "../../../domain/postTurn/document.ts";
-import type { DocumentTopic } from "../../../domain/postTurn/message.ts";
+import type { DocumentWorkstream } from "../../../domain/postTurn/message.ts";
 import { untilAborted } from "./abort.ts";
 import { ChromeSession } from "./chrome.ts";
 
@@ -61,14 +61,14 @@ const CSP =
 /** The full preview page for one document. */
 export function previewPage(input: {
   document: EnhancedDocument;
-  topic: DocumentTopic | null;
+  workstream: DocumentWorkstream | null;
   styles: string;
   theme: Theme;
 }): string {
   const markup = renderToStaticMarkup(
     createElement(DocumentView, {
       document: input.document,
-      topic: input.topic,
+      workstream: input.workstream,
       copy: {
         label: "Copy",
         icon: createElement(HugeiconsIcon, {
@@ -210,12 +210,12 @@ export class PreviewHost {
 
   async render(
     document: EnhancedDocument,
-    topic: DocumentTopic | null,
+    workstream: DocumentWorkstream | null,
     signal: AbortSignal,
   ): Promise<PreviewRender> {
     const html = previewPage({
       document,
-      topic,
+      workstream,
       styles: this.styles,
       theme: this.theme,
     });

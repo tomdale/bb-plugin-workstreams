@@ -582,7 +582,7 @@ export class WorkstreamStore {
     })();
   }
 
-  private bindGroupWithoutRevision(
+  private bindSectionWithoutRevision(
     sectionId: string,
     workstreamId: string,
   ): void {
@@ -595,16 +595,16 @@ export class WorkstreamStore {
       .run(sectionId, workstreamId);
   }
 
-  bindGroup(sectionId: string, workstreamId: string): void {
+  bindSection(sectionId: string, workstreamId: string): void {
     if (!this.getById(workstreamId))
       throw new Error(`Unknown workstream: ${workstreamId}`);
-    const existing = this.groups().get(sectionId);
+    const existing = this.sectionBindings().get(sectionId);
     if (existing === workstreamId) return;
-    this.bindGroupWithoutRevision(sectionId, workstreamId);
+    this.bindSectionWithoutRevision(sectionId, workstreamId);
     this.bumpRevision();
   }
 
-  unbindGroup(sectionId: string): void {
+  unbindSection(sectionId: string): void {
     const res = this.db
       .prepare("DELETE FROM ws_workstream_section WHERE section_id = ?")
       .run(sectionId);
@@ -613,7 +613,7 @@ export class WorkstreamStore {
     }
   }
 
-  groups(): Map<string, string> {
+  sectionBindings(): Map<string, string> {
     const rows = this.db
       .prepare(
         "SELECT section_id, workstream_id FROM ws_workstream_section ORDER BY section_id",
@@ -1006,7 +1006,7 @@ export class WorkstreamStore {
           )
           .all(workstreamId) as { thread_id: string }[]
       ).map((row) => row.thread_id);
-      const listed = workstreams.flatMap((group) => group.threadIds);
+      const listed = workstreams.flatMap((child) => child.threadIds);
       if (
         listed.length !== new Set(listed).size ||
         listed.length !== held.length ||
@@ -1528,7 +1528,7 @@ export class WorkstreamStore {
   state(): WorkstreamState {
     const workstreams = this.list();
     const groups: Record<string, string> = {};
-    for (const [sectionId, workstreamId] of this.groups()) {
+    for (const [sectionId, workstreamId] of this.sectionBindings()) {
       groups[sectionId] = workstreamId;
     }
     return {

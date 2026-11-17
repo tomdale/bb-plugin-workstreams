@@ -465,7 +465,7 @@ export const suggestionsExample: GalleryExample = {
     sidebar={sidebar}
     focusInitial={focusInitial}
     onClose={close}
-    onOpenTopics={openTopics}
+    onOpenOrganize={openOrganize}
   />
 </Dialog>`,
   render: () => <SuggestionsExample />,

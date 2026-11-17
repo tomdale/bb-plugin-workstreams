@@ -11,11 +11,11 @@ const base = {
   confidence: "high" as const,
   reason: "Fits feature",
   subject: "Billing",
-  workstreamId: "ent_billing",
+  workstreamId: "ws_billing",
   traceId: "trace_1",
 };
 
-const withFeature: Preview = {
+const withWorkstream: Preview = {
   ...base,
   id: "d_feature",
   title: "Invoice layout",
@@ -43,7 +43,7 @@ afterEach(() => vi.useRealTimers());
 
 describe("NewWork model: the draft's workstream preview", () => {
   it("previews draft text after typing pauses", async () => {
-    const { deps, newWork } = setup(async () => withFeature);
+    const { deps, newWork } = setup(async () => withWorkstream);
     newWork.observe("Fix invoice billing layout");
 
     expect(deps.route).not.toHaveBeenCalled();
@@ -52,7 +52,7 @@ describe("NewWork model: the draft's workstream preview", () => {
 
     const snapshot = newWork.snapshot();
     expect(snapshot.identity).toEqual({
-      workstreamId: "ent_billing",
+      workstreamId: "ws_billing",
       proposal: null,
       label: "Billing",
       provenance: "automatic",
@@ -63,7 +63,7 @@ describe("NewWork model: the draft's workstream preview", () => {
   it("aborts classification in flight when text changes", async () => {
     let resolveRoute!: () => void;
     const pendingRoute = new Promise<Preview>((resolve) => {
-      resolveRoute = () => resolve(withFeature);
+      resolveRoute = () => resolve(withWorkstream);
     });
     const { deps, newWork } = setup(() => pendingRoute);
     newWork.observe("First draft text here");
@@ -79,14 +79,14 @@ describe("NewWork model: the draft's workstream preview", () => {
     const { deps, newWork } = setup(async () => {
       calls++;
       if (calls === 1) throw new Error("Canceled: the draft changed.");
-      return withFeature;
+      return withWorkstream;
     });
     newWork.observe("Fix invoice billing layout");
     // The external cancel retries instead of leaving the field stale.
     await vi.advanceTimersByTimeAsync(SHORT_PAUSE_MS + 5_000);
     expect(deps.route).toHaveBeenCalledTimes(2);
     expect(newWork.snapshot().identity).toEqual({
-      workstreamId: "ent_billing",
+      workstreamId: "ws_billing",
       proposal: null,
       label: "Billing",
       provenance: "automatic",
@@ -107,10 +107,10 @@ describe("NewWork model: the draft's workstream preview", () => {
   });
 
   it("clears automatic identity when draft text is emptied", async () => {
-    const { newWork } = setup(async () => withFeature);
+    const { newWork } = setup(async () => withWorkstream);
     newWork.observe("Invoice bug in billing layout");
     await vi.advanceTimersByTimeAsync(SHORT_PAUSE_MS);
-    expect(newWork.snapshot().identity?.workstreamId).toBe("ent_billing");
+    expect(newWork.snapshot().identity?.workstreamId).toBe("ws_billing");
 
     newWork.observe("");
     expect(newWork.snapshot().identity).toBeNull();
@@ -119,7 +119,7 @@ describe("NewWork model: the draft's workstream preview", () => {
 
 describe("NewWork model: picked, inherited, and no workstream", () => {
   it("preserves manual identity when typing further", async () => {
-    const { newWork } = setup(async () => withFeature);
+    const { newWork } = setup(async () => withWorkstream);
     newWork.selectIdentity({ workstreamId: "ent_storage", label: "Storage" });
     expect(newWork.snapshot().identity).toEqual({
       workstreamId: "ent_storage",
@@ -146,7 +146,7 @@ describe("NewWork model: picked, inherited, and no workstream", () => {
   });
 
   it("persists a picked No workstream", async () => {
-    const { newWork } = setup(async () => withFeature);
+    const { newWork } = setup(async () => withWorkstream);
     newWork.selectIdentity(null);
     expect(newWork.snapshot().identity).toEqual({
       workstreamId: null,
@@ -189,7 +189,7 @@ describe("NewWork model: picked, inherited, and no workstream", () => {
 
 describe("NewWork model: a workstream's ＋", () => {
   it("starts in the workstream, which a preview never replaces", async () => {
-    const { newWork } = setup(async () => withFeature);
+    const { newWork } = setup(async () => withWorkstream);
     newWork.selectWorkstream({ sectionId: "sec_docs" }, "Docs");
     expect(newWork.snapshot().identity).toEqual({
       workstreamId: null,

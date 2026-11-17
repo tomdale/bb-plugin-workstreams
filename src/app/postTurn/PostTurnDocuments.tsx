@@ -35,7 +35,7 @@ import {
 } from "../../domain/postTurn/document.ts";
 import {
   parseAssistantRowId,
-  type DocumentTopic,
+  type DocumentWorkstream,
 } from "../../domain/postTurn/message.ts";
 import { mutationTargetElement } from "../mutationRecords.ts";
 import { DocumentView } from "./DocumentView.tsx";
@@ -45,7 +45,7 @@ const ANCHOR = "data-ws-post-turn-anchor";
 
 type Item = {
   messageId: string;
-  topic: DocumentTopic | null;
+  workstream: DocumentWorkstream | null;
   document: EnhancedDocument;
 };
 
@@ -83,7 +83,7 @@ function DocumentPanel({ item }: { item: Item }) {
     >
       <DocumentView
         document={item.document}
-        topic={item.topic}
+        workstream={item.workstream}
         copy={{
           label: copied ? "Copied" : "Copy",
           icon: <Icon name="Copy" aria-hidden className="size-3.5 shrink-0" />,
@@ -140,7 +140,7 @@ export function PostTurnDocuments() {
               if (valid.ok)
                 byId.set(entry.messageId, {
                   messageId: entry.messageId,
-                  topic: entry.topic,
+                  workstream: entry.workstream,
                   document: valid.document,
                 });
             }

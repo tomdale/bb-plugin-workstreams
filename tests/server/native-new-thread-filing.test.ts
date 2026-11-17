@@ -207,7 +207,7 @@ describe("message.dispatch for the New thread view", () => {
       draftKey: "root",
       text: "Stale pick",
       identity: {
-        workstreamId: "ent_gone",
+        workstreamId: "ws_gone",
         proposal: null,
         provenance: "manual",
       },

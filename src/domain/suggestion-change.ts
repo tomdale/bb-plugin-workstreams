@@ -187,26 +187,27 @@ function delta(body: TidyEdit | Split, context: ChangeContext): ChangeDelta {
 
   if ("workstreams" in body) {
     const parent = workstream(body.workstreamId)!;
-    for (const group of body.workstreams) {
+    for (const splitWorkstream of body.workstreams) {
       // A workstream with no threads is not created.
-      if (group.threadIds.length === 0) continue;
+      if (splitWorkstream.threadIds.length === 0) continue;
       const aliasesOf = (id: string) =>
         context.workstreams.find((t) => t.id === id)?.aliases ?? [];
       const existing = childrenOf(parent.id).find(
         (child) =>
-          normalize(child.name) === normalize(group.name) ||
+          normalize(child.name) === normalize(splitWorkstream.name) ||
           aliasesOf(child.id).some(
-            (alias) => normalize(alias) === normalize(group.name),
+            (alias) => normalize(alias) === normalize(splitWorkstream.name),
           ),
       );
-      const id = existing?.id ?? newWorkstreamId(parent.id, group.name);
+      const id =
+        existing?.id ?? newWorkstreamId(parent.id, splitWorkstream.name);
       if (!existing)
         workstreams.set(id, {
           id,
-          name: group.name.trim(),
+          name: splitWorkstream.name.trim(),
           parentId: parent.id,
         });
-      for (const threadId of group.threadIds) file(threadId, id);
+      for (const threadId of splitWorkstream.threadIds) file(threadId, id);
     }
   } else {
     switch (body.op) {

@@ -38,7 +38,7 @@ export function parseAssistantRowId(rowId: string): AssistantMessageRef | null {
 }
 
 /** The workstream a document was composed under, as its header shows it. */
-export const documentTopicSchema = z.object({
+export const documentWorkstreamSchema = z.object({
   name: z.string().min(1).max(200),
   color: z
     .object({
@@ -47,14 +47,14 @@ export const documentTopicSchema = z.object({
     })
     .nullable(),
 });
-export type DocumentTopic = z.infer<typeof documentTopicSchema>;
+export type DocumentWorkstream = z.infer<typeof documentWorkstreamSchema>;
 
 /** One stored enhanced document, keyed by the message it follows. */
 export type StoredPresentation = {
   messageId: string;
   threadId: string;
   turnId: string;
-  topic: DocumentTopic | null;
+  workstream: DocumentWorkstream | null;
   document: EnhancedDocument;
   createdAt: number;
 };

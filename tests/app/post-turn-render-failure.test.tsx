@@ -30,7 +30,7 @@ it("draws nothing when the document fails to render, leaving the original", asyn
   document.body.append(row);
   const presentations = vi.fn(async () => ({
     enabled: true,
-    items: [{ messageId: id, topic: null, document: CORRECTION }],
+    items: [{ messageId: id, workstream: null, document: CORRECTION }],
   }));
   renderSlot(
     { component: PostTurnDocuments },

@@ -2,7 +2,7 @@ import { defineRpcContract } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 import { usageSchema } from "../../domain/trace.ts";
 import { PRESENTATION_LIMITS } from "../../domain/postTurn/limits.ts";
-import { documentTopicSchema } from "../../domain/postTurn/message.ts";
+import { documentWorkstreamSchema } from "../../domain/postTurn/message.ts";
 
 /** RPC between the plugin server and its `bb.host` entry on the machine. */
 export const hostContract = defineRpcContract({
@@ -42,7 +42,7 @@ export const hostContract = defineRpcContract({
           .max(100),
         response: z.string().min(1).max(PRESENTATION_LIMITS.responseChars),
         title: z.string().max(PRESENTATION_LIMITS.titleChars),
-        topic: documentTopicSchema.nullable(),
+        workstream: documentWorkstreamSchema.nullable(),
         theme: z.enum(["light", "dark"]),
       })
       .strict(),

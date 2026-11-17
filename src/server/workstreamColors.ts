@@ -15,7 +15,7 @@ export class WorkstreamColors {
   /** Allocate missing colors and reassign workstreams whose family changed, atomically. */
   snapshot(
     workstreams: readonly Workstream[],
-    groups: Readonly<Record<string, string>>,
+    sections: Readonly<Record<string, string>>,
   ): Record<string, WorkstreamColor> {
     return this.db.transaction(() => {
       const byId = new Map(
@@ -45,7 +45,7 @@ export class WorkstreamColors {
         level: -1 | 0 | 1;
       }[];
       const required = new Set(
-        Object.values(groups).filter((id) => byId.has(id)),
+        Object.values(sections).filter((id) => byId.has(id)),
       );
       const colors = new Map<string, StoredColor>();
       const reparented = new Set<string>();

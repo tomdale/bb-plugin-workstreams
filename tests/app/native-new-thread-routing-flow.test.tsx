@@ -91,13 +91,13 @@ async function mount(
     projectId: "proj_1",
     projectSource: "manual",
   });
-  workstreamStore.bindGroup(alpha.id, alphaWorkstream.id);
+  workstreamStore.bindSection(alpha.id, alphaWorkstream.id);
   const betaWorkstream = workstreamStore.create("Beta", "Beta effort");
   workstreamStore.edit(betaWorkstream.id, {
     projectId: "proj_1",
     projectSource: "manual",
   });
-  workstreamStore.bindGroup(beta.id, betaWorkstream.id);
+  workstreamStore.bindSection(beta.id, betaWorkstream.id);
   seededAlphaId = alphaWorkstream.id;
   w.addThread("a1", { sectionId: alpha.id, title: "Alpha task" });
   await w.harness.behavior.callRpc("refresh", null);

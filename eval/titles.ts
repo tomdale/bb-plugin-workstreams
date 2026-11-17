@@ -86,9 +86,9 @@ function newTitleProblems(
  * and its capability), with the last name as the workstream to choose.
  */
 function choiceFor(
-  group: string | null,
+  path: string | null,
 ): Omit<WorkstreamChoiceInput, "requests" | "title"> {
-  const names = pathNames(group ?? "");
+  const names = pathNames(path ?? "");
   const workstreams = names.filter(Boolean).map((name, i) => ({
     id: `t${i}`,
     name,
@@ -101,7 +101,7 @@ function choiceFor(
     project: null,
     checkout: null,
     hints: [],
-    current: group ? { label: group, inherited: false } : null,
+    current: path ? { label: path, inherited: false } : null,
   };
 }
 
@@ -138,12 +138,12 @@ if (kind === "turn-end-follow")
 else
   for (const test of titleCases) {
     const listing = {
-      workstream: test.group ?? null,
+      workstream: test.workstream ?? null,
       parent: test.parent ?? null,
     };
     // A child thread is only named; a thread with no parent chooses its
     // listed workstream.
-    const choice = test.parent ? null : choiceFor(test.group ?? null);
+    const choice = test.parent ? null : choiceFor(test.workstream ?? null);
     if (kind === "start") {
       const input: StartInput = {
         request: test.request,

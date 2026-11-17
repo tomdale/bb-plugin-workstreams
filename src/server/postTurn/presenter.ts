@@ -17,7 +17,7 @@ import {
 import { isReplyBlock } from "../../domain/postTurn/instructions.ts";
 import { PRESENTATION_LIMITS } from "../../domain/postTurn/limits.ts";
 import type {
-  DocumentTopic,
+  DocumentWorkstream,
   StoredPresentation,
 } from "../../domain/postTurn/message.ts";
 import type { PresentationPrefs } from "../../domain/postTurn/prefs.ts";
@@ -29,7 +29,7 @@ type Sdk = BbPluginApi["sdk"];
 export type ComposeRequest = {
   response: string;
   title: string;
-  topic: DocumentTopic | null;
+  workstream: DocumentWorkstream | null;
   prefs: PresentationPrefs;
   signal: AbortSignal;
 };
@@ -71,7 +71,7 @@ export class PostTurnPresenter {
       prefs: () => PresentationPrefs;
       compose: Compose;
       title: (threadId: string) => string;
-      topic: (threadId: string) => DocumentTopic | null;
+      workstream: (threadId: string) => DocumentWorkstream | null;
       /** A thread's documents changed. */
       changed: (threadId: string) => void;
       log: BbPluginApi["log"];
@@ -178,7 +178,7 @@ export class PostTurnPresenter {
         kind: "skipped",
         reason: `The response is longer than ${PRESENTATION_LIMITS.responseChars.toLocaleString("en-US")} characters.`,
       };
-    const topic = this.deps.topic(message.threadId);
+    const workstream = this.deps.workstream(message.threadId);
     const result: ComposeResult =
       injected !== undefined
         ? { kind: "document", document: injected }
@@ -187,7 +187,7 @@ export class PostTurnPresenter {
             title: this.deps
               .title(message.threadId)
               .slice(0, PRESENTATION_LIMITS.titleChars),
-            topic,
+            workstream,
             prefs: this.deps.prefs(),
             signal: AbortSignal.any([this.controller.signal, cancel.signal]),
           });
@@ -206,7 +206,7 @@ export class PostTurnPresenter {
       messageId: message.messageId,
       threadId: message.threadId,
       turnId: message.turnId,
-      topic,
+      workstream,
       document: valid.document,
       createdAt: Date.now(),
     };

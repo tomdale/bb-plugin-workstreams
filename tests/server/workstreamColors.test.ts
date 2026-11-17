@@ -7,7 +7,7 @@ import { WorkstreamColors } from "../../src/server/workstreamColors.ts";
 const hosts: ReturnType<typeof createTestPluginHost>[] = [];
 function store() {
   const host = createTestPluginHost({
-    pluginId: `topic-colors-${hosts.length}`,
+    pluginId: `workstream-colors-${hosts.length}`,
   });
   hosts.push(host);
   const db = openDatabase(host.bb);
@@ -33,8 +33,8 @@ describe("workstream colors", () => {
     const parent = workstreamStore.create("Alpha");
     const one = workstreamStore.create("One", "", parent.id);
     const two = workstreamStore.create("Two", "", parent.id);
-    workstreamStore.bindGroup("sec-one", one.id);
-    workstreamStore.bindGroup("sec-two", two.id);
+    workstreamStore.bindSection("sec-one", one.id);
+    workstreamStore.bindSection("sec-two", two.id);
     const first = read();
     expect(first[parent.id]).toBeDefined();
     expect(
@@ -45,10 +45,10 @@ describe("workstream colors", () => {
     ).toBeLessThanOrEqual(24);
     expect(first[one.id]).not.toEqual(first[two.id]);
     workstreamStore.rename(one.id, "Renamed");
-    workstreamStore.unbindGroup("sec-one");
-    workstreamStore.bindGroup("sec-new", one.id);
+    workstreamStore.unbindSection("sec-one");
+    workstreamStore.bindSection("sec-new", one.id);
     const other = workstreamStore.create("Other");
-    workstreamStore.bindGroup("sec-other", other.id);
+    workstreamStore.bindSection("sec-other", other.id);
     const after = read();
     expect(after[one.id]).toEqual(first[one.id]);
     expect(after[two.id]).toEqual(first[two.id]);
@@ -66,9 +66,9 @@ describe("workstream colors", () => {
     const one = workstreamStore.create("One", "", a.id),
       two = workstreamStore.create("Two", "", a.id);
     const target = workstreamStore.create("Target", "", b.id);
-    workstreamStore.bindGroup("sec-one", one.id);
-    workstreamStore.bindGroup("sec-two", two.id);
-    workstreamStore.bindGroup("sec-target", target.id);
+    workstreamStore.bindSection("sec-one", one.id);
+    workstreamStore.bindSection("sec-two", two.id);
+    workstreamStore.bindSection("sec-target", target.id);
     const first = read();
     workstreamStore.move(one.id, b.id);
     const moved = read();
@@ -94,7 +94,7 @@ describe("workstream colors", () => {
         "",
         parent.id,
       );
-      workstreamStore.bindGroup(`sec-${i}`, workstream.id);
+      workstreamStore.bindSection(`sec-${i}`, workstream.id);
       return workstream.id;
     });
     const first = read();
@@ -105,7 +105,7 @@ describe("workstream colors", () => {
         "",
         parent.id,
       );
-      workstreamStore.bindGroup(`sec-${i}`, workstream.id);
+      workstreamStore.bindSection(`sec-${i}`, workstream.id);
       ids.push(workstream.id);
     }
     const colors = read();
@@ -123,7 +123,7 @@ describe("workstream colors", () => {
   it("does not replace a valid stored color for an invalid workstream tree", () => {
     const { workstreamStore, colors, read } = store();
     const workstream = workstreamStore.create("Kept");
-    workstreamStore.bindGroup("sec", workstream.id);
+    workstreamStore.bindSection("sec", workstream.id);
     const first = read();
     const corrupt = [{ ...workstream, parentId: "missing" }];
     expect(

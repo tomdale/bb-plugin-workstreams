@@ -62,7 +62,7 @@ async function mount() {
     projectId: "proj_1",
     projectSource: "manual",
   });
-  workstreamStore.bindGroup(alpha.id, seededAlphaId);
+  workstreamStore.bindSection(alpha.id, seededAlphaId);
   w.addThread("a1", { sectionId: alpha.id, title: "Alpha task" });
   await w.harness.behavior.callRpc("refresh", null);
   const methods = ["prefs", "state", "tree", "preview", "previewCancel"];

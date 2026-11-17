@@ -18,7 +18,7 @@ const input = {
   response:
     "I overstated the failure. Both models kept the deadline in 5 of 5 runs.",
   title: "Summary model check",
-  topic: { name: "Evals", color: null },
+  workstream: { name: "Evals", color: null },
 };
 const usage = { input: 100, output: 50, cost: 0.001 };
 const preview = (document: unknown, id = "call") => ({

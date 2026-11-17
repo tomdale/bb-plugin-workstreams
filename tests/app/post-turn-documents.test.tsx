@@ -47,7 +47,7 @@ function mount(
     items:
       threadId === "thr_a"
         ? items().map((item) => ({
-            topic: { name: "Snooze", color: null },
+            workstream: { name: "Snooze", color: null },
             ...item,
           }))
         : [],
@@ -173,7 +173,7 @@ describe("PostTurnDocuments", () => {
       await gate;
       return {
         enabled,
-        items: [{ messageId: T1, topic: null, document: CORRECTION }],
+        items: [{ messageId: T1, workstream: null, document: CORRECTION }],
       };
     });
     const slot = renderSlot(

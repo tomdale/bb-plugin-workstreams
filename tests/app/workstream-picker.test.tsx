@@ -88,7 +88,7 @@ it("skips native parent and draft-text renders without blocking view updates or 
   expect(chipRenders).toHaveBeenCalledTimes(1);
 
   act(() =>
-    newWork.selectIdentity({ workstreamId: "ent_billing", label: "Billing" }),
+    newWork.selectIdentity({ workstreamId: "ws_billing", label: "Billing" }),
   );
   expect(chipRenders).toHaveBeenCalledTimes(2);
   expect(

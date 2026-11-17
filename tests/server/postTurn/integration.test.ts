@@ -148,7 +148,7 @@ describe("Enhanced responses through the plugin", () => {
         {
           messageId,
           // This world binds no section, so the workstream has no color yet.
-          topic: { name: "Snooze", color: null },
+          workstream: { name: "Snooze", color: null },
           document: DEPLOYED_CHANGE,
         },
       ]),
@@ -158,7 +158,7 @@ describe("Enhanced responses through the plugin", () => {
       model: "anthropic/claude-sonnet-5.5",
       response: "Presets sync now.",
       title: "Sync presets",
-      topic: { name: "Snooze" },
+      workstream: { name: "Snooze" },
     });
     // A repeated idle event and a reload read the stored document.
     await idle(w, "task", "Presets sync now.");

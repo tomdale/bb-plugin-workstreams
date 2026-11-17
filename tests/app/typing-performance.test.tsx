@@ -42,7 +42,7 @@ it.each([1, 2] as const)(
       confidence: "high",
       reason: "Parser changes",
       subject: "Alpha",
-      workstreamId: "ent_alpha",
+      workstreamId: "ws_alpha",
       title: "Parser diagnostics",
     };
     const draftIdentity = vi.fn(async (_input: unknown) => ({ filed: false }));
@@ -65,7 +65,7 @@ it.each([1, 2] as const)(
         tree: () => ({
           workstreams: [
             {
-              id: "ent_alpha",
+              id: "ws_alpha",
               name: "Alpha",
               description: "",
               parentId: null,

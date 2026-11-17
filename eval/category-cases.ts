@@ -1,9 +1,9 @@
 import type { CategoryInput } from "../src/domain/categories.ts";
 
-type Group = { name: string; work: string[] };
-function input(groups: Group[], existing = false): CategoryInput {
-  const threads = groups.flatMap((group, i) =>
-    group.work.map((work, j) => ({
+type Category = { name: string; work: string[] };
+function input(categories: Category[], existing = false): CategoryInput {
+  const threads = categories.flatMap((category, i) =>
+    category.work.map((work, j) => ({
       id: `${i}-${j}`,
       title: work,
       work,
@@ -17,9 +17,9 @@ function input(groups: Group[], existing = false): CategoryInput {
     current: existing
       ? {
           id: "generation",
-          categories: groups.map((group, i) => ({
+          categories: categories.map((category, i) => ({
             id: `category-${i}`,
-            name: group.name,
+            name: category.name,
             threadIds: threads
               .filter((thread) => thread.id.startsWith(`${i}-`))
               .map((thread) => thread.id),
@@ -28,7 +28,7 @@ function input(groups: Group[], existing = false): CategoryInput {
       : null,
   };
 }
-const groups: Group[] = [
+const categories: Category[] = [
   {
     name: "Billing",
     work: [
@@ -46,14 +46,14 @@ const groups: Group[] = [
     ],
   },
 ];
-const expected = groups.map((group, i) =>
-  group.work.map((_, j) => `${i}-${j}`),
+const expected = categories.map((category, i) =>
+  category.work.map((_, j) => `${i}-${j}`),
 );
-const initial = input(groups);
-const stable = input(groups, true);
+const initial = input(categories);
+const stable = input(categories, true);
 const arrival = input(
   [
-    ...groups,
+    ...categories,
     {
       name: "Search",
       work: ["Build full-text search indexes", "Improve search result ranking"],
@@ -63,7 +63,7 @@ const arrival = input(
 );
 arrival.current!.categories.pop();
 const arrivalFits = input(
-  [...groups, { name: "New", work: ["Fix invoice PDF totals"] }],
+  [...categories, { name: "New", work: ["Fix invoice PDF totals"] }],
   true,
 );
 arrivalFits.current!.categories.pop();
@@ -84,31 +84,31 @@ const singletons = input(
   true,
 );
 singletons.current!.categories.pop();
-const changed = input(groups, true);
+const changed = input(categories, true);
 changed.threads[0] = {
   ...changed.threads[0]!,
   title: "Implementing team permissions",
   work: "The work has shifted from invoice rounding to team permission inheritance. Implement permission inheritance; billing is out of scope.",
   workKey: "request-2",
 };
-const refined = input(groups, true);
+const refined = input(categories, true);
 refined.threads[0] = {
   ...refined.threads[0]!,
   work: "Fix invoice rounding in billing, now for multi-currency invoices too.",
   workKey: "request-2",
 };
 const arrivalAccess = input(
-  [...groups, { name: "New", work: ["Map SSO groups to team roles"] }],
+  [...categories, { name: "New", work: ["Map SSO groups to team roles"] }],
   true,
 );
 arrivalAccess.current!.categories.pop();
-const departure = input(groups, true);
+const departure = input(categories, true);
 departure.threads = departure.threads.filter(
   (thread) => !thread.id.endsWith("-2"),
 );
 for (const category of departure.current!.categories)
   category.threadIds = category.threadIds.filter((id) => !id.endsWith("-2"));
-const paraphrased = input(groups, true);
+const paraphrased = input(categories, true);
 paraphrased.threads[0]!.title = "Correcting invoice arithmetic";
 const plugin = input([
   {

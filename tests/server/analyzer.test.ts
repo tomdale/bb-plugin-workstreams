@@ -132,7 +132,7 @@ describe("idle analysis", () => {
     const db = w.bb.storage.database();
     const previous = (await state(w)).analysis.t1!;
     title = "Changing directories";
-    const { goal: _title, ...old } = previous;
+    const { goal: _goal, ...old } = previous;
     db.prepare("UPDATE ws_analysis SET result = ? WHERE thread_id = 't1'").run(
       JSON.stringify(old),
     );

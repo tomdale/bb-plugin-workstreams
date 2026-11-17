@@ -22,7 +22,7 @@ import {
   type EnhancedDocument,
   type RichText,
 } from "../../domain/postTurn/document.ts";
-import type { DocumentTopic } from "../../domain/postTurn/message.ts";
+import type { DocumentWorkstream } from "../../domain/postTurn/message.ts";
 import { workstreamColorStyle } from "../../domain/workstreamColor.ts";
 import { Glyph, MARK_CLASS } from "../recap/marks.tsx";
 import { STATUS_ROW_CLASS, StatusMark, StatusWord } from "../reply/Panel.tsx";
@@ -345,15 +345,15 @@ export type DocumentCopy = {
 
 export function DocumentView({
   document,
-  topic,
+  workstream,
   copy,
 }: {
   document: EnhancedDocument;
-  topic: DocumentTopic | null;
+  workstream: DocumentWorkstream | null;
   copy: DocumentCopy;
 }) {
   const style = (
-    topic?.color ? workstreamColorStyle(topic.color) : {}
+    workstream?.color ? workstreamColorStyle(workstream.color) : {}
   ) as CSSProperties;
   return (
     <section
@@ -363,7 +363,7 @@ export function DocumentView({
     >
       <header className="flex min-w-0 items-center gap-3 pb-2">
         <span className="ws-workstream-name min-w-0 flex-1 truncate text-[12px] font-medium leading-[18px]">
-          {topic?.name}
+          {workstream?.name}
         </span>
         <button
           type="button"

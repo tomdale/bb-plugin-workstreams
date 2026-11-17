@@ -25,9 +25,10 @@ const REQUEST =
 const isOpening = (prompt: string) =>
   prompt.includes("You name one new agent thread from its opening request");
 /**
- * Gives a thread a workstream, so the start call has only its title to settle.
+ * Sets a thread to No workstream by hand, so the start call has only its title
+ * to settle.
  */
-const workstreamked = (w: World, id: string) =>
+const setNoWorkstream = (w: World, id: string) =>
   new WorkstreamStore(openDatabase(w.bb)).assign(id, null, {
     provenance: "manual",
   });
@@ -83,8 +84,8 @@ function models(answers: {
       return JSON.stringify({ edits: [] });
     const kind = isOpening(prompt) ? "opening" : "analysis";
     const list = answers[kind] ?? [null];
-    const goal = list[Math.min(calls[kind]++, list.length - 1)] ?? null;
-    return kind === "opening" ? opening(goal) : analysis(goal);
+    const title = list[Math.min(calls[kind]++, list.length - 1)] ?? null;
+    return kind === "opening" ? opening(title) : analysis(title);
   };
 }
 
@@ -95,7 +96,7 @@ async function setup(complete: FakeCompletion, prefs?: PrefsPatch) {
 
 /** A thread whose first turn is starting, as BB shows it before any title. */
 function newThread(w: World, id = "t1", overrides = {}) {
-  workstreamked(w, id);
+  setNoWorkstream(w, id);
   return w.addThread(id, {
     title: null,
     titleFallback: "Fix the stale build cache in the monorepo, it keeps serv…",

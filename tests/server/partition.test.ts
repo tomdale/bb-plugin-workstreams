@@ -219,15 +219,15 @@ describe("restoreWorkstreams", () => {
     see("t1", "t2");
     workstreamStore.assign("t1", alpha.id);
     workstreamStore.assign("t2", child.id);
-    workstreamStore.bindGroup("sec_a", alpha.id);
-    workstreamStore.bindGroup("sec_c", child.id);
+    workstreamStore.bindSection("sec_a", alpha.id);
+    workstreamStore.bindSection("sec_c", child.id);
     const snapshot = snapshotWorkstreams(db, 1);
     workstreamStore.merge(alpha.id, child.id);
     workstreamStore.rename(beta.id, "Alpha");
     workstreamStore.create("Gamma", "", null);
     const after = workstreamsFingerprint(db);
     // The organizer binds and unbinds workstreams on its own afterwards.
-    workstreamStore.bindGroup("sec_g", workstreamStore.resolve("Gamma")!.id);
+    workstreamStore.bindSection("sec_g", workstreamStore.resolve("Gamma")!.id);
     expect(restoreWorkstreams(db, snapshot, after)).toBe(true);
     expect(
       workstreamStore
@@ -237,7 +237,7 @@ describe("restoreWorkstreams", () => {
     ).toEqual(["Alpha", "Beta", "Child"]);
     expect(workstreamStore.assignment("t1").workstreamId).toBe(alpha.id);
     expect(workstreamStore.getById(child.id)?.parentId).toBe(beta.id);
-    expect(workstreamStore.groups().get("sec_c")).toBe(child.id);
+    expect(workstreamStore.sectionBindings().get("sec_c")).toBe(child.id);
   });
 
   it("keeps later learned projects while undoing a tree edit, but guards manual project changes", () => {

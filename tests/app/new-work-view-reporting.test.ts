@@ -11,7 +11,7 @@ import { SHORT_PAUSE_MS } from "../../src/app/composer/timing.ts";
 const automaticProposal = {
   name: "Export",
   description: "CSV export",
-  parentId: "ent_data",
+  parentId: "ws_data",
   ancestors: [{ name: "Data", description: "Data tools" }],
 };
 
@@ -75,8 +75,8 @@ describe("NewWork view store", () => {
     const viewListener = vi.fn();
     newWork.subscribeView(viewListener);
 
-    newWork.selectIdentity({ workstreamId: "ent_billing", label: "Billing" });
-    expect(newWork.viewSnapshot().identity?.workstreamId).toBe("ent_billing");
+    newWork.selectIdentity({ workstreamId: "ws_billing", label: "Billing" });
+    expect(newWork.viewSnapshot().identity?.workstreamId).toBe("ws_billing");
     expect(viewListener).toHaveBeenCalledTimes(1);
 
     newWork.reportError(new Error("First failure"));
@@ -143,13 +143,13 @@ describe("NewWork canonical identity reports", () => {
     newWork.observe("First draft");
     newWork.observe("Revised draft");
     newWork.observeSelection({ projectId: "proj_1", providerId: "openai" });
-    newWork.selectIdentity({ workstreamId: "ent_billing", label: "Billing" });
+    newWork.selectIdentity({ workstreamId: "ws_billing", label: "Billing" });
 
     await nextMicrotask();
     expect(reportIdentity).toHaveBeenCalledExactlyOnceWith({
       text: "Revised draft",
       identity: {
-        workstreamId: "ent_billing",
+        workstreamId: "ws_billing",
         proposal: null,
         provenance: "manual",
       },
@@ -253,7 +253,7 @@ describe("NewWork canonical identity reports", () => {
     const manualProposal = {
       name: "Invoices",
       description: "Invoice tools",
-      parentId: "ent_billing",
+      parentId: "ws_billing",
     };
     newWork.selectIdentity({ proposal: manualProposal, label: "Invoices" });
     await nextMicrotask();

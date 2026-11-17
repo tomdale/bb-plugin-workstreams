@@ -130,7 +130,7 @@ describe("a new thread's first workstream", () => {
     } = await setup(() => null);
     workstreamStore.create("Tabs", "Tab handling", parser.id);
     const section = w.addSection("Parser");
-    workstreamStore.bindGroup(section.id, parser.id);
+    workstreamStore.bindSection(section.id, parser.id);
     await w.harness.behavior.callRpc("draftIdentity", {
       draftKey: "d1",
       text: "Make the parser handle tabs",
@@ -291,7 +291,7 @@ describe("a new thread's first workstream", () => {
       settle,
     } = await setup();
     const section = w.addSection("Docs");
-    workstreamStore.bindGroup(section.id, docs.id);
+    workstreamStore.bindSection(section.id, docs.id);
     await w.harness.behavior.callRpc("draftIdentity", {
       draftKey: "d1",
       text: "Make the parser handle tabs",
@@ -365,7 +365,7 @@ describe("the composer's preview", () => {
       quickCalls,
     } = await setup();
     const section = w.addSection("Docs");
-    workstreamStore.bindGroup(section.id, docs.id);
+    workstreamStore.bindSection(section.id, docs.id);
     const revision = workstreamStore.revision();
     const preview = (await w.harness.behavior.callRpc("preview", {
       prompt: `Add an example to @section:${section.id}`,

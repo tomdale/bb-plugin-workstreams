@@ -395,7 +395,9 @@ export class Organizer {
           const liveSections = await awaitBb(listSections(sdk));
           for (const section of liveSections)
             changes.name(section.id, section.name);
-          const groupBindings = new Map(this.deps.workstreamStore.groups()); // sectionId -> workstreamId
+          const groupBindings = new Map(
+            this.deps.workstreamStore.sectionBindings(),
+          ); // sectionId -> workstreamId
           assertCurrent();
           for (const workstreamId of selectedWorkstreamIds) {
             assertCurrent();
@@ -418,7 +420,7 @@ export class Organizer {
               );
               if (candidate) {
                 section = candidate;
-                this.deps.workstreamStore.bindGroup(section.id, workstreamId);
+                this.deps.workstreamStore.bindSection(section.id, workstreamId);
                 groupBindings.set(section.id, workstreamId);
               }
             }
@@ -438,7 +440,7 @@ export class Organizer {
                ON CONFLICT(section_id) DO UPDATE SET created_by = 'workstreams'`,
                 )
                 .run(created.id);
-              this.deps.workstreamStore.bindGroup(created.id, workstreamId);
+              this.deps.workstreamStore.bindSection(created.id, workstreamId);
               groupBindings.set(created.id, workstreamId);
               this.deps.service.seeSection(created.id, created.name);
             } else if (section.name !== expectedName) {
@@ -556,7 +558,7 @@ export class Organizer {
                     .prepare("DELETE FROM ws_section WHERE section_id = ?")
                     .run(section.id);
                 }
-                this.deps.workstreamStore.unbindGroup(section.id);
+                this.deps.workstreamStore.unbindSection(section.id);
                 groupBindings.delete(section.id);
               }
             }

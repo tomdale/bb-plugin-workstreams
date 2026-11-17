@@ -223,7 +223,7 @@ describe("WorkstreamStore", () => {
     );
     const broad = workstreamStore.create("Engineering", "");
     const specific = workstreamStore.create("Billing migration", "", broad.id);
-    workstreamStore.bindGroup("section-engineering", broad.id);
+    workstreamStore.bindSection("section-engineering", broad.id);
     workstreamStore.assign("thread-x", specific.id);
     expect(workstreamStore.assignment("thread-x").workstreamId).toBe(
       specific.id,
@@ -285,7 +285,7 @@ describe("WorkstreamStore", () => {
       source.id,
     );
     workstreamStore.assign("t-alpha", child.id);
-    workstreamStore.bindGroup("sec-alpha", source.id);
+    workstreamStore.bindSection("sec-alpha", source.id);
 
     const initialRev = workstreamStore.revision();
     const result = workstreamStore.merge(source.id, target.id);
@@ -306,7 +306,7 @@ describe("WorkstreamStore", () => {
     expect(updatedChild?.parentId).toBe(target.id);
 
     // Group binding updated to target
-    expect(workstreamStore.groups().get("sec-alpha")).toBe(target.id);
+    expect(workstreamStore.sectionBindings().get("sec-alpha")).toBe(target.id);
 
     // Target absorbed source name and aliases
     const updatedTarget = workstreamStore.getById(target.id);
@@ -556,8 +556,8 @@ describe("WorkstreamStore", () => {
     workstreamStore.assign("t-backend", sourceBackend.id);
     workstreamStore.assign("t-migrations", migrations.id);
     workstreamStore.assign("t-queue", queue.id);
-    workstreamStore.bindGroup("sec-backend", sourceBackend.id);
-    workstreamStore.bindGroup("sec-migrations", migrations.id);
+    workstreamStore.bindSection("sec-backend", sourceBackend.id);
+    workstreamStore.bindSection("sec-migrations", migrations.id);
 
     workstreamStore.merge(sourceRoot.id, targetRoot.id);
 
@@ -578,8 +578,12 @@ describe("WorkstreamStore", () => {
       migrations.id,
     );
     expect(workstreamStore.assignment("t-queue").workstreamId).toBe(queue.id);
-    expect(workstreamStore.groups().get("sec-backend")).toBe(targetBackend.id);
-    expect(workstreamStore.groups().get("sec-migrations")).toBe(migrations.id);
+    expect(workstreamStore.sectionBindings().get("sec-backend")).toBe(
+      targetBackend.id,
+    );
+    expect(workstreamStore.sectionBindings().get("sec-migrations")).toBe(
+      migrations.id,
+    );
   });
 
   it("merge rolls back completely on alias collision with no partial updates", () => {

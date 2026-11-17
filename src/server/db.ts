@@ -740,6 +740,7 @@ const MIGRATIONS = [
   // Retired split suggestions say workstream, not topic.
   `UPDATE ws_suggestion SET detail = 'Review a scope-based workstream split under the two-level identity rules.'
    WHERE kind = 'split' AND detail = 'Review a scope-based topic division under the two-level identity rules.'`,
+  "ALTER TABLE ws_post_turn_document RENAME COLUMN topic TO workstream",
 ];
 
 export function openDatabase(bb: BbPluginApi): Database {

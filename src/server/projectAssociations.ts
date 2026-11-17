@@ -584,7 +584,7 @@ export class ProjectAssociations {
       source,
       rationale: `${source === "workstreams" ? "Learned" : "Set"} the project for ${after.name}: ${name}`,
       threads: voters.map(({ id, name }) => ({ id, name })),
-      workstreams: [...this.deps.workstreamStore.groups()]
+      workstreams: [...this.deps.workstreamStore.sectionBindings()]
         .filter(([, id]) => id === after.id)
         .map(([id]) => ({ id, name: after.name })),
       detail: `${workstreamPath(after.id, this.deps.workstreamStore.list())} → ${name}${voters.length ? `; ${voters.length} threads of its own` : ""}`,

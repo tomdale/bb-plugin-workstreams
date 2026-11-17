@@ -19,9 +19,9 @@ const TIMEOUT_MS = 90_000;
 export default experimental_defineHostEntry({
   contract: hostContract,
   handlers: {
-    present: async ({ model, response, title, topic, theme }, ctx) => {
+    present: async ({ model, response, title, workstream, theme }, ctx) => {
       const outcome = await presentOnHost({
-        input: { response, title, topic },
+        input: { response, title, workstream },
         model,
         theme,
         signal: ctx.signal,

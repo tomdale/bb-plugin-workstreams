@@ -17,7 +17,7 @@ afterEach(async () => {
   for (const host of hosts.splice(0)) await host.harness.lifecycle.dispose();
 });
 const collection = (n = 6): CategoryCollection => ({
-  workstreamId: "topic-a",
+  workstreamId: "workstream-a",
   label: "Vertex",
   threads: Array.from({ length: n }, (_, i) => ({
     id: `t${i}`,
@@ -75,7 +75,7 @@ describe("persisted collection categories", () => {
     await engine.reconcile();
     await engine.reconcile();
     expect(classify).toHaveBeenCalledTimes(1);
-    expect(engine.generations()["topic-a"]?.categories).toHaveLength(2);
+    expect(engine.generations()["workstream-a"]?.categories).toHaveLength(2);
   });
   it("restores IDs and memberships after restart without another call", async () => {
     const { engine, classify, create } = setup();
@@ -123,14 +123,14 @@ describe("persisted collection categories", () => {
     expect(fit).toHaveBeenCalledTimes(1);
     expect(classify).toHaveBeenCalledTimes(2);
     // Changed work that fits its category stays without a rearrangement.
-    const before = engine.generations()["topic-a"]!;
+    const before = engine.generations()["workstream-a"]!;
     const home = before.categories.find((c) => c.threadIds.includes("t0"))!;
     fit.mockImplementationOnce(async () => ({ t0: home.id }));
     state.collections[0]!.threads[0]!.workKey = "new substantive request";
     await engine.reconcile();
     expect(fit.mock.calls.at(-1)?.[0].changed).toEqual(["t0"]);
     expect(classify).toHaveBeenCalledTimes(2);
-    expect(engine.generations()["topic-a"]).toEqual(before);
+    expect(engine.generations()["workstream-a"]).toEqual(before);
     // An arrival that fits joins its category, recorded as a change.
     const reasons = changed.mock.calls.length;
     state.collections[0]!.threads.push({ ...collection(6).threads[5]! });
@@ -138,8 +138,9 @@ describe("persisted collection categories", () => {
     await engine.reconcile();
     expect(classify).toHaveBeenCalledTimes(2);
     expect(
-      engine.generations()["topic-a"]!.categories.find((c) => c.id === home.id)!
-        .threadIds,
+      engine
+        .generations()
+        ["workstream-a"]!.categories.find((c) => c.id === home.id)!.threadIds,
     ).toContain("t5");
     expect(changed).toHaveBeenCalledTimes(reasons + 1);
     expect(changed.mock.calls.at(-1)?.[1]).toMatch(/fits/);
@@ -182,7 +183,7 @@ describe("persisted collection categories", () => {
     await engine.reconcile();
     const home = engine
       .generations()
-      ["topic-a"]!.categories.find((c) => c.threadIds.includes("t0"))!;
+      ["workstream-a"]!.categories.find((c) => c.threadIds.includes("t0"))!;
     fit.mockImplementation(async () => ({ t0: home.id }));
     await engine.requestChanged("t0", "Fix invoice rounding for euros");
     await engine.requestChanged("t0", "Also fix rounding for yen");
@@ -213,7 +214,7 @@ describe("persisted collection categories", () => {
   it("discards at three and creates fresh category and generation IDs on recrossing six", async () => {
     const { engine, state, classify } = setup();
     await engine.reconcile();
-    const before = engine.generations()["topic-a"]!;
+    const before = engine.generations()["workstream-a"]!;
     state.collections = [collection(3)];
     await engine.reconcile();
     expect(engine.generations()).toEqual({});
@@ -223,7 +224,7 @@ describe("persisted collection categories", () => {
     expect(classify).toHaveBeenCalledTimes(1);
     state.collections = [collection(6)];
     await engine.reconcile();
-    const after = engine.generations()["topic-a"]!;
+    const after = engine.generations()["workstream-a"]!;
     expect(after.id).not.toBe(before.id);
     expect(after.categories.map((category) => category.id)).not.toEqual(
       before.categories.map((category) => category.id),
@@ -265,7 +266,7 @@ describe("persisted collection categories", () => {
     state.collections = [collection(6)];
     await engine.reconcile();
     expect(classify).toHaveBeenCalledTimes(2);
-    expect(engine.generations()["topic-a"]?.categories).toHaveLength(2);
+    expect(engine.generations()["workstream-a"]?.categories).toHaveLength(2);
   });
 
   it("removes departed memberships and collapses immediately during a classifier call", async () => {
@@ -313,7 +314,7 @@ describe("persisted collection categories", () => {
     });
     await run;
     expect(classify).toHaveBeenCalledTimes(2);
-    expect(engine.generations()["topic-a"]!.categories[0]!.name).toBe(
+    expect(engine.generations()["workstream-a"]!.categories[0]!.name).toBe(
       "One area",
     );
   });
@@ -333,7 +334,7 @@ describe("persisted collection categories", () => {
     });
     await engine.reconcile();
     const removedCategoryId =
-      engine.generations()["topic-a"]!.categories[0]!.id;
+      engine.generations()["workstream-a"]!.categories[0]!.id;
     let resolve!: (value: CategoryDecision) => void;
     classify.mockImplementationOnce(
       () =>
@@ -357,7 +358,7 @@ describe("persisted collection categories", () => {
     expect(
       engine
         .generations()
-        ["topic-a"]!.categories.map((category) => category.id),
+        ["workstream-a"]!.categories.map((category) => category.id),
     ).not.toContain(removedCategoryId);
   });
 
@@ -398,8 +399,16 @@ describe("persisted collection categories", () => {
 
   it("derives collections once per reconcile and skips one whose collections are unchanged", async () => {
     const { engine, state, classify } = setup();
-    const other = { ...collection(), workstreamId: "topic-b", label: "Other" };
-    const small = { ...collection(2), workstreamId: "topic-c", label: "Small" };
+    const other = {
+      ...collection(),
+      workstreamId: "workstream-b",
+      label: "Other",
+    };
+    const small = {
+      ...collection(2),
+      workstreamId: "workstream-c",
+      label: "Small",
+    };
     state.collections = [collection(), other, small];
     const derive = vi.fn(() => state.collections);
     const counted = new Categories({
@@ -435,25 +444,32 @@ describe("persisted collection categories", () => {
     ];
     await counted.reconcile();
     expect(classify).toHaveBeenCalledTimes(3);
-    expect(classify.mock.calls[2]![0].workstreamId).toBe("topic-b");
+    expect(classify.mock.calls[2]![0].workstreamId).toBe("workstream-b");
   });
 
   it("reassesses a collection that changed while another was being classified", async () => {
     const { state, classify, create, engine } = setup();
     engine.dispose();
-    const other = { ...collection(), workstreamId: "topic-b", label: "Other" };
+    const other = {
+      ...collection(),
+      workstreamId: "workstream-b",
+      label: "Other",
+    };
     state.collections = [collection(), other];
     classify.mockImplementation(async (input: CategoryInput) => {
       // The first collection gains a thread while the second is assessed.
-      if (input.workstreamId === "topic-b" && classify.mock.calls.length === 2)
+      if (
+        input.workstreamId === "workstream-b" &&
+        classify.mock.calls.length === 2
+      )
         state.collections = [collection(7), other];
       return decision(input);
     });
     await create().reconcile();
     expect(classify.mock.calls.map(([input]) => input.workstreamId)).toEqual([
-      "topic-a",
-      "topic-b",
-      "topic-a",
+      "workstream-a",
+      "workstream-b",
+      "workstream-a",
     ]);
   });
 });

@@ -18,7 +18,7 @@ import {
   type EnhancedDocument,
 } from "../../../domain/postTurn/document.ts";
 import { PRESENTATION_LIMITS } from "../../../domain/postTurn/limits.ts";
-import type { DocumentTopic } from "../../../domain/postTurn/message.ts";
+import type { DocumentWorkstream } from "../../../domain/postTurn/message.ts";
 import type { Usage } from "../../../domain/trace.ts";
 import {
   PRESENTATION_SYSTEM_PROMPT,
@@ -74,7 +74,7 @@ export type Previewer = (
 export type PresentationInput = {
   response: string;
   title: string;
-  topic: DocumentTopic | null;
+  workstream: DocumentWorkstream | null;
 };
 
 export type PresentationStats = {

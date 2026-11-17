@@ -112,7 +112,7 @@ describe("parseTidy", () => {
         checkout: null,
       })),
       {
-        id: "unknown-topic",
+        id: "unknown-workstream",
         title: "Not displayed",
         workstreamId: "missing",
         checkout: null,

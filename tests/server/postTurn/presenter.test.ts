@@ -203,7 +203,7 @@ describe("PostTurnPresenter", () => {
       }),
       compose,
       title: () => "Summary model check",
-      topic: () => ({ name: "Evals", color: { hue: 200, level: 0 } }),
+      workstream: () => ({ name: "Evals", color: { hue: 200, level: 0 } }),
       changed,
       log: { info: vi.fn(), warn, error: vi.fn(), debug: vi.fn() } as never,
     });
@@ -243,14 +243,14 @@ describe("PostTurnPresenter", () => {
       {
         messageId: idOf("t1"),
         turnId: "t1",
-        topic: { name: "Evals" },
+        workstream: { name: "Evals" },
         document: CORRECTION,
       },
     ]);
     expect(w.compose.mock.calls[0]![0]).toMatchObject({
       response: "Answer.",
       title: "Summary model check",
-      topic: { name: "Evals" },
+      workstream: { name: "Evals" },
     });
   });
 
@@ -360,7 +360,7 @@ describe("PostTurnPresenter", () => {
       messageId: idOf("t0"),
       threadId: THREAD,
       turnId: "t0",
-      topic: null,
+      workstream: null,
       document: CORRECTION,
       createdAt: 1,
     });
@@ -453,7 +453,7 @@ describe("PresentationStore", () => {
         messageId: "m1",
         threadId: THREAD,
         turnId: "t1",
-        topic: null,
+        workstream: null,
         document: CORRECTION,
         createdAt: 1,
       });
