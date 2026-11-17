@@ -108,16 +108,18 @@ dense navigation and reserves larger type for the question, goal, or answer that
 should lead the reader.
 
 Existing role examples—not a global scale—include 13px sidebar rows, 12px
-category labels, 11px uppercase sidebar section headings, a 15px semibold
-plugin-page heading, and a 20px question prompt that grows to 22px on
-coarse-pointer phone layouts. Recap and question cards use local type roles and
-container-aware sizing. Preserve those component-specific scales instead of
-making every surface share one font size.
+category labels and sidebar card titles, 11px uppercase sidebar section
+headings, a 15px semibold plugin-page heading, and a 20px question prompt that
+grows to 22px on coarse-pointer phone layouts. Recap and question cards use
+local type roles and container-aware sizing. Preserve those component-specific
+scales instead of making every surface share one font size.
 
 Use weight, size, spacing, and position before color to establish hierarchy. A
 headline states the answer; supporting explanation follows at normal message
 weight; labels and metadata are smaller and quieter. Keep labels sentence case
-and concise. Use monospace for code, paths when they need code treatment, and
+and concise. Card titles in the sidebar (Up Next, Pinned, Recent) are title
+case; sidebar section headings (WORKSTREAMS, DORMANT, ARCHIVED, SNOOZED) are
+uppercase. Use monospace for code, paths when they need code treatment, and
 compact identifiers such as commit hashes—not for ordinary metadata.
 
 ## Surfaces and signature idioms

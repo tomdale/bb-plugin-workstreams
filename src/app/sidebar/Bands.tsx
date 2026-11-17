@@ -77,18 +77,17 @@ export function BandGroup({
  * always-open block spanning the column, with its header inside: `attention`
  * is the Up Next card (`.ws-needs`), and `pinned` the quiet card that Pinned
  * and Recent share (`.ws-pinned`). Each sets its rows apart from the
- * workstream list.
+ * workstream list. A card's title is title case, unlike the uppercase
+ * headings of the sidebar's sections.
  */
 export const BOX_STYLES = {
   attention: {
     section: "ws-needs mx-2 mt-0 px-1 pt-1.5 pb-[5px]", // slop-ok: 2 the Up Next band, an established product surface
-    heading:
-      "ws-needs-heading py-0.5 text-[11px] font-semibold uppercase tracking-wide", // slop-ok: 1 the product's section-label style
+    heading: "ws-needs-heading py-0.5 text-[12px] font-semibold",
   },
   pinned: {
     section: "ws-pinned mx-2 mt-0 px-1 pt-1.5 pb-2", // slop-ok: 2 the Pinned band, the Up Next card's quieter neighbor
-    heading:
-      "pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground", // slop-ok: 1 the product's section-label style
+    heading: "pb-1 text-[12px] font-semibold text-muted-foreground",
   },
 } as const;
 

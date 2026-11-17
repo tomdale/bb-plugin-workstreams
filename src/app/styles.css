@@ -592,12 +592,11 @@ body:has([data-ws-suggestions])
     border-color: var(--ws-needs-tone);
   }
 }
-/* The card's section label keeps the sidebar's uppercase label style. It uses
-   the softened Needs input tone, not the card's band tone: the same amber pulled
-   toward the foreground, so the title sits on the card rather than glowing. */
+/* The card's title uses the softened Needs input tone, not the card's band
+   tone: the same amber pulled toward the foreground, so the title sits on the
+   card rather than glowing. */
 .ws-needs-heading {
   color: var(--ws-needs-input-soft);
-  letter-spacing: 0.06em;
 }
 /* The need-you count, as a Geist badge in the Needs input color. */
 .ws-needs-count {
