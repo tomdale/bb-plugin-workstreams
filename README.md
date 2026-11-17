@@ -630,6 +630,7 @@ foreground text without changing title weight. Unread titles use medium weight.
 
 #### Pull requests
 
+Agents are instructed to track every PR they open or work on while it is open.
 Track a pull request from an agent thread with `bb workstreams pr track <url>`.
 The command uses the thread’s workstream and machine; pass `--thread <id>` to
 choose another thread. The machine needs `gh` installed and logged in. Tracking

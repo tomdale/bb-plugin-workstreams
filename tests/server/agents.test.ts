@@ -112,6 +112,9 @@ describe("configure", () => {
     expect(task.instructions).not.toContain("task thread");
     expect(task.instructions).not.toContain("bb workstreams handoff");
     expect(task.instructions).not.toContain("wf task new");
+    expect(task.instructions).toContain(
+      "Always track PRs you open or work on while open",
+    );
     expect(task.instructions).toContain("bb workstreams pr track <url>");
     expect(task.instructions).toContain("bb workstreams pr list --json");
     expect(task.instructions).toContain("bb workstreams pr untrack <url>");
