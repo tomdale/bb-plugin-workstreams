@@ -861,6 +861,24 @@ it("follows the scroll position all the way when the scroll style is direct", as
   slot.lifecycle.unmount();
 });
 
+it("stays after BB's window frame, which draws at the same level, so the heading is drawn over its edge", async () => {
+  barFixture(600);
+  const slot = await mountHeading("morph", "Ship it");
+  await waitFor(() => expect(overlay()).not.toBeNull());
+  const inset = document.querySelector("[data-sidebar=inset]")!;
+  expect(inset.lastElementChild).toBe(overlay());
+  // BB adds the frame (a z-50 edge on the title bar's bottom border) after the overlay.
+  const frame = document.createElement("span");
+  frame.dataset.sidebar = "inset-edge";
+  inset.append(frame);
+  expect(inset.lastElementChild).toBe(frame);
+  await slot.behavior.emitRealtime("prefs", {
+    prefs: parsePrefs({ threads: { headingTransition: "rack" } }),
+  });
+  await waitFor(() => expect(inset.lastElementChild).toBe(overlay()));
+  slot.lifecycle.unmount();
+});
+
 it("keeps the heading's height above the first message until it has gone into the bar", async () => {
   const scroller = barFixture(600);
   const slot = await mountHeading("rack", "Ship it", undefined, {

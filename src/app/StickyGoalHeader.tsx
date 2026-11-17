@@ -707,6 +707,13 @@ export function StickyGoalHeader(): React.ReactElement | null {
   const attached = useAttachedScroller(threadId);
   const mount = attached?.threadId === threadId ? attached : null;
   const filled = useColumnFilled(mount);
+  // At the same z-index, whatever comes later in the document is drawn on top.
+  // BB can add its window frame after the overlay was appended, so keep the
+  // overlay the inset's last child.
+  useLayoutEffect(() => {
+    const overlay = mount?.overlay;
+    if (overlay?.nextElementSibling) overlay.parentElement?.append(overlay);
+  });
   const settled = useSettled(filled ? mount : null);
   const base = mount?.baseFontSize ?? 14;
   const placement = usePlacement(mount, base, centered, filled);

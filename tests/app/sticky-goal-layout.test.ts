@@ -201,3 +201,40 @@ browserTest.skipIf(browserUnavailable)(
     expect(left.offsetFromMiddle).toBeLessThan(-50);
   },
 );
+
+browserTest.skipIf(browserUnavailable)(
+  "draws the heading overlay at BB's window frame level, above the title bar's border",
+  { timeout: 30_000 },
+  async ({ page }) => {
+    await page.setContent(`
+      <style>${styles}
+        body { margin: 0; }
+        main { position: relative; height: 200px; }
+        .frame { position: absolute; inset: 44px 0 0 0; z-index: 50; border: 1px solid #888; pointer-events: none; }
+        .below { position: absolute; inset: 0; z-index: 10; }
+      </style>
+      <main>
+        <div class="below"></div>
+        <span class="frame"></span>
+        <div class="ws-goal-overlay"></div>
+      </main>`);
+    const order = await page.evaluate(() => {
+      const frame = document.querySelector<HTMLElement>(".frame")!;
+      const overlay = document.querySelector<HTMLElement>(".ws-goal-overlay")!;
+      return {
+        frameZ: getComputedStyle(frame).zIndex,
+        overlayZ: getComputedStyle(overlay).zIndex,
+        // Same level: the later sibling is drawn on top.
+        overlayAfterFrame: !!(
+          frame.compareDocumentPosition(overlay) &
+          Node.DOCUMENT_POSITION_FOLLOWING
+        ),
+      };
+    });
+    expect(order).toEqual({
+      frameZ: "50",
+      overlayZ: "50",
+      overlayAfterFrame: true,
+    });
+  },
+);

@@ -1009,7 +1009,12 @@ body:has([data-ws-suggestions])
   /* Only an origin: the heading's coordinates are measured from it. */
   width: 0;
   height: 0;
-  z-index: 40;
+  /* BB's desktop window draws its frame, whose top edge is the title bar's bottom
+     border, as the inset's last child at z-index 50. The heading has to sit
+     above that line for its text to cross it, so it takes the same level and
+     stays after the frame in document order (StickyGoalHeader keeps it last).
+     BB's menus and dialogs portal to the body later and so still cover it. */
+  z-index: 50;
   pointer-events: none;
 }
 .ws-goal-overlay__clip,
