@@ -343,5 +343,51 @@ describe.skipIf(browserUnavailable)(
         expect(scrolled).toEqual({ cardTop: 4, hitIsSticky: false });
       },
     );
+
+    browserTest(
+      "slides a hovered row under the Up Next plate",
+      async ({ page }) => {
+        await page.emulateMedia({ reducedMotion: "reduce" });
+        await page.setContent(`<style>${styles}
+          * { box-sizing: border-box; }
+          body { margin: 0; }
+          .scroller { width: 260px; height: 200px; overflow: auto; --sidebar: #0a0a0a; --background: #0a0a0a; background: #0a0a0a; color: white; }
+          .ws-list { display: flex; flex-direction: column; padding: 4px 8px 12px; --ws-list-pad-top: 4px; }
+          .ws-needs { height: 60px; margin-right: 8px; margin-left: 8px; padding: 0; }
+          .heading { height: 13px; margin: 8px 0 0; }
+          .ws-row { position: relative; height: 20px; flex: 0 0 20px; }
+        </style>
+        <div class="scroller"><div class="ws-list">
+          <div class="ws-presence ws-up-next-sticky"><div><section class="ws-needs"></section></div></div>
+          <h2 class="heading">Workstreams</h2>
+          ${'<div class="ws-row">Thread</div>'.repeat(20)}
+        </div></div>`);
+        // The plate ends at 74px and the first row starts at 95px, so this
+        // scroll leaves the first row straddling the plate's edge, 64px to
+        // 84px. The pointer rests on the row's uncovered part.
+        await page.locator(".scroller").evaluate((el) => {
+          el.scrollTop = 31;
+        });
+        await page.evaluate(
+          () => new Promise((done) => requestAnimationFrame(done)),
+        );
+        await page.mouse.move(20, 80);
+        const hits = await page.evaluate(() => {
+          const row = document.querySelector(".ws-row")!;
+          const covered = document.elementFromPoint(20, 68);
+          return {
+            rowTop: row.getBoundingClientRect().top,
+            // The hover rule lifts the row (see the fill test above).
+            rowZ: getComputedStyle(row).zIndex,
+            coveredIsSticky: covered?.closest(".ws-up-next-sticky") != null,
+          };
+        });
+        expect(hits).toEqual({
+          rowTop: 64,
+          rowZ: "1",
+          coveredIsSticky: true,
+        });
+      },
+    );
   },
 );

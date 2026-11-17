@@ -532,7 +532,9 @@ body:has([data-ws-suggestions])
   --ws-up-next-card-gap: 10px;
   --ws-up-next-heading-gap: 8px;
   position: sticky;
-  z-index: 1;
+  /* Above a hovered row, which lifts to 1 to show its fill, so rows slide
+     under the cards even while hovered; below a dragged row (10). */
+  z-index: 2;
   /* Stick where the cards already rest, not at the scrollport's edge: the
      list's top padding scrolls away, so a plain `top: 0` would let the cards
      travel that distance before sticking. The shadow bleeds over the same
