@@ -49,3 +49,9 @@ if (typeof Element !== "undefined") {
     disconnect() {}
   };
 }
+
+// New thread composer models live as long as their draft, and the test
+// harness reuses draft keys, so each test starts with none.
+import { afterEach } from "vitest";
+import { disposeRoutingModels } from "../src/app/composer/new-work.ts";
+afterEach(() => disposeRoutingModels());

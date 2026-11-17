@@ -167,7 +167,14 @@ overridden or disabled. Workstreams skips unavailable projects.
 Your explicit choices are independent: changing the project keeps a workstream
 you picked, and choosing or suggesting another workstream keeps a project you
 picked. Threads can start in a project different from their workstream's
-default, whether the workstream was picked or suggested.
+default, whether the workstream was picked or suggested. A project BB fills in
+while the composer loads is not your choice. If a workstream's default lands
+after you chose a project, the composer switches back to yours.
+
+The composer keeps a draft's workstream and project choice until you send it,
+including for up to an hour away from New thread. Sending, by **Enter** or the
+send button, waits while the composer switches to a workstream's default, so the
+thread starts in that project.
 
 When you pick both a workstream and a different project, **Save as default
 project** under the picker row offers to save your project as that workstream's

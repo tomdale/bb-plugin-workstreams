@@ -16,8 +16,12 @@ import type { Preview } from "../../src/server/preview.ts";
 import { emptyState } from "./fixtures.ts";
 
 // BB keeps one root new-thread draft across projects; the harness keys its
-// draft by scope. A test that changes the project can pin BB's key.
-const draftKey = vi.hoisted(() => ({ fixed: null as string | null }));
+// draft by scope. A test that changes the project can pin BB's key, and can
+// hold the next project switch to stand in for BB's asynchronous one.
+const draftKey = vi.hoisted(() => ({
+  fixed: null as string | null,
+  holdNextSelection: null as Promise<void> | null,
+}));
 vi.mock("@get-bb/plugin-sdk/app", async (original) => {
   const sdk = await original<typeof import("@get-bb/plugin-sdk/app")>();
   // The handle is stable, so its stand-in must be too.
@@ -30,10 +34,19 @@ vi.mock("@get-bb/plugin-sdk/app", async (original) => {
       let proxy = pinned.get(composer);
       if (!proxy) {
         proxy = new Proxy(composer, {
-          get: (target, property) =>
-            property === "key"
-              ? draftKey.fixed
-              : Reflect.get(target, property, target),
+          get: (target, property) => {
+            if (property === "key") return draftKey.fixed;
+            if (property === "setSelection")
+              return async (
+                selection: Parameters<typeof target.setSelection>[0],
+              ) => {
+                const hold = draftKey.holdNextSelection;
+                draftKey.holdNextSelection = null;
+                if (hold) await hold;
+                return target.setSelection(selection);
+              };
+            return Reflect.get(target, property, target);
+          },
         });
         pinned.set(composer, proxy);
       }
@@ -53,6 +66,7 @@ beforeAll(() => {
 afterEach(() => {
   cleanup();
   draftKey.fixed = null;
+  draftKey.holdNextSelection = null;
 });
 
 const identityDecision: Preview = {
@@ -133,6 +147,24 @@ function RemountingComposer() {
         }
       >
         Pick Beta
+      </button>
+      <form data-promptbox="" />
+    </main>
+  );
+}
+
+function ComposerWithNoProjectPick() {
+  const composer = useComposer();
+  return (
+    <main data-app-composer-role="primary">
+      <NewThreadRouting />
+      <button
+        type="button"
+        onClick={() =>
+          void composer.setSelection({ projectId: "proj_personal" })
+        }
+      >
+        Pick No project
       </button>
       <form data-promptbox="" />
     </main>
@@ -538,6 +570,109 @@ it("uses the associated project after the start call selects a workstream", asyn
       }),
     ),
   );
+});
+
+/** Holds the next project lookup until the returned function runs. */
+function holdProjects(projectList: ReturnType<typeof mount>["projectList"]) {
+  let release!: () => void;
+  projectList.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        release = () =>
+          resolve([
+            { id: "project-alpha", name: "Alpha", kind: "directory" },
+            { id: "project-beta", name: "Beta", kind: "directory" },
+          ]);
+      }),
+  );
+  return () => release();
+}
+
+it("sends in the workstream's project when you send while it is looked up", async () => {
+  const { slot, projectList } = mount(identityDecision, {
+    workstreams: projectWorkstreams,
+  });
+  const release = holdProjects(projectList);
+  await typePrompt(slot, "Fix the parser in Alpha");
+  await screen.findByRole("button", { name: "Workstream: Alpha" });
+  await waitFor(() => expect(projectList).toHaveBeenCalledOnce());
+  fireEvent.click(screen.getByRole("button", { name: "Host submit" }));
+  await act(async () => {});
+  expect(slot.inspection.composer.submits).toHaveLength(0);
+  await act(async () => release());
+  await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
+  expect(slot.inspection.composer.submits[0]).toMatchObject({
+    experimental_data: {
+      projectChoice: { projectId: "project-beta", source: "workstreams" },
+      identity: { workstreamId: "ent_alpha", provenance: "automatic" },
+    },
+  });
+});
+
+it("holds Enter while the workstream's project is looked up", async () => {
+  const { slot, projectList } = mount(identityDecision, {
+    workstreams: projectWorkstreams,
+  });
+  const form = document.querySelector("form[data-promptbox]")!;
+  // With no project move pending, Enter is BB's.
+  const idle = new KeyboardEvent("keydown", {
+    key: "Enter",
+    bubbles: true,
+    cancelable: true,
+  });
+  form.dispatchEvent(idle);
+  expect(idle.defaultPrevented).toBe(false);
+  const release = holdProjects(projectList);
+  await typePrompt(slot, "Fix the parser in Alpha");
+  await waitFor(() => expect(projectList).toHaveBeenCalledOnce());
+  const enter = new KeyboardEvent("keydown", {
+    key: "Enter",
+    bubbles: true,
+    cancelable: true,
+  });
+  form.dispatchEvent(enter);
+  expect(enter.defaultPrevented).toBe(true);
+  // Shift+Enter is a newline.
+  const newline = new KeyboardEvent("keydown", {
+    key: "Enter",
+    shiftKey: true,
+    bubbles: true,
+    cancelable: true,
+  });
+  form.dispatchEvent(newline);
+  expect(newline.defaultPrevented).toBe(false);
+  await act(async () => release());
+  await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
+  expect(slot.inspection.composer.selection?.projectId).toBe("project-beta");
+});
+
+it("keeps your project when a default requested before it lands after", async () => {
+  draftKey.fixed = "root-draft";
+  let release!: () => void;
+  draftKey.holdNextSelection = new Promise((resolve) => {
+    release = resolve;
+  });
+  const { slot } = mount(identityDecision, {
+    component: ComposerWithNoProjectPick,
+    workstreams: projectWorkstreams,
+  });
+  await typePrompt(slot, "Fix the parser in Alpha");
+  await screen.findByRole("button", { name: "Workstream: Alpha" });
+  // Workstreams has asked BB to switch to Alpha's default, Beta.
+  await waitFor(() => expect(draftKey.holdNextSelection).toBeNull());
+  fireEvent.click(screen.getByRole("button", { name: "Pick No project" }));
+  await waitFor(() =>
+    expect(slot.inspection.composer.selection?.projectId).toBe("proj_personal"),
+  );
+  await act(async () => release());
+  await waitFor(() =>
+    expect(slot.inspection.composer.selections).toEqual([
+      { projectId: "proj_personal" },
+      { projectId: "project-beta" },
+      { projectId: "proj_personal" },
+    ]),
+  );
+  expect(slot.inspection.composer.selection?.projectId).toBe("proj_personal");
 });
 
 it("uses a manually selected workstream's project and moves to No project for an unassociated workstream", async () => {

@@ -1,7 +1,12 @@
 /**
- * The New thread composer's state: the new thread's workstream, and the start
- * call's preview of its title and workstream while you type. The workstream decides the workstream,
- * so the composer never asks for one.
+ * The New thread composer's state for one draft: the workstream the field
+ * shows, the start call's preview of the draft's title and workstream while
+ * you type, and whose choice the composer's project is.
+ *
+ * The model lives as long as its draft, not its banner. BB remounts the
+ * banner whenever the composer's project changes, and the same model serves
+ * the replacement, so nothing is handed between banners. Sending ends the
+ * draft: the next empty draft starts over.
  */
 import type { ComposerSelection } from "@get-bb/plugin-sdk/app";
 import type { ProjectChoice } from "../../domain/projectChoice.ts";
@@ -13,9 +18,9 @@ import type { WorkstreamTarget } from "./preset.ts";
 
 /**
  * The workstream the field shows: one you picked, the start call's preview
- * (`automatic`), or the workstream of the workstream whose ＋ opened the composer
- * (`inherited`, by `sectionId`, or by workstream for a shared-workstream header).
- * Previews never replace a picked or inherited workstream.
+ * (`automatic`), or the workstream whose ＋ opened the composer (`inherited`,
+ * named by its sidebar section, or directly when it has none). Previews never
+ * replace a picked or inherited workstream.
  */
 type IdentityChoice = {
   workstreamId: string | null;
@@ -37,6 +42,13 @@ type NewWorkEvent = {
 };
 
 const EVENT_LIMIT = 100;
+/**
+ * How long sending waits for a workstream default that never lands, such as
+ * a project switch BB abandoned.
+ */
+const PROJECT_MOVE_TIMEOUT_MS = 5_000;
+/** How long a draft no banner shows keeps its model. */
+const IDLE_MODEL_MS = 60 * 60_000;
 
 export type NewWorkState = {
   text: string;
@@ -49,6 +61,8 @@ export type NewWorkState = {
    * picked, the composer offers to save your project as its default.
    */
   projectOverride?: boolean;
+  /** The project you chose, which a late workstream default never replaces. */
+  userProjectId?: string | null;
   /** The start call's latest preview of the draft. */
   decision: Preview | null;
   classifying: boolean;
@@ -66,13 +80,6 @@ export type NewWorkViewState = Pick<
   | "error"
   | "errors"
 >;
-
-/** A workstream you picked, or the one the workstream's ＋ started with. */
-export function isPicked(identity: IdentityChoice): boolean {
-  return (
-    identity?.provenance === "manual" || identity?.provenance === "inherited"
-  );
-}
 
 /** What the server moves the thread by: the workstream the field shows. */
 export function submittedIdentity(
@@ -152,10 +159,16 @@ const RETRY_DELAY_MS = 300;
  * views alive for the same draft (a hidden kept-alive view beside the
  * visible one); a model per banner would let each cancel the others'
  * previews and leave the visible chip stale. Sharing one model keeps one
- * preview pipeline per draft and one identity everywhere it shows. The last
- * release disposes it.
+ * preview pipeline per draft and one identity everywhere it shows.
+ *
+ * The last release only suspends the model: a project change remounts the
+ * banner, and the replacement takes the same model back. A draft no banner
+ * shows for an hour is disposed.
  */
-const routingModels = new Map<string, { model: NewWork; refs: number }>();
+const routingModels = new Map<
+  string,
+  { model: NewWork; refs: number; idle: ReturnType<typeof setTimeout> | null }
+>();
 
 function reportsEqual(
   a: NewWorkIdentityReport,
@@ -202,23 +215,36 @@ function proposalsEqual(
 export function acquireRoutingModel(key: string, create: () => NewWork) {
   const existing = routingModels.get(key);
   if (existing) {
-    existing.refs++;
+    if (existing.idle) clearTimeout(existing.idle);
+    existing.idle = null;
+    if (existing.refs++ === 0) existing.model.resume();
     return existing.model;
   }
   const model = create();
-  routingModels.set(key, { model, refs: 1 });
+  routingModels.set(key, { model, refs: 1, idle: null });
   return model;
 }
 
-/** Releases one view's hold on the draft's model; true when that disposed it. */
-export function releaseRoutingModel(key: string, model: NewWork): boolean {
+/** Releases one view's hold on the draft's model. */
+export function releaseRoutingModel(key: string, model: NewWork) {
   const entry = routingModels.get(key);
-  if (!entry || entry.model !== model) return false;
-  entry.refs--;
-  if (entry.refs > 0) return false;
-  routingModels.delete(key);
-  model.dispose();
-  return true;
+  if (!entry || entry.model !== model || entry.refs === 0) return;
+  if (--entry.refs > 0) return;
+  model.suspend();
+  entry.idle = setTimeout(() => {
+    if (routingModels.get(key) !== entry || entry.refs > 0) return;
+    routingModels.delete(key);
+    model.dispose();
+  }, IDLE_MODEL_MS);
+}
+
+/** Disposes every draft's model, as a plugin reload or a test ends. */
+export function disposeRoutingModels() {
+  for (const entry of routingModels.values()) {
+    if (entry.idle) clearTimeout(entry.idle);
+    entry.model.dispose();
+  }
+  routingModels.clear();
 }
 
 export class NewWork {
@@ -234,6 +260,30 @@ export class NewWork {
   private lastReport: NewWorkIdentityReport | undefined;
   private reportQueued = false;
   private reportingDisposed = false;
+  /**
+   * The last project the composer showed. BB shows none while it resolves
+   * the composer's project, and resolving one is not a choice.
+   */
+  private shownProjectId: string | null = null;
+  /**
+   * Every selection already observed. A kept-alive view can report an older
+   * selection after a newer one; BB replaces the object on every change, so a
+   * seen object is stale.
+   */
+  private seenSelections = new WeakSet<ComposerSelection>();
+  /**
+   * Pending work that will change the composer's project, by the project it
+   * moves to once known: a workstream default being looked up or applied, or
+   * your project being restored. Sending waits for it.
+   */
+  private moves = new Map<symbol, string | null>();
+  private submitRequested = false;
+  /** Your project, to restore after a workstream default landed over it. */
+  private restore: string | null = null;
+  /** BB sent the draft; the next empty draft starts over. */
+  private submitted = false;
+  /** A preview was cut off while no banner showed the draft. */
+  private previewInterrupted = false;
 
   constructor(
     private deps: NewWorkDeps,
@@ -282,6 +332,10 @@ export class NewWork {
       error: this.state.error,
       errors: this.state.errors,
     };
+  }
+
+  private changed() {
+    this.listeners.forEach((listener) => listener());
   }
 
   private set(patch: Partial<NewWorkState>) {
@@ -343,6 +397,8 @@ export class NewWork {
     // A native Enter can clear the draft in the same event turn. Emit the last
     // nonempty report synchronously before the empty report forgets it.
     if (!trimmed) this.flushPendingIdentityReport();
+    const sent = !trimmed && this.submitted;
+    if (sent) this.forgetSentDraft();
     this.set({
       text: trimmed,
       error: null,
@@ -351,32 +407,129 @@ export class NewWork {
         : {
             decision: null,
             identity:
-              this.state.identity?.provenance === "automatic"
+              sent || this.state.identity?.provenance === "automatic"
                 ? null
                 : this.state.identity,
           }),
+      ...(sent
+        ? {
+            projectOverride: false,
+            userProjectId: null,
+            suppliedProjectId: null,
+          }
+        : {}),
     });
     this.schedule();
   }
 
+  /** BB sent the draft; once it clears, the next draft starts over. */
+  markSubmitted() {
+    this.submitted = true;
+  }
+
+  private forgetSentDraft() {
+    this.submitted = false;
+    this.submitRequested = false;
+    this.restore = null;
+    this.moves.clear();
+  }
+
   observeSelection(selection: ComposerSelection | null) {
     if (selection === this.state.selection) return;
-    const previous = this.state.selection?.projectId;
-    const projectId = selection?.projectId;
-    // A project change Workstreams didn't make.
-    const overridden =
+    if (selection && this.seenSelections.has(selection)) return;
+    if (selection) this.seenSelections.add(selection);
+    const projectId = selection?.projectId || null;
+    const previous = this.shownProjectId;
+    const changed = !!projectId && projectId !== previous;
+    if (projectId) this.shownProjectId = projectId;
+    // A workstream default or a restored choice landing ends its move.
+    let landed = false;
+    if (changed)
+      for (const [move, target] of this.moves)
+        if (target === projectId) {
+          this.moves.delete(move);
+          landed = true;
+        }
+    // Any other change after the project resolved is yours.
+    const yours =
+      changed &&
       !!previous &&
-      previous !== projectId &&
+      !landed &&
       projectId !== this.state.suppliedProjectId;
+    // A default requested before you chose a project can land after.
+    const { projectOverride, userProjectId } = this.state;
+    if (
+      changed &&
+      !yours &&
+      projectOverride &&
+      userProjectId &&
+      projectId !== userProjectId
+    )
+      this.restore = userProjectId;
     this.set({
       selection,
-      ...(this.state.suppliedProjectId &&
-      previous === this.state.suppliedProjectId &&
-      projectId !== this.state.suppliedProjectId
-        ? { suppliedProjectId: null }
+      ...(yours
+        ? {
+            projectOverride: true,
+            userProjectId: projectId,
+            suppliedProjectId: null,
+          }
         : {}),
-      ...(overridden ? { projectOverride: true } : {}),
     });
+    // The preview reads the project, so a new one asks again.
+    if (changed && previous) this.schedule();
+  }
+
+  /**
+   * Starts work that may change the composer's project. Sending waits until
+   * `end`, or until the composer shows the project passed to `target`.
+   */
+  beginProjectMove(): {
+    target(projectId: string): void;
+    end(): void;
+  } {
+    const move = Symbol("project move");
+    this.moves.set(move, null);
+    const end = () => {
+      if (this.moves.delete(move)) this.changed();
+    };
+    setTimeout(end, PROJECT_MOVE_TIMEOUT_MS);
+    return {
+      target: (projectId) => {
+        if (this.moves.has(move)) this.moves.set(move, projectId);
+      },
+      end,
+    };
+  }
+
+  /** Whether pending work will change the composer's project. */
+  movingProject(to?: string): boolean {
+    if (to === undefined) return this.moves.size > 0;
+    return [...this.moves.values()].includes(to);
+  }
+
+  /** Asks the next banner free of project moves to send the draft. */
+  requestSubmit() {
+    this.submitRequested = true;
+    this.changed();
+  }
+
+  /**
+   * Claims the project to restore once no project move is pending: yours,
+   * after a workstream default landed over it.
+   */
+  takeRestore(): string | null {
+    if (!this.restore || this.moves.size > 0) return null;
+    const projectId = this.restore;
+    this.restore = null;
+    return projectId === this.shownProjectId ? null : projectId;
+  }
+
+  /** Claims a requested send once no project move is pending. */
+  takeSubmitRequest(): boolean {
+    if (!this.submitRequested || this.moves.size > 0) return false;
+    this.submitRequested = false;
+    return true;
   }
 
   supplyProject(projectId: string) {
@@ -417,10 +570,9 @@ export class NewWork {
     });
   }
 
-  /** Starts the thread with the workstream of the workstream whose ＋ opened it. */
   /**
-   * Starts with a workstream's workstream, named by its section, or directly for
-   * a shared-workstream header, which has no section.
+   * Starts the thread in the workstream whose ＋ opened the composer, named by
+   * its sidebar section, or directly when it has none.
    */
   selectWorkstream(target: WorkstreamTarget, label: string) {
     this.begin("select-identity", {
@@ -471,10 +623,26 @@ export class NewWork {
     this.set({ error: messageOf(error), errors: this.state.errors + 1 });
   }
 
+  /** No banner shows the draft: stop previewing until one does. */
+  suspend() {
+    this.flushPendingIdentityReport();
+    if (this.timer || this.pending) this.previewInterrupted = true;
+    this.invalidate();
+    if (this.state.classifying) this.set({ classifying: false });
+  }
+
+  /** A banner shows the draft again. */
+  resume() {
+    if (!this.previewInterrupted) return;
+    this.previewInterrupted = false;
+    if (this.state.text) this.schedule();
+  }
+
   dispose() {
     this.flushPendingIdentityReport();
     this.reportingDisposed = true;
     this.invalidate();
+    this.moves.clear();
   }
 
   private queueIdentityReport() {
