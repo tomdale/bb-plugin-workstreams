@@ -1,8 +1,8 @@
 /**
  * The line under the New thread composer's picker row when you picked a workstream
  * and then chose a project other than its workstream's. The thread starts in
- * the project you chose; this line offers to make that project the
- * workstream's default. Ignoring it leaves the workstream as it is.
+ * the project you chose; this line offers to save that project as the
+ * workstream's default, and then reads "Saved". Ignoring it leaves the workstream as it is.
  */
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { useRpc, useSdk } from "@get-bb/plugin-sdk/app";
@@ -18,9 +18,7 @@ type Offer = {
   /** Workstream and project this offer answers. */
   identity: NewWorkViewState["identity"];
   workstreamId: string;
-  label: string;
   projectId: string;
-  projectName: string;
 };
 
 export function ProjectDefaultOffer({
@@ -63,24 +61,13 @@ export function ProjectDefaultOffer({
         setOffer(null);
         return;
       }
+      // An unavailable project can't become the workstream's.
       const projects = await sdk.projects.list({});
       if (!live) return;
-      const nameOf = (id: string) =>
-        id === NO_PROJECT
-          ? "No project"
-          : (projects.find((project) => project.id === id)?.name ?? null);
-      const projectName = nameOf(projectId);
-      setOffer(
-        projectName
-          ? {
-              identity,
-              workstreamId,
-              label: identity.label,
-              projectId,
-              projectName,
-            }
-          : null,
-      );
+      const available =
+        projectId === NO_PROJECT ||
+        projects.some((project) => project.id === projectId);
+      setOffer(available ? { identity, workstreamId, projectId } : null);
     })().catch(() => {
       if (live) setOffer(null);
     });
@@ -99,7 +86,7 @@ export function ProjectDefaultOffer({
   if (confirmed)
     return (
       <p role="status" className="ws-project-offer">
-        {confirmed.projectName} is now the default for {confirmed.label}.
+        Saved
       </p>
     );
   if (!offered) return null;
@@ -127,7 +114,7 @@ export function ProjectDefaultOffer({
         onClick={() => void save()}
         className="h-auto whitespace-normal p-0 text-left text-xs font-normal text-muted-foreground hover:text-foreground"
       >
-        Set {offered.projectName} as default for {offered.label}
+        Save as default project
       </Button>
     </p>
   );

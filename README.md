@@ -170,11 +170,11 @@ workstream** and the thread stays under **Other**.
 If you choose a workstream, or start from a workstream's **＋**, and then choose
 a different project, the composer keeps the workstream and starts the thread in
 your project. Workstreams leaves that project alone until you choose another
-workstream. Under the picker row, **Set <project> as default for <workstream>**
-makes your project the workstream's explicit choice; without it the workstream
-keeps its project. An automatic workstream must match its project: when they
-differ, sending shows what differs and sends nothing until the project or
-workstream changes, and the server never puts a thread in an automatic
+workstream. Under the picker row, **Save as default project** makes your project
+the workstream's explicit choice and then reads **Saved**; without it the
+workstream keeps its project. An automatic workstream must match its project:
+when they differ, sending shows what differs and sends nothing until the project
+or workstream changes, and the server never puts a thread in an automatic
 workstream when the thread's project differs from it. Unavailable projects are
 not applied. Changing the project does not replace the draft or move existing
 threads. Workstreams records when it supplied the composer's project, including

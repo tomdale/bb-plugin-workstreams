@@ -618,7 +618,7 @@ it("keeps a picked workstream in a project you choose for this thread only", asy
   );
   expect(
     await screen.findByRole("button", {
-      name: "Set Beta as default for Alpha",
+      name: "Save as default project",
     }),
   ).toBeTruthy();
   // Workstreams doesn't move the thread back to Alpha's project.
@@ -671,7 +671,7 @@ it("offers the workstream default under the picker row", async () => {
   await screen.findByRole("button", { name: "Workstream: Alpha" });
   fireEvent.click(screen.getByRole("button", { name: "Pick Beta" }));
   const offer = await screen.findByRole("button", {
-    name: "Set Beta as default for Alpha",
+    name: "Save as default project",
   });
   expect(screen.getByTestId("picker-row").nextElementSibling).toBe(
     offer.closest("[data-ws-picker-note-slot]"),
@@ -690,10 +690,10 @@ it("changes the workstream's project to the one you chose when asked", async () 
   fireEvent.click(screen.getByRole("button", { name: "Pick Beta" }));
   fireEvent.click(
     await screen.findByRole("button", {
-      name: "Set Beta as default for Alpha",
+      name: "Save as default project",
     }),
   );
-  await screen.findByText("Beta is now the default for Alpha.");
+  await screen.findByText("Saved");
   expect(metadataUpdates).toHaveBeenCalledWith({
     workstreamId: "ent_alpha",
     projectId: "project-beta",
@@ -714,13 +714,15 @@ it("moves to a newly picked workstream's project after a project you chose", asy
   fireEvent.click(await screen.findByText("Alpha"));
   await screen.findByRole("button", { name: "Workstream: Alpha" });
   fireEvent.click(screen.getByRole("button", { name: "Pick Beta" }));
-  await screen.findByRole("button", { name: "Set Beta as default for Alpha" });
+  await screen.findByRole("button", { name: "Save as default project" });
   fireEvent.click(screen.getByRole("button", { name: "Workstream: Alpha" }));
   fireEvent.click(await screen.findByText("Beta"));
   await waitFor(() =>
     expect(slot.inspection.composer.selection?.projectId).toBe("project-alpha"),
   );
-  expect(screen.queryByRole("button", { name: /as default for/ })).toBeNull();
+  expect(
+    screen.queryByRole("button", { name: /Save as default project/ }),
+  ).toBeNull();
 });
 
 it("leaves an automatic workstream unset rather than moving a thread out of its project", async () => {
