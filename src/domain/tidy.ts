@@ -148,7 +148,7 @@ export type SplitInput = {
   };
   readonly workstreams: readonly TidyWorkstream[];
   readonly held: Held;
-  /** The workstream to split, or to repair when it has workstreams in a group already. */
+  /** The workstream to split, or the group to repair when it is one already. */
   readonly workstreamId: string;
   readonly threads: readonly SuggestThread[];
   readonly decisions: readonly string[];
@@ -767,7 +767,7 @@ export function refusal(edit: TidyEdit, state: TreeState): string | null {
       return null;
     case "merge": {
       const threads = (holds(edit.from) ? 1 : 0) + (holds(edit.into) ? 1 : 0);
-      // `from` itself leaves `into`'s workstreams in a group when it merges into its parent.
+      // `from` itself leaves `into`'s workstreams when it merges into its group.
       const kids =
         (!isNew(edit.from) && hasKids(edit.from)) ||
         (!isNew(edit.into) &&
@@ -791,7 +791,7 @@ export function refusal(edit: TidyEdit, state: TreeState): string | null {
 /**
  * Top-level workstreams named as if they belonged under another workstream: "Vercel
  * Agent Code Review" beside "Vercel Agent". Each becomes a move under the
- * workstream with workstreams in a group its name begins with (the longest, when several do),
+ * group its name begins with (the longest, when several do),
  * renamed without the shared words. Workstreams already under a parent keep it; moves that would
  * break a rule of the tree aren't proposed. No model is asked, so these are
  * found whenever the tree changes.

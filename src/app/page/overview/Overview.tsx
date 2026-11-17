@@ -133,7 +133,7 @@ export function Overview({
     () => overviewGroup({ projection, workstreams }, id),
     [projection, workstreams, id],
   );
-  const roots = useMemo(() => (group ? threadRows(group) : []), [group]);
+  const topRows = useMemo(() => (group ? threadRows(group) : []), [group]);
   const other = group?.id === OTHER_ID;
   const { recaps } = ws.server;
   const work = ws.work;
@@ -141,7 +141,7 @@ export function Overview({
   const rows = useMemo(
     () =>
       sortOverviewRows(
-        roots.map((row) =>
+        topRows.map((row) =>
           overviewRow(
             row.thread,
             work(row.thread),
@@ -152,7 +152,7 @@ export function Overview({
       ),
     // `work` reads the analysis and recaps the projection was derived from.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [roots, recaps, ws.server.analysis, sent],
+    [topRows, recaps, ws.server.analysis, sent],
   );
   // An archived row leaves at once; its thread leaves the list when BB reports it.
   const shown = rows.filter(
@@ -164,7 +164,7 @@ export function Overview({
   useEffect(() => {
     for (const [threadId, message] of sent) {
       if (receipt?.itemId === threadId && receipt.holding) continue;
-      const thread = roots.find((row) => row.thread.id === threadId);
+      const thread = topRows.find((row) => row.thread.id === threadId);
       if (
         thread &&
         !isRunning(thread.thread) &&
@@ -172,7 +172,7 @@ export function Overview({
       )
         actions.finishSent(threadId);
     }
-  }, [sent, roots, receipt, actions]);
+  }, [sent, topRows, receipt, actions]);
 
   const snooze = (request: SnoozeRequest, when: SnoozeWhen) =>
     snoozeThreads(ws.setSnoozes, request.threads, when, {

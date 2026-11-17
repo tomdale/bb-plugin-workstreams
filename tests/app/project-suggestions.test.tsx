@@ -17,7 +17,7 @@ const suggestion = {
   workstream: "Parser",
   fromProject: "One",
   toProject: null,
-  reason: "Independent roots use different projects.",
+  reason: "Independent threads use different projects.",
   threads: [{ id: "thread", name: "Fix tabs", project: "Two" }],
 };
 

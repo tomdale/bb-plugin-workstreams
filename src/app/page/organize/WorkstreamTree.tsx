@@ -1,6 +1,6 @@
 /**
- * The workstreams and groups: every workstream, nested, with its open threads counted. Empty
- * workstreams hide behind Show N empty. Clicking a workstream opens its editor: name,
+ * The workstreams and groups: every workstream, nested under its group, with
+ * its open threads counted. Empty workstreams hide behind Show N empty. Clicking a workstream opens its editor: name,
  * parent, description, and aliases, with Add workstream and Merge into….
  * Search narrows the tree to matching workstreams and their ancestors.
  */
@@ -34,14 +34,14 @@ type Workstreams = ReturnType<typeof useWorkstreams>;
 const shownPath = (id: string, workstreams: readonly Workstream[]) =>
   workstreamPath(id, workstreams);
 
-/** Open threads per workstream, each workstream counting its workstreams in a group'. */
+/** Open threads per workstream, each group counting its workstreams' threads. */
 function workstreamCounts(
   workstreams: readonly Workstream[],
   assignments: Readonly<Record<string, { workstreamId: string | null }>>,
-  roots: Iterable<string>,
+  topThreadIds: Iterable<string>,
 ): Map<string, number> {
   const counts = new Map<string, number>();
-  for (const id of roots) {
+  for (const id of topThreadIds) {
     const workstream = assignments[id]?.workstreamId;
     if (!workstream) continue;
     let ancestors: string[];
@@ -80,10 +80,10 @@ export function WorkstreamTree({
   };
 
   const counts = useMemo(() => {
-    const roots = [...ws.projection.rowOf.values()]
+    const topThreadIds = [...ws.projection.rowOf.values()]
       .filter((row) => row.depth === 0)
       .map((row) => row.thread.id);
-    return workstreamCounts(workstreams, tree?.assignments ?? {}, roots);
+    return workstreamCounts(workstreams, tree?.assignments ?? {}, topThreadIds);
   }, [workstreams, tree?.assignments, ws.projection]);
 
   const rows = useMemo(() => {
@@ -268,7 +268,7 @@ function EditWorkstreamDialog({
     setAliases(workstream.aliases.join(", "));
     setError(null);
   }
-  // A workstream can't move under itself or its own workstreams in a group.
+  // A workstream can't move under itself or, as a group, under its own workstreams.
   const parents = workstreams.filter(
     (e) => !safeAncestors(e.id, workstreams).includes(workstream.id),
   );

@@ -3,8 +3,8 @@
  * its requests. Pure, so the server, its trace replays, and the eval share one
  * prompt and parser.
  *
- * The choice is closed: only a workstream without workstreams in a group holds
- * threads, so a workstream with workstreams in a group is listed for context
+ * The choice is closed: only a workstream holds threads, so a group is listed
+ * for context
  * but can't be chosen. When no workstream fits, the answer may propose one new
  * workstream, named for a lasting area of work. The start call's composer
  * preview can propose a missing product and its capability together; the
@@ -421,8 +421,8 @@ export function parseChoiceFields(
     { name, description, parentId },
     input.workstreams,
   );
-  // A proposal that names an existing workstream is that workstream. One with
-  // workstreams in a group can't hold the thread; applying it keeps the thread's workstream.
+  // A proposal that names an existing workstream is that workstream. A group
+  // can't hold the thread; applying it keeps the thread's workstream.
   if (resolved.workstreamId !== null) {
     if (!allowed.has(resolved.workstreamId))
       throw new Error("The model chose a group, which can't hold threads.");

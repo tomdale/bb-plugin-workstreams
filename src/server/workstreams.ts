@@ -376,7 +376,8 @@ export class WorkstreamStore {
   }
 
   /**
-   * A workstream holds threads or workstreams in a group, never both (docs/organization.md).
+   * Only a workstream holds threads, and only a group holds workstreams
+   * (docs/organization.md).
    * Refuses to give `parentId` a workstream while it holds threads.
    */
   private assertTakesWorkstreams(parentId: string | null): void {
@@ -389,7 +390,7 @@ export class WorkstreamStore {
   }
 
   /**
-   * Refuses to move a thread into a workstream that has workstreams in a group.
+   * Refuses to move a thread into a group.
    */
   private assertTakesThreads(workstreamId: string): void {
     if (this.workstreams(workstreamId) > 0)
@@ -963,7 +964,7 @@ export class WorkstreamStore {
    * guess, the workstream `workstreamId` as inherited.
    */
   inheritWorkstream(threadId: string, workstreamId: string): boolean {
-    // A workstream with workstreams in a group holds no threads; the workstream
+    // A group holds no threads; the workstream
     // choice settles the thread with this workstream as its hint.
     if (
       !this.getById(workstreamId) ||
@@ -1095,7 +1096,7 @@ export class WorkstreamStore {
 
   /**
    * Removes discovered workstreams that no thread has, no workstream uses, and
-   * that have no workstreams in a group, deepest first. Workstreams you created or configured
+   * that aren't groups, deepest first. Workstreams you created or configured
    * with a project choice or learning opt-out are kept.
    */
   prune(): Workstream[] {
@@ -1333,8 +1334,8 @@ export class WorkstreamStore {
       const targetAncestors = workstreamAncestors(target.id, workstreams);
       const targetIsDescendantOfSource = targetAncestors.includes(source.id);
 
-      // The merged workstream holds both workstreams' threads and workstreams in a group, so one
-      // side's threads can't land beside the other's workstreams in a group.
+      // The merged result holds both sides' threads and workstreams, so one
+      // side's threads can't land in the other side's group.
       const mergedWorkstreams = workstreams.filter(
         (e) =>
           (e.parentId === target.id || e.parentId === source.id) &&

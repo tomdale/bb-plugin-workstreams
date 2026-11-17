@@ -62,8 +62,8 @@ export type DraftWorkstreamProposal = {
 };
 
 /**
- * Whether a workstream can hold threads: a workstream holds threads or workstreams in a group,
- * never both, so only one without workstreams in a group can be chosen.
+ * Whether a workstream can hold threads: a group holds workstreams and never
+ * threads, so only a workstream that isn't a group can be chosen.
  */
 export const takesThreads = (
   id: string,

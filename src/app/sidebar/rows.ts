@@ -101,15 +101,15 @@ export function visibleEntries(
   placement: RowLocation,
   folded: (id: string) => boolean,
 ): RowEntry[] {
-  const root = tree[0];
-  if (!root) return [];
+  const topRow = tree[0];
+  if (!topRow) return [];
   const { overlay } = LOCATION_TRAITS[placement];
   return unfoldedRows(tree, folded).map((row) => ({
     row,
-    depth: overlay ? row.depth - root.depth : row.depth,
+    depth: overlay ? row.depth - topRow.depth : row.depth,
     key:
-      overlay && row !== root
-        ? `${root.thread.id}/${row.thread.id}`
+      overlay && row !== topRow
+        ? `${topRow.thread.id}/${row.thread.id}`
         : row.thread.id,
   }));
 }
@@ -250,20 +250,22 @@ export function planArchived(
   const byId = new Map(visible.map((t) => [t.id, t]));
   const known = new Set(sections.map((section) => section.id));
   const rows: ThreadRow[] = visible.map((thread) => {
-    let root = thread;
+    let topThread = thread;
     const seen = new Set([thread.id]);
-    while (root.parentThreadId && !seen.has(root.parentThreadId)) {
-      const parent = byId.get(root.parentThreadId);
+    while (topThread.parentThreadId && !seen.has(topThread.parentThreadId)) {
+      const parent = byId.get(topThread.parentThreadId);
       if (!parent) break;
       seen.add(parent.id);
-      root = parent;
+      topThread = parent;
     }
     return {
       thread,
       depth: 0,
       hasChildren: false,
       workstreamId:
-        root.sectionId && known.has(root.sectionId) ? root.sectionId : null,
+        topThread.sectionId && known.has(topThread.sectionId)
+          ? topThread.sectionId
+          : null,
       needsYou: false,
     };
   });

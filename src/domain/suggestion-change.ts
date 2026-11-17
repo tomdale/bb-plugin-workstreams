@@ -35,8 +35,9 @@ export type ChangeMove = {
 };
 
 /**
- * `split` partitions a workstream's threads into new workstreams in a group; `file` moves the
- * threads a workstream holds beside its workstreams in a group into them.
+ * `split` turns a workstream into a group and partitions its threads into the
+ * group's new workstreams; `file` moves threads still on a group into its
+ * workstreams.
  */
 type ChangeOp =
   | "move-thread"
@@ -244,8 +245,8 @@ function delta(body: TidyEdit | Split, context: ChangeContext): ChangeDelta {
           )
         )
           edit(into.id, { parentId: from.parentId });
-        // The merged workstream's threads and workstreams in a group join the target's; a
-        // a workstream whose name matches one of the target's own workstreams merges into it.
+        // The merged side's threads and workstreams join the target's; a
+        // workstream whose name matches one of the target's own merges into it.
         const fold = (source: string, target: string) => {
           for (const [threadId, at] of placed)
             if (at === source) placed.set(threadId, target);

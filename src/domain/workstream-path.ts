@@ -65,7 +65,7 @@ export function workstreamIndex(
   const byId = new Map(
     workstreams.map((workstream) => [workstream.id, workstream]),
   );
-  // A workstream holds threads or workstreams in a group, never both, so parents are not options.
+  // Only workstreams hold threads, so groups are not options.
   const parentIds = new Set<string>();
   for (const workstream of workstreams)
     if (workstream.parentId) parentIds.add(workstream.parentId);

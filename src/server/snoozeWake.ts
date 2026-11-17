@@ -198,10 +198,10 @@ export class SnoozeWaker {
     });
     const woken = new Map<WakeEvent, SetSnooze[]>();
     for (const [id, snooze] of Object.entries(snoozes)) {
-      const root = byId.get(id);
-      if (!root || !wakesOnEvents(snooze)) continue;
+      const snoozedThread = byId.get(id);
+      if (!snoozedThread || !wakesOnEvents(snooze)) continue;
       const childThreads = descendants(id, children);
-      const threadFacts = wakeThread(root);
+      const threadFacts = wakeThread(snoozedThread);
       const childFacts = childThreads.map(wakeThread);
       if (isStalled(threadFacts, childFacts, snooze.at)) {
         if (!this.stalled.has(id)) this.stalled.set(id, now);
@@ -215,14 +215,18 @@ export class SnoozeWaker {
             thread: threadFacts,
             children: childFacts,
             stalledSince: this.stalled.get(id),
-            hostWaitingSince: earliest("hostWaiting", [root, ...childThreads]),
+            hostWaitingSince: earliest("hostWaiting", [
+              snoozedThread,
+              ...childThreads,
+            ]),
             sendFailedSince: this.since.sendFailed.get(id),
             askingSince: this.since.asking.get(id),
             childAskingSince: earliest("asking", childThreads),
             now,
           },
           enabled,
-        ) ?? (await this.checkPullRequest(id, snooze, root, enabled, now));
+        ) ??
+        (await this.checkPullRequest(id, snooze, snoozedThread, enabled, now));
       if (event)
         woken.set(event, [...(woken.get(event) ?? []), { id, at: snooze.at }]);
     }

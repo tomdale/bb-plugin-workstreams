@@ -293,7 +293,7 @@ export class ProjectAssociations {
   private inputs(projects: readonly Project[]): string {
     return JSON.stringify([
       this.deps.workstreamStore.list(),
-      this.roots(),
+      this.votingThreads(),
       projects.map((project) => project.id),
     ]);
   }
@@ -366,7 +366,7 @@ export class ProjectAssociations {
    * Personal, still in the project their choice recorded, and in a workstream.
    * Archived threads count.
    */
-  private roots(): ProjectThread[] {
+  private votingThreads(): ProjectThread[] {
     return this.deps.db
       .prepare(
         `SELECT r.thread_id AS id, r.name, r.project_id AS projectId, s.workstream_id AS workstreamId
@@ -385,7 +385,7 @@ export class ProjectAssociations {
   private plan(): ProjectLearningDecision[] {
     return projectLearningPlan(
       this.deps.workstreamStore.list(),
-      this.roots(),
+      this.votingThreads(),
       new Set(
         this.projects.filter((p) => p.id !== "proj_personal").map((p) => p.id),
       ),
@@ -474,7 +474,7 @@ export class ProjectAssociations {
         workstream.projectRevision !== row.association_revision
       )
         return [];
-      const roots = JSON.parse(row.evidence) as ProjectThread[];
+      const voters = JSON.parse(row.evidence) as ProjectThread[];
       return [
         {
           id: row.id,
@@ -487,10 +487,10 @@ export class ProjectAssociations {
           toProject: row.project_id ? this.projectName(row.project_id) : null,
           reason: row.project_id
             ? "Threads of their own consistently use a different project."
-            : new Set(roots.map((thread) => thread.projectId)).size > 1
+            : new Set(voters.map((thread) => thread.projectId)).size > 1
               ? "Threads of their own use different projects."
               : "The project used by these independent threads is unavailable.",
-          threads: roots.map((thread) => ({
+          threads: voters.map((thread) => ({
             id: thread.id,
             name: thread.name,
             project: this.projectName(thread.projectId),
@@ -528,19 +528,19 @@ export class ProjectAssociations {
             "UPDATE ws_project_suggestion SET status = ?, evidence = '[]' WHERE id = ?",
           )
           .run(decision === "accept" ? "accepted" : "declined", id);
-        const roots = JSON.parse(row.evidence) as ProjectThread[];
+        const voters = JSON.parse(row.evidence) as ProjectThread[];
         if (decision === "accept") {
           const next = this.deps.workstreamStore.edit(workstream.id, {
             projectId: row.project_id,
           });
-          return this.record(workstream, next, "you", roots);
+          return this.record(workstream, next, "you", voters);
         }
         return this.deps.journal.add({
           action: "project-learned",
           source: "you",
           status: "declined",
           rationale: `Kept the project for ${workstream.name}`,
-          threads: roots.map(({ id, name }) => ({ id, name })),
+          threads: voters.map(({ id, name }) => ({ id, name })),
           workstreams: [],
           undo: null,
         });
@@ -572,7 +572,7 @@ export class ProjectAssociations {
     before: Workstream,
     after: Workstream,
     source: "you" | "workstreams",
-    roots: readonly ProjectThread[],
+    voters: readonly ProjectThread[],
   ): JournalEntry {
     const name = after.projectId
       ? this.projectName(after.projectId)
@@ -583,11 +583,11 @@ export class ProjectAssociations {
       action: "project-learned",
       source,
       rationale: `${source === "workstreams" ? "Learned" : "Set"} the project for ${after.name}: ${name}`,
-      threads: roots.map(({ id, name }) => ({ id, name })),
+      threads: voters.map(({ id, name }) => ({ id, name })),
       workstreams: [...this.deps.workstreamStore.groups()]
         .filter(([, id]) => id === after.id)
         .map(([id]) => ({ id, name: after.name })),
-      detail: `${workstreamPath(after.id, this.deps.workstreamStore.list())} → ${name}${roots.length ? `; ${roots.length} threads of its own` : ""}`,
+      detail: `${workstreamPath(after.id, this.deps.workstreamStore.list())} → ${name}${voters.length ? `; ${voters.length} threads of its own` : ""}`,
       undo: {
         kind: "project-association",
         workstreamId: after.id,

@@ -388,7 +388,7 @@ export default async function plugin(bb: BbPluginApi) {
     const byId = new Map(service.threads().map((t) => [t.id, t]));
     const parentId =
       thread.parentThreadId ?? byId.get(thread.id)?.parentThreadId ?? null;
-    let root = thread.id;
+    let topThread = thread.id;
     const seen = new Set([thread.id]);
     for (
       let at = parentId;
@@ -396,9 +396,9 @@ export default async function plugin(bb: BbPluginApi) {
       at = byId.get(at)?.parentThreadId ?? null
     ) {
       seen.add(at);
-      root = at;
+      topThread = at;
     }
-    const workstreamId = workstreamStore.assignment(root).workstreamId;
+    const workstreamId = workstreamStore.assignment(topThread).workstreamId;
     const parent = parentId ? byId.get(parentId) : undefined;
     return {
       workstream: workstreamId
@@ -584,8 +584,8 @@ export default async function plugin(bb: BbPluginApi) {
       const analysis = analyzer.all();
       const snoozed = snoozes.all();
       const now = Date.now();
-      const roots = buildForest(service.threads())
-        .threads.map((root) => root.thread)
+      const topThreads = buildForest(service.threads())
+        .threads.map((node) => node.thread)
         .filter(
           (thread) =>
             !thread.isHidden &&
@@ -593,7 +593,7 @@ export default async function plugin(bb: BbPluginApi) {
             !isSnoozed(snoozed[thread.id], now),
         );
       const assignments = workstreamStore.assignmentsOf(
-        roots.map((thread) => thread.id),
+        topThreads.map((thread) => thread.id),
       );
       return workstreams
         .filter(
@@ -604,7 +604,7 @@ export default async function plugin(bb: BbPluginApi) {
         .map((workstream) => ({
           workstreamId: workstream.id,
           label: workstreamPath(workstream.id, workstreams),
-          threads: roots
+          threads: topThreads
             .filter(
               (thread) =>
                 assignments.get(thread.id)?.workstreamId === workstream.id,
@@ -628,9 +628,9 @@ export default async function plugin(bb: BbPluginApi) {
             model: currentPrefs().organize.categoryModel,
             label: input.label,
             signal,
-            links: input.threads.map((root) => ({
+            links: input.threads.map((thread) => ({
               kind: "thread" as const,
-              ref: root.id,
+              ref: thread.id,
             })),
           },
         )
@@ -717,7 +717,7 @@ export default async function plugin(bb: BbPluginApi) {
     enabled: () => currentPrefs().organize.suggestions,
     threads: () =>
       buildForest(service.threads())
-        .threads.map((root) => root.thread)
+        .threads.map((node) => node.thread)
         .filter((thread) => !thread.isHidden && !thread.isArchived),
     checkout: (threadId) => workstreamChoice.checkoutOf(threadId),
     coordination: () => workstreamChoice.coordinationWorkspaces(),

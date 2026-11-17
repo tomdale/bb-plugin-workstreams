@@ -9,8 +9,8 @@
  * Its evidence is the generated title, the first, second, and latest
  * substantive requests, the project, and the checkout, plus hints:
  *
- * - the workstream of the thread it continues or was started from, and of the
- *   workstream whose ＋ started it when that workstream holds workstreams in a group;
+ * - the workstream of the thread it continues or was started from, and the
+ *   group whose ＋ started it;
  * - the workstream most threads in its checkout have, unless the checkout is a
  *   coordination workspace, one whose threads point at other repositories
  *   (at least two of them name a GitHub repository or a `~/Code` path
@@ -90,7 +90,7 @@ export class WorkstreamChoice {
 
   /**
    * Remembers where a new thread was started from when that workstream couldn't
-   * be inherited (it holds workstreams in a group), so the workstream choice
+   * be inherited (it is a group), so the workstream choice
    * weighs it.
    */
   hintStart(

@@ -90,11 +90,11 @@ export function SortableThreadTree({
     ),
     [visible, renderRow, slotWidth, label, categorized],
   );
-  const root = tree[0]!.thread;
+  const topThread = tree[0]!.thread;
   return (
     <Sortable
-      id={treeKey(root.id)}
-      data={{ type: "thread", threadId: root.id, groupId }}
+      id={treeKey(topThread.id)}
+      data={{ type: "thread", threadId: topThread.id, groupId }}
       disabled={choosingWorkstream}
       // `pl-3` is `SIDEBAR_GEOMETRY.category.treeInset`, which `rowGeometry`
       // subtracts from the category indent.

@@ -26,9 +26,9 @@ import {
 } from "./upNext.ts";
 
 /**
- * The sections Up Next's focus covers: every section in a top-level workstream
- * holding a focused one, as the sidebar draws the workstreams, so focusing a
- * workstream covers its workstreams in a group. `focused` is `ManualOrder.focused`.
+ * The sections Up Next's focus covers: every section in a group holding a
+ * focused one, as the sidebar draws the workstreams, so focusing a group covers
+ * its workstreams. `focused` is `ManualOrder.focused`.
  */
 export function upNextFocus<T extends WorkstreamThread>(
   projection: Projection<T>,

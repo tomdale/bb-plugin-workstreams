@@ -231,12 +231,12 @@ export class Categories {
           );
         else this.save(records);
       } else {
-        const roots = new Map(
+        const workKeys = new Map(
           collection.threads.map((thread) => [thread.id, thread.workKey]),
         );
         const work = Object.fromEntries(
           Object.entries(record.work).filter(
-            ([id, event]) => roots.get(id) === event.basis,
+            ([id, event]) => workKeys.get(id) === event.basis,
           ),
         );
         const pruned = record.generation

@@ -62,7 +62,7 @@ export type StreamDeckInputs = {
   readonly upNext: Prefs["upNext"];
   /** Section id → workstream id, as the workstream tree binds them. */
   readonly groups: Readonly<Record<string, string>>;
-  /** The workstreams and groups and layout, so focus covers workstreams in a group as in the sidebar. */
+  /** The workstreams, groups, and layout, so focus covers a group's workstreams as in the sidebar. */
   readonly workstreams?: Pick<WorkstreamTree, "workstreams" | "layout">;
   /** Workstream id → its workstream color. */
   readonly colors: Readonly<Record<string, WorkstreamColor>>;

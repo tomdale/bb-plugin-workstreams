@@ -16,14 +16,14 @@ export async function categoryEvidence<T extends CategoryInput>(
 ): Promise<T> {
   const threads = [...input.threads];
   const wanted = threads
-    .map((thread, index) => ({ root: thread, index }))
-    .filter(({ root: thread }) => !only || only.has(thread.id));
+    .map((thread, index) => ({ thread, index }))
+    .filter(({ thread }) => !only || only.has(thread.id));
   let cursor = 0;
   await Promise.all(
     Array.from({ length: Math.min(4, wanted.length) }, async () => {
       while (cursor < wanted.length) {
         signal.throwIfAborted();
-        const { root: thread, index } = wanted[cursor++]!;
+        const { thread, index } = wanted[cursor++]!;
         const requests = await requestEvidence(sdk, thread.id);
         const pending = pendingRequest(thread.id, thread.workKey);
         const current = pending

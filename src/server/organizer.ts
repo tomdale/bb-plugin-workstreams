@@ -311,8 +311,8 @@ export class Organizer {
       const workstreams = this.deps.workstreamStore.list();
 
       const counts: Record<string, number> = {};
-      for (const root of topThreads) {
-        const assignment = assignments.get(root.id);
+      for (const topThread of topThreads) {
+        const assignment = assignments.get(topThread.id);
         if (
           assignment &&
           assignment.status === "assigned" &&

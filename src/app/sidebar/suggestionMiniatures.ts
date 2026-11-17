@@ -235,7 +235,7 @@ function arrange(
     return id && known.has(id) ? id : null;
   };
   // Work outside the sidebar is drawn only in a workstream the change touches, and
-  // never in one that holds workstreams in a group, whose threads no layout can place.
+  // never in a group, whose threads no layout can place.
   const shown = input.threads.filter((thread) => {
     if (!thread.hidden) return true;
     const workstream = workstreamOf(thread);
@@ -409,7 +409,7 @@ function ticksOf(
 
 /**
  * The miniatures for one change, or null when the sidebar cannot be laid out
- * with it applied (a workstream would hold threads beside workstreams in a group).
+ * with it applied (a group would hold threads).
  */
 export function miniature(input: MiniatureInput): Miniature | null {
   try {
