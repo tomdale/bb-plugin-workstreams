@@ -23,8 +23,8 @@ export function chosenProject(
 export const NO_PROJECT = "proj_personal";
 
 /**
- * The project a workstream's workstream belongs to. A workstream always has one:
- * with none chosen or learned it is No project, never "any project".
+ * The default project for new threads in this workstream. With none chosen
+ * or learned, the default is No project.
  */
 export function workstreamProject(
   workstreamId: string | null | undefined,
@@ -34,9 +34,9 @@ export function workstreamProject(
 }
 
 /**
- * Whether a new thread would start in a project unrelated to its workstream.
- * Only a destination that names a workstream can conflict; a thread with no workstream
- * belongs to no workstream.
+ * Whether the composer's project differs from the workstream's default, so
+ * the composer can offer to save it. This does not restrict the thread's
+ * workstream or project.
  */
 export function workstreamProjectConflict(
   workstreamId: string | null | undefined,

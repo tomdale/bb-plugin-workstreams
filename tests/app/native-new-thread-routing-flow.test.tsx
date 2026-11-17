@@ -36,6 +36,12 @@ function RootComposer() {
   return (
     <main data-app-composer-role="primary">
       <NewThreadRouting />
+      <button
+        type="button"
+        onClick={() => void composer.setSelection({ projectId: "proj_other" })}
+      >
+        Pick another project
+      </button>
       <form
         data-promptbox=""
         onSubmit={(event) => {
@@ -141,6 +147,7 @@ async function mount(
     const thread = w.addThread("composed", {
       createdAt: Date.now(),
       title: null,
+      projectId: slot.inspection.composer.selection?.projectId,
     });
     const context = makeMessageDispatchHookContext({
       thread,
@@ -187,6 +194,47 @@ async function mount(
     },
   };
 }
+
+it.each([true, false])(
+  "keeps an automatic workstream and explicit project through dispatch (native: %s)",
+  async (native) => {
+    const {
+      slot,
+      workstreamStore,
+      alphaWorkstream,
+      dispatch,
+      dispatchNative,
+      w,
+    } = await mount({});
+    const prompt = "Fix the parser tab handling";
+    await act(() => slot.behavior.setComposerText(prompt));
+    await screen.findByRole("button", { name: "Workstream: Alpha" });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Pick another project" }),
+    );
+    await waitFor(() =>
+      expect(slot.inspection.composer.selection?.projectId).toBe("proj_other"),
+    );
+    if (native) {
+      await dispatchNative(prompt);
+    } else {
+      fireEvent.click(screen.getByRole("button", { name: "Host submit" }));
+      await waitFor(() =>
+        expect(slot.inspection.composer.submits).toHaveLength(1),
+      );
+      await dispatch(prompt);
+    }
+    expect(workstreamStore.assignment("composed")).toMatchObject({
+      workstreamId: alphaWorkstream.id,
+      provenance: "automatic",
+    });
+    expect(w.threads.get("composed")).toMatchObject({
+      projectId: "proj_other",
+      title: "Fixing parser tabs",
+    });
+    expect(screen.queryByRole("alert")).toBeNull();
+  },
+);
 
 it.each(["Beta", "No workstream"] as const)(
   "applies the displayed %s choice when native dispatch has no submit metadata",

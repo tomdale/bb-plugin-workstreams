@@ -44,11 +44,9 @@ export type NewWorkState = {
   selection: ComposerSelection | null;
   suppliedProjectId?: string | null;
   /**
-   * You chose the composer's project yourself. Workstreams leaves it alone
-   * until you pick a workstream, which moves it to that workstream's project;
-   * Quick analysis's workstream never moves it. With a workstream you picked,
-   * the project is for this thread only, and the composer offers to save it as
-   * the workstream's default.
+   * You chose the composer's project yourself. Workstream defaults leave it
+   * alone, including when you pick another workstream. With a workstream you
+   * picked, the composer offers to save your project as its default.
    */
   projectOverride?: boolean;
   /** The start call's latest preview of the draft. */
@@ -425,8 +423,6 @@ export class NewWork {
     })("ok");
     this.set({
       identity: nextChoice,
-      // A workstream you pick brings its project; an automatic one doesn't.
-      ...(provenance === "manual" ? { projectOverride: false } : {}),
       error: null,
     });
   }
@@ -450,7 +446,6 @@ export class NewWork {
         provenance: "inherited",
         ...(target.sectionId ? { sectionId: target.sectionId } : {}),
       },
-      projectOverride: false,
       error: null,
     });
   }

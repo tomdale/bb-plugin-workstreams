@@ -281,36 +281,41 @@ describe("a new thread's first workstream", () => {
     });
   });
 
-  it("keeps the composer's automatic workstream in a project other than its own", async () => {
-    const {
-      w,
-      workstreamStore: workstreamStore,
-      docs,
-      dispatch,
-      settle,
-    } = await setup();
-    workstreamStore.edit(docs.id, {
-      projectId: "proj_elsewhere",
-      projectSource: "manual",
-    });
-    await w.harness.behavior.callRpc("draftIdentity", {
-      draftKey: "d1",
-      text: "Make the parser handle tabs",
-      identity: {
+  it.each([true, false])(
+    "keeps an automatic preview across projects (answered: %s)",
+    async (answered) => {
+      const {
+        w,
+        workstreamStore: workstreamStore,
+        docs,
+        dispatch,
+        settle,
+      } = await setup();
+      workstreamStore.edit(docs.id, {
+        projectId: "proj_elsewhere",
+        projectSource: "manual",
+      });
+      await w.harness.behavior.callRpc("draftIdentity", {
+        draftKey: "d1",
+        text: "Make the parser handle tabs",
+        identity: {
+          workstreamId: docs.id,
+          proposal: null,
+          provenance: "automatic",
+          ...(answered ? { answered: true, title: "Writing tab docs" } : {}),
+        },
+      });
+      await dispatch("t1", "Make the parser handle tabs");
+      await settle();
+      expect(workstreamStore.assignment("t1")).toMatchObject({
         workstreamId: docs.id,
-        proposal: null,
-        provenance: "automatic",
-        title: "Parser tabs",
-        answered: true,
-      },
-    });
-    await dispatch("t1", "Make the parser handle tabs");
-    await settle();
-    expect(workstreamStore.assignment("t1")).toMatchObject({
-      workstreamId: docs.id,
-      provenance: "automatic",
-    });
-  });
+        provenance: answered ? "automatic" : "composer",
+      });
+      expect(w.threads.get("t1")?.projectId).toBe("proj_1");
+      expect(startCalls(w)).toHaveLength(answered ? 0 : 1);
+      if (answered) expect(w.threads.get("t1")?.title).toBe("Writing tab docs");
+    },
+  );
 
   it("is the workstream whose ＋ opened the composer", async () => {
     const {

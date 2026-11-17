@@ -108,7 +108,7 @@ it("drops a carried workstream no replacement took", () => {
   }
 });
 
-it("marks a project you choose until you pick a workstream", () => {
+it("preserves a project you choose across manual, inherited, and automatic workstream choices", () => {
   const work = new NewWork(deps);
   work.observeSelection({ projectId: "one" });
   work.observeSelection({ projectId: "two" });
@@ -118,13 +118,12 @@ it("marks a project you choose until you pick a workstream", () => {
   work.selectAutomaticIdentity();
   expect(work.snapshot().projectOverride).toBe(true);
   work.selectIdentity({ workstreamId: "workstream", label: "Workstream" });
-  expect(work.snapshot().projectOverride).toBe(false);
-  work.supplyProject("three");
-  work.observeSelection({ projectId: "three" });
-  expect(work.snapshot().projectOverride).toBe(false);
+  expect(work.snapshot().projectOverride).toBe(true);
+  work.selectWorkstream({ workstreamId: "inherited" }, "Inherited");
+  expect(work.snapshot().projectOverride).toBe(true);
   work.observeSelection({ projectId: "four" });
   expect(work.snapshot().projectOverride).toBe(true);
   work.selectIdentity({ workstreamId: "other", label: "Other" });
-  expect(work.snapshot().projectOverride).toBe(false);
+  expect(work.snapshot().projectOverride).toBe(true);
   work.dispose();
 });

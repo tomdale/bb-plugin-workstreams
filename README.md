@@ -160,30 +160,26 @@ Consistent alternative history suggests another project; mixed history suggests
 suppresses that correction while the association is unchanged. Acceptance
 rechecks the history and becomes your explicit choice.
 
-Choosing a workstream manually, automatically, or with the workstream's **＋**
-button updates the new-thread composer to use its project, or No project when it
-has none. A workstream in a group uses its group's project unless overridden or
-disabled. An automatic choice never moves a thread to No project: when its
-workstream has no project and you are in one, the control shows **No
-workstream** and the thread stays under **Other**.
+A workstream's project is the default for new threads, not a requirement.
+Choosing a workstream manually, automatically, or with its **＋** button applies
+that default only if you have not chosen a project yourself. The default can be
+**No project**. A workstream in a group uses its group's default unless
+overridden or disabled. Workstreams skips unavailable projects.
 
-Once you choose the composer's project yourself, an automatic choice keeps that
-project: the composer shows the proposed workstream, and the thread starts in
-your project and joins that workstream. Choosing a workstream yourself still
-moves the composer to its project.
+Your explicit choices are independent: changing the project keeps a workstream
+you picked, and choosing or suggesting another workstream keeps a project you
+picked. Threads can start in a project different from their workstream's
+default, whether the workstream was picked or suggested.
 
-If you choose a workstream, or start from a workstream's **＋**, and then choose
-a different project, the composer keeps the workstream and starts the thread in
-your project. Workstreams leaves that project alone until you choose another
-workstream. Under the picker row, **Save as default project** makes your project
-the workstream's explicit choice and then reads **Saved**; without it the
-workstream keeps its project. Unavailable projects are not applied. Changing the
-project does not replace the draft or move existing threads. Workstreams records
-when it supplied the composer's project, including across reloads, so those
-threads cannot reinforce its own inference. Unknown project choices on new
-threads do not count. Historical work with no association can start learning;
-historical work that already had an association is excluded when its
-project-choice source is unknown.
+When you pick both a workstream and a different project, **Save as default
+project** under the picker row offers to save your project as that workstream's
+default. It then reads **Saved**. Ignoring the offer leaves the default
+unchanged. Changing the project does not replace the draft or move existing
+threads. Workstreams records when it supplied the composer's project, including
+across reloads, so those threads cannot reinforce its own inference. Unknown
+project choices on new threads do not count. Historical work with no association
+can start learning; historical work that already had an association is excluded
+when its project-choice source is unknown.
 
 ### 2. When a turn ends
 

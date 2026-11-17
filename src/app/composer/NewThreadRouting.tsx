@@ -109,8 +109,7 @@ export function NewThreadRouting() {
     state.identity?.workstreamId ?? state.identity?.proposal?.parentId;
   const sectionId = state.identity?.sectionId;
   useEffect(() => {
-    // A project you chose stays: a workstream picked or proposed after it
-    // never moves the composer to that workstream's project.
+    // A workstream supplies a default only until you choose a project yourself.
     if (!model || (!workstreamId && !sectionId) || state.projectOverride)
       return;
     let live = true;
@@ -132,15 +131,8 @@ export function NewThreadRouting() {
         selection?.projectId ??
         (scope.kind === "new-thread" ? scope.projectId : null);
       if (current === projectId) return;
-      // The preview's workstream never moves a thread out of its project
-      // onto No project; it leaves the thread in no workstream instead.
-      if (
-        projectId === NO_PROJECT &&
-        model.snapshot().identity?.provenance === "automatic"
-      ) {
-        model.selectIdentity(null, "automatic");
-        return;
-      }
+      // The project may have been chosen while the default was loading.
+      if (model.snapshot().projectOverride) return;
       model.supplyProject(projectId);
       const release = preserveProjectChoice(projectId, model.snapshot());
       try {
