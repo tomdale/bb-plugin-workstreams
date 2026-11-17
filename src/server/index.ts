@@ -25,7 +25,6 @@ import { Suggestions } from "./suggestions.ts";
 import { linkSuggestionTraces } from "./suggestionTrace.ts";
 import { ProjectAssociations } from "./projectAssociations.ts";
 import type { ProjectChoice } from "../domain/projectChoice.ts";
-import { workstreamProjectConflict } from "../domain/workstreamProject.ts";
 import { Repair } from "./reclassification.ts";
 import { sectionMembers } from "./cleanup.ts";
 import { ComposerPreview, type Preview } from "./preview.ts";
@@ -796,23 +795,9 @@ export default async function plugin(bb: BbPluginApi) {
   ): StartPreset | undefined => {
     if (!identity) return;
     const threadId = thread.id;
-    // A workstream you picked holds the thread in whatever project you chose
-    // for it. An automatic workstream never moves a thread into a workstream
-    // whose project differs from its own; the start call chooses one instead.
-    const destination = identity.sectionId
-      ? workstreamStore.groups().get(identity.sectionId)
-      : (identity.workstreamId ?? identity.proposal?.parentId);
-    const conflicting =
-      identity.provenance === "automatic" &&
-      !!workstreamProjectConflict(
-        destination,
-        workstreamStore.list(),
-        thread.projectId,
-      );
-    if (conflicting)
-      bb.log.warn(
-        `Composed thread ${threadId} not moved: its project differs from its workstream's.`,
-      );
+    // The composer's workstream holds the thread in whatever project it
+    // starts in: the composer moves to a workstream's project unless you chose
+    // the project yourself.
     if (identity.provenance === "inherited") {
       const workstreamId = identity.sectionId
         ? workstreamStore.groups().get(identity.sectionId)
@@ -858,17 +843,13 @@ export default async function plugin(bb: BbPluginApi) {
     if (identity.answered)
       return {
         title: identity.title ?? null,
-        ...(conflicting
-          ? {}
-          : {
-              workstream: {
-                workstreamId: identity.workstreamId ?? null,
-                proposed: identity.proposal ?? null,
-                scopeShift: false,
-              },
-            }),
+        workstream: {
+          workstreamId: identity.workstreamId ?? null,
+          proposed: identity.proposal ?? null,
+          scopeShift: false,
+        },
       };
-    if (!conflicting && (identity.workstreamId || identity.proposal))
+    if (identity.workstreamId || identity.proposal)
       applyWorkstream(
         threadId,
         {

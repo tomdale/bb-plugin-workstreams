@@ -20,7 +20,6 @@ import { takeComposerPreset } from "./preset.ts";
 import {
   NO_PROJECT,
   workstreamProject,
-  workstreamProjectConflict,
 } from "../../domain/workstreamProject.ts";
 import {
   carryAcrossProjectChange,
@@ -110,13 +109,9 @@ export function NewThreadRouting() {
     state.identity?.workstreamId ?? state.identity?.proposal?.parentId;
   const sectionId = state.identity?.sectionId;
   useEffect(() => {
-    // A project you chose after picking the workstream stays for this thread.
-    const automatic = state.identity?.provenance === "automatic";
-    if (
-      !model ||
-      (!workstreamId && !sectionId) ||
-      (state.projectOverride && !automatic)
-    )
+    // A project you chose stays: a workstream picked or proposed after it
+    // never moves the composer to that workstream's project.
+    if (!model || (!workstreamId && !sectionId) || state.projectOverride)
       return;
     let live = true;
     void (async () => {
@@ -137,13 +132,11 @@ export function NewThreadRouting() {
         selection?.projectId ??
         (scope.kind === "new-thread" ? scope.projectId : null);
       if (current === projectId) return;
-      // The preview's workstream never moves a thread out of a project you
-      // chose, or out of its project onto No project; it leaves the thread in
-      // no workstream instead.
-      const { identity, projectOverride } = model.snapshot();
+      // The preview's workstream never moves a thread out of its project
+      // onto No project; it leaves the thread in no workstream instead.
       if (
-        identity?.provenance === "automatic" &&
-        (projectOverride || projectId === NO_PROJECT)
+        projectId === NO_PROJECT &&
+        model.snapshot().identity?.provenance === "automatic"
       ) {
         model.selectIdentity(null, "automatic");
         return;
@@ -185,50 +178,11 @@ export function NewThreadRouting() {
       "form[data-promptbox]",
     );
     if (!form || primary?.closest('[role="dialog"]')) return;
-    // The thread starts in the project the composer shows. A workstream you
-    // picked may start in any project; an automatic workstream must match its
-    // workstream's project, so nothing is sent until one of them changes.
-    const projectConflict = async (): Promise<string | null> => {
-      const { identity } = model.snapshot();
-      const workstreamId = identity?.sectionId ? null : identity?.workstreamId;
-      const proposed = identity?.proposal?.parentId;
-      if (
-        identity?.provenance !== "automatic" ||
-        !(workstreamId || proposed || identity.sectionId)
-      )
-        return null;
-      const tree = await rpc.call("tree", null);
-      const destination = identity.sectionId
-        ? tree.groups[identity.sectionId]
-        : (workstreamId ?? proposed);
-      const { scope, selection } = composerRef.current;
-      const chosen =
-        selection?.projectId ??
-        (scope.kind === "new-thread" ? scope.projectId : null);
-      const conflict = workstreamProjectConflict(
-        destination,
-        tree.workstreams,
-        chosen,
-      );
-      if (!conflict) return null;
-      const projects = await sdk.projects.list({});
-      const nameOf = (id: string | null | undefined) =>
-        !id || id === NO_PROJECT
-          ? "No project"
-          : (projects.find((project) => project.id === id)?.name ??
-            "an unavailable project");
-      return `${identity.label} belongs to ${nameOf(conflict.workstreamProjectId)}, but this thread would start in ${nameOf(chosen)}. Choose that project, or another workstream.`;
-    };
     const submit = (event: Event) => {
       event.preventDefault();
       event.stopImmediatePropagation();
       void (async () => {
         try {
-          const conflict = await projectConflict();
-          if (conflict) {
-            model.reportError(conflict);
-            return;
-          }
           const identity = submittedIdentity(model.snapshot());
           const projectChoice = submittedProject(model.snapshot());
           await composerRef.current.submit({

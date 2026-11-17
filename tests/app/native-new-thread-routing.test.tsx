@@ -602,7 +602,7 @@ it("ignores an associated project that is no longer available", async () => {
   expect(slot.inspection.composer.selections).toEqual([]);
 });
 
-it("never moves a project you chose to the start call's workstream's project", async () => {
+it("keeps a project you chose when the start call proposes a workstream", async () => {
   const { slot, route } = mount(identityDecision, {
     component: ComposerWithProjectPick,
   });
@@ -613,14 +613,22 @@ it("never moves a project you chose to the start call's workstream's project", a
   );
   await typePrompt(slot, "Fix the parser in Alpha");
   await waitFor(() => expect(route).toHaveBeenCalledTimes(1));
-  await screen.findByRole("button", { name: "Workstream: No workstream" });
-  expect(slot.inspection.composer.selection?.projectId).toBe("project-beta");
+  await screen.findByRole("button", { name: "Workstream: Alpha" });
   expect(slot.inspection.composer.selections).toEqual([
     { projectId: "project-beta" },
   ]);
   expect(
     screen.queryByRole("button", { name: "Save as default project" }),
   ).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Host submit" }));
+  await waitFor(() => expect(slot.inspection.composer.submits).toHaveLength(1));
+  expect(screen.queryByRole("alert")).toBeNull();
+  expect(slot.inspection.composer.submits[0]).toMatchObject({
+    experimental_data: {
+      projectChoice: { projectId: "project-beta", source: "independent" },
+      identity: { workstreamId: "ent_alpha", provenance: "automatic" },
+    },
+  });
 });
 
 it("keeps a picked workstream in a project you choose for this thread only", async () => {

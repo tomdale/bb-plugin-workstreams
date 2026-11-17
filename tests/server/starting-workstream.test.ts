@@ -281,7 +281,7 @@ describe("a new thread's first workstream", () => {
     });
   });
 
-  it("never moves a thread by the start call into a workstream with a different project", async () => {
+  it("keeps the composer's automatic workstream in a project other than its own", async () => {
     const {
       w,
       workstreamStore: workstreamStore,
@@ -300,11 +300,16 @@ describe("a new thread's first workstream", () => {
         workstreamId: docs.id,
         proposal: null,
         provenance: "automatic",
+        title: "Parser tabs",
+        answered: true,
       },
     });
     await dispatch("t1", "Make the parser handle tabs");
     await settle();
-    expect(workstreamStore.assignment("t1").workstreamId).not.toBe(docs.id);
+    expect(workstreamStore.assignment("t1")).toMatchObject({
+      workstreamId: docs.id,
+      provenance: "automatic",
+    });
   });
 
   it("is the workstream whose ＋ opened the composer", async () => {
