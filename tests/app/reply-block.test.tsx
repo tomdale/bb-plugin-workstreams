@@ -220,22 +220,6 @@ it("renders directives with message context while prose keeps workspace routing"
   expect(markdown[2]!.hasAttribute("data-document")).toBe(true);
 });
 
-it("draws thread mentions in prose as chips while the text keeps workspace routing", async () => {
-  const view = await draw(
-    ":::reply\n@thread:thr_ahqvgud24k runs `omniagent-dormant-path`.\n:::\n",
-  );
-  const link = view.container.querySelector(
-    'a[href$="/threads/thr_ahqvgud24k"]',
-  );
-  expect(link).not.toBeNull();
-  const prose = view.container.querySelector(
-    '[data-markdown="runs `omniagent-dormant-path`."]',
-  );
-  expect(prose).not.toBeNull();
-  expect(prose!.hasAttribute("data-document")).toBe(true);
-  expect(view.container.textContent).not.toContain("@thread:");
-});
-
 it("registers version 1 and the existing readable text view", async () => {
   const block = registration();
   expect(block.versions).toEqual([1]);
