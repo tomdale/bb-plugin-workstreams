@@ -55,7 +55,7 @@ const merge = suggestion(
       {
         from: place("Alpha"),
         to: place("Beta"),
-        threads: [{ id: "root", title: "Root task" }],
+        threads: [{ id: "parent", title: "Parent task" }],
         carried: 0,
       },
     ],
@@ -63,8 +63,8 @@ const merge = suggestion(
   {
     workstreams: [],
     removed: ["alpha"],
-    assignments: [{ threadId: "root", workstreamId: "beta" }],
-    held: [{ threadId: "root", workstreamId: "alpha", title: "Root task" }],
+    assignments: [{ threadId: "parent", workstreamId: "beta" }],
+    held: [{ threadId: "parent", workstreamId: "alpha", title: "Parent task" }],
     archived: 0,
     touched: [],
   },
@@ -265,12 +265,12 @@ it("draws the sidebar now and after accepting the selected change", async () => 
   expect(review.getByText("Now")).toBeTruthy();
   expect(review.getByText("After accepting")).toBeTruthy();
   const ribbon = review.getByRole("button", {
-    name: "1 thread to Beta: Root task",
+    name: "1 thread to Beta: Parent task",
   });
   // A ribbon names its threads on hover, with their count.
   fireEvent.mouseEnter(ribbon);
   const card = review.getByRole("tooltip");
-  expect(within(card).getByText("Root task")).toBeTruthy();
+  expect(within(card).getByText("Parent task")).toBeTruthy();
   expect(within(card).getByText("1 thread")).toBeTruthy();
   fireEvent.mouseLeave(ribbon);
   expect(review.queryByRole("tooltip")).toBeNull();

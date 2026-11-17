@@ -130,16 +130,16 @@ describe.skipIf(browserUnavailable)(
           [
             sidebarThread("unread", {
               sectionId: "sec_plain",
-              title: "Unread root",
+              title: "Unread thread",
               isUnread: true,
             }),
             sidebarThread("read", {
               sectionId: "sec_plain",
-              title: "Read root",
+              title: "Read thread",
             }),
             sidebarThread("beta", {
               sectionId: "sec_split",
-              title: "Active root",
+              title: "Active thread",
             }),
             sidebarThread("child", {
               sectionId: "sec_split",
@@ -148,7 +148,7 @@ describe.skipIf(browserUnavailable)(
             }),
             sidebarThread("asking", {
               sectionId: "sec_plain",
-              title: "Asking root",
+              title: "Asking thread",
               latestAttentionAt: at,
             }),
           ],
@@ -168,12 +168,12 @@ describe.skipIf(browserUnavailable)(
           row(region, title).querySelector(".ws-text-thread")!;
 
         const type = await measure(page, {
-          unread: title(plain, "Unread root"),
-          read: title(plain, "Read root"),
-          active: title(split, "Active root"),
+          unread: title(plain, "Unread thread"),
+          read: title(plain, "Read thread"),
+          active: title(split, "Active thread"),
           child: title(split, "Nested child"),
-          twoLine: title(upNext, "Asking root, Needs input"),
-          rootRow: row(plain, "Read root"),
+          twoLine: title(upNext, "Asking thread, Needs input"),
+          rootRow: row(plain, "Read thread"),
           childRow: row(split, "Nested child"),
         });
         slot.lifecycle.unmount();

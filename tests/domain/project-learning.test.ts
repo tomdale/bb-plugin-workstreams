@@ -24,7 +24,7 @@ const threads = (
 ): ProjectThread[] =>
   Array.from({ length: n }, (_, i) => ({
     id: `${workstreamId}-${projectId}-${i}`,
-    name: "Root",
+    name: "Thread",
     workstreamId,
     projectId,
   }));

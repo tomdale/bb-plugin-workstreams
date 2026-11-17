@@ -81,7 +81,7 @@ function world() {
   }
   function history() {
     for (let i = 0; i < 3; i++)
-      add(`root-${i}`, i === 0 ? { archivedAt: 2 } : {});
+      add(`thread-${i}`, i === 0 ? { archivedAt: 2 } : {});
   }
   return {
     db,
@@ -350,7 +350,7 @@ it("reads projects again only when stale or when a thread uses one it has not se
 it("stops counting a thread whose project moved, and forgets one the sweep no longer finds", async () => {
   const w = world();
   w.history();
-  w.add("root-3");
+  w.add("thread-3");
   await w.learning.reconcile();
   w.addIndependent("other", "p2");
   await w.learning.reconcile();
@@ -370,13 +370,13 @@ it("stops counting a thread whose project moved, and forgets one the sweep no lo
 
   // A deletion missed while the plugin was down waits for the sweep.
   w.threads.splice(
-    w.threads.findIndex((thread) => thread.id === "root-3"),
+    w.threads.findIndex((thread) => thread.id === "thread-3"),
     1,
   );
   const rows = () =>
     w.db
       .prepare(
-        "SELECT COUNT(*) AS n FROM ws_project_listing WHERE thread_id = 'root-3'",
+        "SELECT COUNT(*) AS n FROM ws_project_listing WHERE thread_id = 'thread-3'",
       )
       .get() as { n: number };
   await w.learning.reconcile();

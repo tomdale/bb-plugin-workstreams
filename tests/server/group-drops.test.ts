@@ -19,12 +19,14 @@ async function setup(complete: FakeCompletion) {
     group.id,
   );
   workstreamStore.create("Sidebar", "Sidebar arrangement", group.id);
-  world.addThread("root", { title: "Explaining workstream title lifecycles" });
-  world.addThread("child", { parentThreadId: "root" });
-  world.converse("root", [
+  world.addThread("parent", {
+    title: "Explaining workstream title lifecycles",
+  });
+  world.addThread("child", { parentThreadId: "parent" });
+  world.converse("parent", [
     "Explain how Workstreams generates and updates thread titles",
   ]);
-  workstreamStore.assign("root", old.id, { provenance: "manual" });
+  workstreamStore.assign("parent", old.id, { provenance: "manual" });
   return { w: world, workstreamStore, old, group, labels };
 }
 
@@ -38,7 +40,7 @@ describe("moving into a group", () => {
       }),
     );
     const result = await w.harness.behavior.callRpc("threadMoveToGroup", {
-      threadId: "root",
+      threadId: "parent",
       workstreamId: group.id,
     });
     expect(result).toMatchObject({
@@ -46,10 +48,10 @@ describe("moving into a group", () => {
     });
     expect(workstreamStore.assignment("child")).toMatchObject({
       workstreamId: labels.id,
-      inheritedFrom: "root",
+      inheritedFrom: "parent",
     });
     await w.harness.behavior.callRpc("organizeStatus", { action: "rebuild" });
-    expect(w.threads.get("root")!.sectionId).not.toBeNull();
+    expect(w.threads.get("parent")!.sectionId).not.toBeNull();
     expect(
       w.completions.filter((c) =>
         c.prompt.includes('<group id="workstreams">\nWorkstreams\n</group>'),
@@ -69,11 +71,11 @@ describe("moving into a group", () => {
       const { w, workstreamStore, old, group } = await setup(() => answer);
       await expect(
         w.harness.behavior.callRpc("threadMoveToGroup", {
-          threadId: "root",
+          threadId: "parent",
           workstreamId: group.id,
         }),
       ).rejects.toThrow();
-      expect(workstreamStore.assignment("root")).toMatchObject({
+      expect(workstreamStore.assignment("parent")).toMatchObject({
         workstreamId: old.id,
         provenance: "manual",
       });
@@ -89,27 +91,27 @@ describe("moving into a group", () => {
       });
       const { w, workstreamStore, old, group } = await setup(() => pending);
       const running = w.harness.behavior.callRpc("threadMoveToGroup", {
-        threadId: "root",
+        threadId: "parent",
         workstreamId: group.id,
       });
       const rejected = expect(running).rejects.toThrow("changed");
       await vi.waitFor(() => expect(w.completions).toHaveLength(1));
       if (change === "assignment")
-        workstreamStore.assign("root", null, { provenance: "manual" });
+        workstreamStore.assign("parent", null, { provenance: "manual" });
       if (change === "request")
-        w.threads.set("root", {
-          ...w.threads.get("root")!,
+        w.threads.set("parent", {
+          ...w.threads.get("parent")!,
           latestAttentionAt: Date.now() + 1,
         });
       if (change === "tree") workstreamStore.create("New Topic", "", group.id);
       if (change === "archive")
-        w.threads.set("root", {
-          ...w.threads.get("root")!,
+        w.threads.set("parent", {
+          ...w.threads.get("parent")!,
           archivedAt: Date.now(),
         });
       release('{"workstream":"thread-labels","propose":null}');
       await rejected;
-      expect(workstreamStore.assignment("root").workstreamId).toBe(
+      expect(workstreamStore.assignment("parent").workstreamId).toBe(
         change === "assignment" ? null : old.id,
       );
     },
@@ -127,7 +129,7 @@ describe("moving into a group", () => {
     ).rejects.toThrow("parent");
     await expect(
       w.harness.behavior.callRpc("threadMoveToGroup", {
-        threadId: "root",
+        threadId: "parent",
         workstreamId: "missing",
       }),
     ).rejects.toThrow();

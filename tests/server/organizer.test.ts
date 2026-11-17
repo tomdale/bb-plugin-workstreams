@@ -289,12 +289,18 @@ describe("automatic update coordinator lifecycle", () => {
     const workstreamStore = new WorkstreamStore(openDatabase(w.bb));
     const lantern = workstreamStore.create("Lantern", "Product");
 
-    w.addThread("root1", { title: "Root task" });
-    w.addThread("child1", { title: "Child worker 1", parentThreadId: "root1" });
-    w.addThread("child2", { title: "Child worker 2", parentThreadId: "root1" });
+    w.addThread("parent1", { title: "Parent task" });
+    w.addThread("child1", {
+      title: "Child worker 1",
+      parentThreadId: "parent1",
+    });
+    w.addThread("child2", {
+      title: "Child worker 2",
+      parentThreadId: "parent1",
+    });
 
     await w.harness.behavior.callRpc("threadMove", {
-      threadId: "root1",
+      threadId: "parent1",
       workstreamId: lantern.id,
     });
 
@@ -556,11 +562,11 @@ describe("automatic update coordinator lifecycle", () => {
     }
 
     // 1 completed task on Core, 1 completed task on Docs (f3)
-    w.addThread("done-root", { title: "Lantern initial setup" });
-    workstreamStore.assign("done-root", f1.id, { provenance: "manual" });
-    w.turn("done-root", "completed");
+    w.addThread("done-thread", { title: "Lantern initial setup" });
+    workstreamStore.assign("done-thread", f1.id, { provenance: "manual" });
+    w.turn("done-thread", "completed");
     await w.harness.behavior.emitThreadEvent("thread.idle", {
-      thread: w.threads.get("done-root")!,
+      thread: w.threads.get("done-thread")!,
       lastAssistantText: "Done.",
     });
 
@@ -576,22 +582,22 @@ describe("automatic update coordinator lifecycle", () => {
     expect(state.status).toBe("idle");
 
     // Completed tasks must NOT be in No workstream
-    expect(state.noWorkstream.filter((u) => u.id === "done-root")).toHaveLength(
-      0,
-    );
+    expect(
+      state.noWorkstream.filter((u) => u.id === "done-thread"),
+    ).toHaveLength(0);
     expect(state.noWorkstream.filter((u) => u.id === "done-docs")).toHaveLength(
       0,
     );
 
     // Completed tasks must be in native sections, not Other!
-    const doneThread = w.threads.get("done-root");
+    const doneThread = w.threads.get("done-thread");
     const doneDocsThread = w.threads.get("done-docs");
     expect(doneThread?.sectionId).not.toBeNull();
     expect(doneDocsThread?.sectionId).not.toBeNull();
 
     // Each completed thread keeps its own workstream.
     const coreGroup = state.groups.find((g) => g.name === "Lantern › Core");
-    expect(coreGroup?.threads.some((r) => r.id === "done-root")).toBe(true);
+    expect(coreGroup?.threads.some((r) => r.id === "done-thread")).toBe(true);
     const docsGroup = state.groups.find((g) => g.name === "Lantern › Docs");
     expect(docsGroup?.threads.some((r) => r.id === "done-docs")).toBe(true);
   });
@@ -784,8 +790,8 @@ describe("organizer triggers", () => {
   it("runs a pass for a top-level thread's turn, not for a hidden thread's or a child's", async () => {
     world = await fakeWorld();
     const w = world;
-    const root = w.addThread("root", { title: "Root" });
-    const child = w.addThread("child", { parentThreadId: "root" });
+    const parent = w.addThread("parent", { title: "Parent" });
+    const child = w.addThread("child", { parentThreadId: "parent" });
     const orphan = w.addThread("orphan", { parentThreadId: "archived" });
     const hidden = w.addThread("worker", { visibility: "hidden" });
     await w.harness.behavior.callRpc("refresh", null);
@@ -794,7 +800,7 @@ describe("organizer triggers", () => {
     // Let the passes that project learning's first sweep schedules finish.
     await settle();
     const reconcile = vi.spyOn(WorkstreamService.prototype, "reconcile");
-    const passesAfter = async (thread: typeof root) => {
+    const passesAfter = async (thread: typeof parent) => {
       reconcile.mockClear();
       await w.harness.behavior.emitThreadEvent("thread.active", { thread });
       await settle();
@@ -802,7 +808,7 @@ describe("organizer triggers", () => {
     };
     expect(await passesAfter(hidden)).toBe(0);
     expect(await passesAfter(child)).toBe(0);
-    expect(await passesAfter(root)).toBeGreaterThan(0);
+    expect(await passesAfter(parent)).toBeGreaterThan(0);
     // Its parent isn't visible, so the organizer treats it as top-level.
     expect(await passesAfter(orphan)).toBeGreaterThan(0);
   });

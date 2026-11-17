@@ -91,7 +91,7 @@ describe("failedAfter", () => {
 });
 
 describe("isStalled", () => {
-  const root = thread({ id: "root", work: "waiting" });
+  const parent = thread({ id: "parent", work: "waiting" });
   const failedChild = thread({
     id: "d",
     status: "error",
@@ -99,7 +99,7 @@ describe("isStalled", () => {
   });
 
   it("holds when a child thread failed after the snooze and nothing moves", () => {
-    expect(isStalled(root, [failedChild], AT)).toBe(true);
+    expect(isStalled(parent, [failedChild], AT)).toBe(true);
   });
 
   it("doesn't hold while anything runs, queues, or asks the user", () => {
@@ -109,21 +109,23 @@ describe("isStalled", () => {
       { queued: true },
       { hasPendingInteraction: true },
     ] as const) {
-      expect(isStalled({ ...root, ...change }, [failedChild], AT)).toBe(false);
+      expect(isStalled({ ...parent, ...change }, [failedChild], AT)).toBe(
+        false,
+      );
       expect(
-        isStalled(root, [failedChild, thread({ id: "e", ...change })], AT),
+        isStalled(parent, [failedChild, thread({ id: "e", ...change })], AT),
       ).toBe(false);
     }
   });
 
   it("doesn't hold when the parent thread's turn already wakes it, or the failure is old", () => {
-    expect(isStalled({ ...root, work: "complete" }, [failedChild], AT)).toBe(
+    expect(isStalled({ ...parent, work: "complete" }, [failedChild], AT)).toBe(
       false,
     );
-    expect(isStalled(root, [{ ...failedChild, failedAt: AT - 1 }], AT)).toBe(
+    expect(isStalled(parent, [{ ...failedChild, failedAt: AT - 1 }], AT)).toBe(
       false,
     );
-    expect(isStalled(root, [thread({ id: "d" })], AT)).toBe(false);
+    expect(isStalled(parent, [thread({ id: "d" })], AT)).toBe(false);
   });
 });
 
@@ -148,13 +150,13 @@ describe("wakeEvent", () => {
   const facts = { snooze, thread: thread(), children: [], now: AT + 1 };
 
   it("names the first enabled event, in settings order", () => {
-    const root = thread({ latestAttentionAt: AT + 1, work: "review" });
-    expect(wakeEvent({ ...facts, thread: root }, DEFAULT_WAKE_EVENTS)).toBe(
+    const reviewed = thread({ latestAttentionAt: AT + 1, work: "review" });
+    expect(wakeEvent({ ...facts, thread: reviewed }, DEFAULT_WAKE_EVENTS)).toBe(
       "review",
     );
     expect(
       wakeEvent(
-        { ...facts, thread: root },
+        { ...facts, thread: reviewed },
         { ...DEFAULT_WAKE_EVENTS, review: false },
       ),
     ).toBe(null);

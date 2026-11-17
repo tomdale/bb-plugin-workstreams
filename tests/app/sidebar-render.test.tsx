@@ -93,14 +93,14 @@ it("keeps the boundary gap before Snoozed when Archived is hidden", async () => 
 it("samples snooze choices when a menu opens rather than when its row rendered", async () => {
   vi.setSystemTime(new Date("2026-01-01T12:00:00Z"));
   const slot = await mount(
-    [sidebarThread("root", { sectionId: "sec_a", title: "Root task" })],
+    [sidebarThread("parent", { sectionId: "sec_a", title: "Parent task" })],
     {
       settings: { showRecent: false, showUpNext: false },
       snoozePrefs: snoozeSettings(thirtyMinutes),
     },
   );
   const row = within(slot.getByRole("region", { name: "Alpha" }))
-    .getByRole("link", { name: "Root task" })
+    .getByRole("link", { name: "Parent task" })
     .closest(".ws-row")!;
   const button = within(row as HTMLElement).getByRole("button", {
     name: /^Snooze until/,
@@ -264,13 +264,13 @@ it("shows archived threads grouped by workstream and loads another page", async 
 it("sorts workstreams alphabetically by default and lets the view menu change sorting", async () => {
   const slot = await mountWithBands(
     [
-      sidebarThread("root", {
+      sidebarThread("parent", {
         sectionId: "sec_a",
-        title: "Root task",
+        title: "Parent task",
         latestAttentionAt: Date.now() - 1_000,
       }),
       sidebarThread("kid", {
-        parentThreadId: "root",
+        parentThreadId: "parent",
         sectionId: "sec_b",
         title: "Kid task",
         latestAttentionAt: Date.now() - 1_000,
@@ -471,12 +471,12 @@ it("shows Up Next and Recent as overlays without removing group rows", async () 
 
 it("collapses a parent's children in its group", async () => {
   const slot = await mount();
-  expect(groupRows(slot, "Alpha")).toEqual(["Root task", "Kid task"]);
+  expect(groupRows(slot, "Alpha")).toEqual(["Parent task", "Kid task"]);
   const alpha = within(slot.getByRole("region", { name: "Alpha" }));
   fireEvent.click(alpha.getByRole("button", { name: "Hide child threads" }));
-  expect(groupRows(slot, "Alpha")).toEqual(["Root task"]);
+  expect(groupRows(slot, "Alpha")).toEqual(["Parent task"]);
   fireEvent.click(alpha.getByRole("button", { name: "Show child threads" }));
-  expect(groupRows(slot, "Alpha")).toEqual(["Root task", "Kid task"]);
+  expect(groupRows(slot, "Alpha")).toEqual(["Parent task", "Kid task"]);
   slot.lifecycle.unmount();
 });
 
@@ -511,14 +511,14 @@ it("keeps child disclosures beneath the sticky Up Next card", async () => {
 
 it("keeps focus and menus out of a folded group", async () => {
   const slot = await mount(
-    [sidebarThread("root", { sectionId: "sec_a", title: "Root task" })],
+    [sidebarThread("parent", { sectionId: "sec_a", title: "Parent task" })],
     { settings: { showRecent: false, showUpNext: false } },
   );
   const region = slot.getByRole("region", { name: "Alpha" });
   const header = within(region).getByRole("button", {
     name: /^(Collapse|Expand) Alpha$/,
   });
-  const link = within(region).getByRole("link", { name: "Root task" });
+  const link = within(region).getByRole("link", { name: "Parent task" });
   link.focus();
   fireEvent.click(header);
   expect(within(region).queryAllByRole("link")).toHaveLength(0);
@@ -535,7 +535,9 @@ it("keeps focus and menus out of a folded group", async () => {
   expect(slot.queryByRole("menu")).toBeNull();
   expect(document.activeElement).toBe(header);
   fireEvent.click(header);
-  expect(within(region).getByRole("link", { name: "Root task" })).toBeTruthy();
+  expect(
+    within(region).getByRole("link", { name: "Parent task" }),
+  ).toBeTruthy();
   slot.lifecycle.unmount();
 });
 
@@ -567,7 +569,7 @@ it("offers a Move to submenu in the row menu", async () => {
   const link = within(slot.getByRole("region", { name: "Alpha" })).getByRole(
     "link",
     {
-      name: "Root task",
+      name: "Parent task",
     },
   );
   fireEvent.contextMenu(link.closest("li")!);
@@ -623,8 +625,8 @@ it("folds the status slot away only when no row in the group has a mark", async 
 it("keeps thread titles at their default color in workstreams and Up Next", async () => {
   const slot = await mountWithBands();
   for (const [region, name] of [
-    ["Alpha", "Root task"],
-    ["Up Next", "Root task"],
+    ["Alpha", "Parent task"],
+    ["Up Next", "Parent task"],
     ["Other", "Loose task"],
   ]) {
     const row = within(slot.getByRole("region", { name: region })).getByRole(

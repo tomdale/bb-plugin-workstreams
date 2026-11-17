@@ -4,7 +4,7 @@ import type { Workstream } from "../../src/domain/workstreams.ts";
 
 const workstreams: Workstream[] = [
   {
-    id: "root",
+    id: "parent",
     name: "Root",
     description: "",
     aliases: [],
@@ -16,20 +16,20 @@ const workstreams: Workstream[] = [
     name: "Child",
     description: "",
     aliases: [],
-    parentId: "root",
+    parentId: "parent",
   },
   {
     id: "override",
     name: "Override",
     description: "",
     aliases: [],
-    parentId: "root",
+    parentId: "parent",
     projectId: "project-child",
   },
 ];
 
 it("uses the nearest workstream's associated project, including a child workstream's override", () => {
-  expect(chosenProject("root", workstreams)).toBe("project-root");
+  expect(chosenProject("parent", workstreams)).toBe("project-root");
   expect(chosenProject("child", workstreams)).toBe("project-root");
   expect(chosenProject("override", workstreams)).toBe("project-child");
 });

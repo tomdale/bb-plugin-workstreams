@@ -48,9 +48,9 @@ const sections = [
 /** Mounts workstream rows without duplicating them in Up Next and Recent. */
 export async function mount(
   threads = [
-    sidebarThread("root", { sectionId: "sec_a", title: "Root task" }),
+    sidebarThread("parent", { sectionId: "sec_a", title: "Parent task" }),
     sidebarThread("kid", {
-      parentThreadId: "root",
+      parentThreadId: "parent",
       sectionId: "sec_b",
       title: "Kid task",
     }),

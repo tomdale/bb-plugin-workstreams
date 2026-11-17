@@ -84,8 +84,8 @@ describe("reconciler", () => {
     expect(await log(w)).toEqual([]);
 
     const alpha = w.addSection("Alpha");
-    w.addThread("root");
-    w.addThread("kid", { parentThreadId: "root" });
+    w.addThread("parent");
+    w.addThread("kid", { parentThreadId: "parent" });
     await rpc(w, "refresh", null);
     const created = await log(w);
     expect(created.map((e) => [e.action, e.source])).toEqual([
@@ -93,7 +93,10 @@ describe("reconciler", () => {
     ]);
 
     // Moves made in the built-in sidebar, the CLI, or by agents.
-    w.threads.set("root", { ...w.threads.get("root")!, sectionId: alpha.id });
+    w.threads.set("parent", {
+      ...w.threads.get("parent")!,
+      sectionId: alpha.id,
+    });
     w.threads.set("kid", { ...w.threads.get("kid")!, sectionId: alpha.id });
     alpha.name = "Alpha Two";
     expect((await rpc<{ changed: boolean }>(w, "refresh", null)).changed).toBe(
@@ -135,8 +138,8 @@ describe("cli", () => {
   it("lists, shows, and logs", async () => {
     const w = await setup();
     const alpha = w.addSection("Alpha");
-    w.addThread("root", { title: "Root task", sectionId: alpha.id });
-    w.addThread("kid", { title: "Kid task", parentThreadId: "root" });
+    w.addThread("parent", { title: "Parent task", sectionId: alpha.id });
+    w.addThread("kid", { title: "Kid task", parentThreadId: "parent" });
     w.addThread("loose", { title: "Loose task" });
     const cli = (argv: string[]) => w.harness.behavior.runCli(argv);
 
@@ -146,7 +149,7 @@ describe("cli", () => {
     expect(list.stdout).toMatch(/Other\s+1 thread /);
 
     const show = await cli(["show", "alpha"]);
-    expect(show.stdout).toContain("Root task");
+    expect(show.stdout).toContain("Parent task");
     expect(show.stdout).toMatch(/\n {2}Kid task/);
 
     expect((await cli(["show", "other"])).stdout).toContain("Loose task");

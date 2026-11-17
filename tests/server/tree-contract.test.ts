@@ -306,7 +306,7 @@ describe("workstream tree and thread workstream RPC contract", () => {
       complete: () => JSON.stringify({ recap: "r", state: "complete" }),
     });
     const w = world;
-    const thread = w.addThread("t-root", { title: "Root Thread" });
+    const thread = w.addThread("t-parent", { title: "Parent Thread" });
     const childThread = w.addThread("t-child", {
       parentThreadId: thread.id,
       title: "Child Thread",
@@ -349,15 +349,15 @@ describe("workstream tree and thread workstream RPC contract", () => {
       { name: "Billing", description: "Billing invoices" },
     )) as { workstream: { id: string } };
     workstreamId = billing.id;
-    const thread = w.addThread("t-root", {
-      title: "Root Billing Work",
+    const thread = w.addThread("t-parent", {
+      title: "Parent Billing Work",
       status: "idle",
     });
     const childThread = w.addThread("t-child", {
       parentThreadId: thread.id,
       title: "Child Typo Fix",
     });
-    w.converse("t-root", ["Please design billing invoice engine"]);
+    w.converse("t-parent", ["Please design billing invoice engine"]);
     w.converse("t-child", ["Fix minor typo in css"]);
     await w.harness.behavior.callRpc("threadMove", {
       threadId: thread.id,

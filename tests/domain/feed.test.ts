@@ -114,11 +114,11 @@ describe("planFeed", () => {
 
   it("never queues a child thread on its own", () => {
     const feed = plan([
-      thread("root", { sectionId: "sec_a" }),
-      thread("kid1", { parentThreadId: "root" }),
-      thread("kid2", { parentThreadId: "root" }),
+      thread("parent", { sectionId: "sec_a" }),
+      thread("kid1", { parentThreadId: "parent" }),
+      thread("kid2", { parentThreadId: "parent" }),
     ]);
-    expect(ids(feed.upNext)).toEqual(["root"]);
+    expect(ids(feed.upNext)).toEqual(["parent"]);
     expect(ids(feed.earlier)).toEqual([]);
   });
 

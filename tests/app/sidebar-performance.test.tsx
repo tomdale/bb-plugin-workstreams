@@ -224,7 +224,7 @@ it("does no row or tree work on a minute tick when ages are hidden", async () =>
   const trees = vi.spyOn(sidebarRows, "treesOf");
   const slot = await mount(
     [
-      sidebarThread("root", { sectionId: "sec_a", title: "Root task" }),
+      sidebarThread("parent", { sectionId: "sec_a", title: "Parent task" }),
       sidebarThread("other", { sectionId: "sec_b", title: "Other task" }),
     ],
     {
@@ -258,9 +258,9 @@ it("retains a row's previous time while its visible age is unchanged", async () 
   const trees = vi.spyOn(sidebarRows, "treesOf");
   const slot = await mount(
     [
-      sidebarThread("root", {
+      sidebarThread("parent", {
         sectionId: "sec_a",
-        title: "Root task",
+        title: "Parent task",
         latestAttentionAt: Date.now() + 120_000,
       }),
     ],

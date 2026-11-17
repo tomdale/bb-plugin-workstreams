@@ -363,10 +363,10 @@ describe("WorkstreamStore", () => {
     const { host, workstreamStore: workstreamStore } = store();
     const db = openDatabase(host.bb);
     db.prepare(
-      "INSERT INTO ws_seen_thread(thread_id, section_id, parent_thread_id, title) VALUES ('t-root', NULL, NULL, 'Root')",
+      "INSERT INTO ws_seen_thread(thread_id, section_id, parent_thread_id, title) VALUES ('t-parent', NULL, NULL, 'Parent')",
     ).run();
     db.prepare(
-      "INSERT INTO ws_seen_thread(thread_id, section_id, parent_thread_id, title) VALUES ('t-child', NULL, 't-root', 'Child')",
+      "INSERT INTO ws_seen_thread(thread_id, section_id, parent_thread_id, title) VALUES ('t-child', NULL, 't-parent', 'Child')",
     ).run();
     db.prepare(
       "INSERT INTO ws_seen_thread(thread_id, section_id, parent_thread_id, title) VALUES ('t-grandchild', NULL, 't-child', 'Grandchild')",
@@ -376,22 +376,22 @@ describe("WorkstreamStore", () => {
     const workstream2 = workstreamStore.create("Feature 2", "Second feature");
 
     // Move the top-level thread
-    workstreamStore.assign("t-root", workstream1.id);
+    workstreamStore.assign("t-parent", workstream1.id);
 
     // Child and grandchild inherit
     const childAssign = workstreamStore.assignment("t-child");
     expect(childAssign.status).toBe("assigned");
     expect(childAssign.workstreamId).toBe(workstream1.id);
-    expect(childAssign.inheritedFrom).toBe("t-root");
+    expect(childAssign.inheritedFrom).toBe("t-parent");
 
     const grandAssign = workstreamStore.assignment("t-grandchild");
     expect(grandAssign.status).toBe("assigned");
     expect(grandAssign.workstreamId).toBe(workstream1.id);
-    expect(grandAssign.inheritedFrom).toBe("t-root");
+    expect(grandAssign.inheritedFrom).toBe("t-parent");
 
     // Changing a child moves the top-level thread
     workstreamStore.assign("t-grandchild", workstream2.id);
-    expect(workstreamStore.assignment("t-root").workstreamId).toBe(
+    expect(workstreamStore.assignment("t-parent").workstreamId).toBe(
       workstream2.id,
     );
     expect(workstreamStore.assignment("t-child").workstreamId).toBe(
@@ -400,7 +400,7 @@ describe("WorkstreamStore", () => {
 
     // Clearing a child clears the top-level thread
     workstreamStore.clear("t-child");
-    expect(workstreamStore.assignment("t-root").status).toBe("none");
+    expect(workstreamStore.assignment("t-parent").status).toBe("none");
     expect(workstreamStore.assignment("t-grandchild").status).toBe("none");
   });
 
@@ -408,8 +408,8 @@ describe("WorkstreamStore", () => {
     const { host, workstreamStore: workstreamStore } = store();
     const db = openDatabase(host.bb);
     for (const [id, parent] of [
-      ["root", null],
-      ["child", "root"],
+      ["parent", null],
+      ["child", "parent"],
       ["bare", null],
       ["cleared", null],
     ])
@@ -418,12 +418,12 @@ describe("WorkstreamStore", () => {
       ).run(id, parent, id);
     const product = workstreamStore.create("Lantern", "Product");
     const leaf = workstreamStore.create("Up Next", "Upcoming", product.id);
-    workstreamStore.assign("root", leaf.id, {
+    workstreamStore.assign("parent", leaf.id, {
       provenance: "automatic",
       evidence: "basis",
     });
     workstreamStore.assign("cleared", null);
-    const ids = ["root", "child", "bare", "cleared", "unseen"];
+    const ids = ["parent", "child", "bare", "cleared", "unseen"];
     const list = vi.spyOn(workstreamStore, "list");
 
     const single = ids.map((id) => workstreamStore.assignment(id));
@@ -433,7 +433,7 @@ describe("WorkstreamStore", () => {
       label: "Lantern › Up Next",
       ancestorIds: [leaf.id, product.id],
       evidence: "basis",
-      inheritedFrom: "root",
+      inheritedFrom: "parent",
     });
     expect(single[3]).toMatchObject({
       status: "none",

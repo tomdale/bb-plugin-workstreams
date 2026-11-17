@@ -34,7 +34,7 @@ describe("row hover buttons", () => {
     (
       await waitFor(() =>
         within(slot.getByRole("region", { name: "Alpha" })).getByRole("link", {
-          name: "Root task",
+          name: "Parent task",
         }),
       )
     ).parentElement!;
@@ -94,7 +94,7 @@ describe("row hover buttons", () => {
       expect(
         slot.inspection.rpcCalls.find((call) => call.method === "snooze")
           ?.input,
-      ).toMatchObject({ threadIds: ["root"] });
+      ).toMatchObject({ threadIds: ["parent"] });
     } finally {
       composer.remove();
       slot.lifecycle.unmount();
@@ -144,7 +144,7 @@ describe("row hover buttons", () => {
     await waitFor(() =>
       expect(
         slot.inspection.rpcCalls.find((c) => c.method === "snooze")?.input,
-      ).toMatchObject({ threadIds: ["root"], until: null }),
+      ).toMatchObject({ threadIds: ["parent"], until: null }),
     );
     slot.lifecycle.unmount();
   });
@@ -156,7 +156,7 @@ describe("row hover buttons", () => {
     });
     fireEvent.contextMenu(
       within(slot.getByRole("region", { name: "Alpha" })).getByRole("link", {
-        name: "Root task",
+        name: "Parent task",
       }),
     );
     const trigger = await screen.findByRole("menuitem", { name: "Snooze" });
@@ -189,7 +189,7 @@ describe("row hover buttons", () => {
     ).toEqual(["Archive", expect.stringMatching(/^Snooze until/)]);
     const age = row.querySelector("[data-timestamp]")!;
     expect(age.textContent).toBe("now");
-    expect(age.previousElementSibling!.textContent).toBe("Root task");
+    expect(age.previousElementSibling!.textContent).toBe("Parent task");
     // The hover buttons are the row's last element, as on a header.
     expect(
       row.lastElementChild!.contains(
@@ -204,9 +204,9 @@ describe("row hover buttons", () => {
     async (focused) => {
       const slot = await mount(
         [
-          sidebarThread("root", { sectionId: "sec_a", title: "Root task" }),
+          sidebarThread("parent", { sectionId: "sec_a", title: "Parent task" }),
           sidebarThread("kid", {
-            parentThreadId: "root",
+            parentThreadId: "parent",
             sectionId: "sec_a",
             title: "Kid task",
           }),

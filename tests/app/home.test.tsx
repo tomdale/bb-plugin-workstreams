@@ -367,13 +367,13 @@ describe("Home screen", () => {
     it("lists whole trees under the parent thread's workstream, with the children toggled by a count", async () => {
       const slot = await mountHome({
         threads: [
-          sidebarThread("root", {
+          sidebarThread("parent", {
             sectionId: "sec_a",
             title: "Manager",
             latestAttentionAt: minutes(3),
           }),
           sidebarThread("kid", {
-            parentThreadId: "root",
+            parentThreadId: "parent",
             sectionId: "sec_b",
             title: "Child",
             latestAttentionAt: minutes(4),

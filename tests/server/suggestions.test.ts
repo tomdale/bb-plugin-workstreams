@@ -605,7 +605,7 @@ describe("automatic tidy after changes", () => {
     workstreamStore.edit(beta.id, { description: "New scope" });
     await check();
     expect(calls).toBe(4);
-    w.addThread("t2", { title: "New root" });
+    w.addThread("t2", { title: "New task" });
     await rpc("refresh");
     await check();
     expect(calls).toBe(5);
@@ -635,7 +635,7 @@ describe("automatic tidy after changes", () => {
     });
     await vi.advanceTimersByTimeAsync(3_000);
     expect(calls).toBe(2);
-    const thread = w.addThread("new-root", { title: "New root" });
+    const thread = w.addThread("new-thread", { title: "New task" });
     await w.harness.behavior.emitThreadEvent("thread.created", { thread });
     await vi.advanceTimersByTimeAsync(4_000);
     expect(calls).toBe(3);

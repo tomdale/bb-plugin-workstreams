@@ -279,10 +279,10 @@ describe("focusedSet", () => {
 describe("tree rows", () => {
   const projection = projectWorkstreams(
     [
-      thread("root", { sectionId: "sec_a", latestAttentionAt: now }),
-      thread("kid", { parentThreadId: "root", createdAt: 1 }),
+      thread("parent", { sectionId: "sec_a", latestAttentionAt: now }),
+      thread("kid", { parentThreadId: "parent", createdAt: 1 }),
       thread("grandkid", { parentThreadId: "kid", createdAt: 2 }),
-      thread("sibling", { parentThreadId: "root", createdAt: 3 }),
+      thread("sibling", { parentThreadId: "parent", createdAt: 3 }),
       thread("next", { sectionId: "sec_a", latestAttentionAt: now - 1 }),
     ],
     sections,
@@ -291,16 +291,19 @@ describe("tree rows", () => {
   const rows = projection.groups.find((group) => group.id === "sec_a")!.rows;
 
   it("lists a tree in order and counts what sits beneath each thread", () => {
-    expect(ids(rows)).toEqual(["root", "kid", "grandkid", "sibling", "next"]);
+    expect(ids(rows)).toEqual(["parent", "kid", "grandkid", "sibling", "next"]);
     expect(descendantCounts(rows)).toEqual([3, 1, 0, 0, 0]);
   });
 
   it("drops rows beneath a folded ancestor only", () => {
     const folded = (id: string) => (row: (typeof rows)[number]) =>
       row.thread.id === id;
-    expect(ids(unfoldedRows(rows, folded("root")))).toEqual(["root", "next"]);
+    expect(ids(unfoldedRows(rows, folded("parent")))).toEqual([
+      "parent",
+      "next",
+    ]);
     expect(ids(unfoldedRows(rows, folded("kid")))).toEqual([
-      "root",
+      "parent",
       "kid",
       "sibling",
       "next",

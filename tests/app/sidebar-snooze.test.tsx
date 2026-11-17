@@ -412,8 +412,8 @@ describe("snoozing a workstream row", () => {
 it("keeps a snoozed child moving with its parent", async () => {
   const slot = await mount(
     [
-      sidebarThread("root", { sectionId: "sec_a", title: "Root task" }),
-      sidebarThread("kid", { parentThreadId: "root", title: "Kid task" }),
+      sidebarThread("parent", { sectionId: "sec_a", title: "Parent task" }),
+      sidebarThread("kid", { parentThreadId: "parent", title: "Kid task" }),
     ],
     {
       settings: { showRecent: false },
@@ -424,7 +424,7 @@ it("keeps a snoozed child moving with its parent", async () => {
   fireEvent.click(
     await waitFor(() => slot.getByRole("button", { name: /^Snoozed\d*$/ })),
   );
-  expect(groupRows(slot, "Alpha")).toEqual(["Root task"]);
+  expect(groupRows(slot, "Alpha")).toEqual(["Parent task"]);
   fireEvent.contextMenu(
     within(slot.getByRole("region", { name: "Snoozed" })).getByRole("link", {
       name: "Kid task",
@@ -436,7 +436,7 @@ it("keeps a snoozed child moving with its parent", async () => {
 
 it("marks the row menu's submenus with a chevron", async () => {
   const slot = await mount(
-    [sidebarThread("root", { sectionId: "sec_a", title: "Root task" })],
+    [sidebarThread("parent", { sectionId: "sec_a", title: "Parent task" })],
     {
       settings: { showRecent: false },
       sections: [section("sec_a", "Alpha")],
@@ -444,7 +444,7 @@ it("marks the row menu's submenus with a chevron", async () => {
   );
   fireEvent.contextMenu(
     within(slot.getByRole("region", { name: "Alpha" })).getByRole("link", {
-      name: "Root task",
+      name: "Parent task",
     }),
   );
   for (const name of ["Move to", "Snooze"]) {

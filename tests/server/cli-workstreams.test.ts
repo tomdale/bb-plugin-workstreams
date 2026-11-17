@@ -19,7 +19,7 @@ async function setup(options: { onPrompt?: (prompt: string) => void } = {}) {
       return JSON.stringify({
         recap: "Working on it",
         state: "needs-input",
-        title: "Root shelves task",
+        title: "Parent shelves task",
         workstreamId: shelvesId,
         proposed: null,
       });
@@ -39,9 +39,9 @@ async function setup(options: { onPrompt?: (prompt: string) => void } = {}) {
   );
   shelvesId = shelves.id;
   workstreamStore.bindGroup(section.id, storage.id);
-  const thread = w.addThread("t_root", {
+  const thread = w.addThread("t_parent", {
     sectionId: section.id,
-    title: "Root shelves task",
+    title: "Parent shelves task",
   });
   const childThread = w.addThread("t_child", {
     parentThreadId: thread.id,
@@ -58,7 +58,7 @@ async function setup(options: { onPrompt?: (prompt: string) => void } = {}) {
     workstreamStore: workstreamStore,
     storage,
     shelves,
-    rootThread: thread,
+    parentThread: thread,
     childThread,
   };
 }
@@ -88,7 +88,7 @@ describe("CLI workstream commands", () => {
   });
 
   it("describe displays full details by name, alias, or ID and supports --json", async () => {
-    const { w, storage, shelves, rootThread: thread } = await setup();
+    const { w, storage, shelves, parentThread: thread } = await setup();
 
     // Show by exact name
     const showName = await w.harness.behavior.runCli(["describe", "Shelves"]);
@@ -201,7 +201,7 @@ describe("CLI workstream commands", () => {
       w,
       workstreamStore: workstreamStore,
       shelves,
-      rootThread: thread,
+      parentThread: thread,
     } = await setup();
     const other = workstreamStore.create("Legacy Shelves", "Old", null, [
       "OldRacks",
@@ -313,17 +313,17 @@ describe("CLI workstream commands", () => {
 
 describe("CLI thread workstream commands", () => {
   it("thread show displays thread workstream, status, provenance, and parent inheritance", async () => {
-    const { w, rootThread, childThread, shelves } = await setup();
+    const { w, parentThread, childThread, shelves } = await setup();
 
     // Parent thread show
     const rootRes = await w.harness.behavior.runCli([
       "thread",
       "show",
-      rootThread.id,
+      parentThread.id,
     ]);
     expect(rootRes.exitCode).toBe(0);
     expect(rootRes.stdout).toContain(
-      `Thread:          Root shelves task (@thread:${rootThread.id})`,
+      `Thread:          Parent shelves task (@thread:${parentThread.id})`,
     );
     expect(rootRes.stdout).toContain("Listed in:       Storage");
     expect(rootRes.stdout).toContain("Workstream:      Storage › Shelves");
@@ -345,19 +345,19 @@ describe("CLI thread workstream commands", () => {
       "Parent source:   chosen automatically from its requests",
     );
     expect(childRes.stdout).toContain(
-      `Follows parent:  @thread:${rootThread.id}`,
+      `Follows parent:  @thread:${parentThread.id}`,
     );
 
     // JSON format
     const jsonRes = await w.harness.behavior.runCli([
       "thread",
       "show",
-      rootThread.id,
+      parentThread.id,
       "--json",
     ]);
     expect(jsonRes.exitCode).toBe(0);
     const parsed = JSON.parse(jsonRes.stdout);
-    expect(parsed.threadId).toBe(rootThread.id);
+    expect(parsed.threadId).toBe(parentThread.id);
     expect(parsed.assignment.workstreamId).toBe(shelves.id);
   });
 
@@ -366,7 +366,7 @@ describe("CLI thread workstream commands", () => {
       w,
       workstreamStore: workstreamStore,
       childThread,
-      rootThread,
+      parentThread,
       storage,
     } = await setup();
     const docks = workstreamStore.create("Docks", "Docks feature", storage.id);
@@ -383,13 +383,13 @@ describe("CLI thread workstream commands", () => {
       `Moved @thread:${childThread.id} to "Docks" (Storage › Docks).`,
     );
 
-    const threadAssignment = workstreamStore.assignment(rootThread.id);
+    const threadAssignment = workstreamStore.assignment(parentThread.id);
     expect(threadAssignment.workstreamId).toBe(docks.id);
     expect(threadAssignment.provenance).toBe("manual");
 
     const childAssign = workstreamStore.assignment(childThread.id);
     expect(childAssign.workstreamId).toBe(docks.id);
-    expect(childAssign.inheritedFrom).toBe(rootThread.id);
+    expect(childAssign.inheritedFrom).toBe(parentThread.id);
   });
 
   it("thread clear clears the thread's workstream to none and mutates the parent", async () => {
@@ -397,7 +397,7 @@ describe("CLI thread workstream commands", () => {
       w,
       workstreamStore: workstreamStore,
       childThread,
-      rootThread,
+      parentThread,
     } = await setup();
 
     const clearRes = await w.harness.behavior.runCli([
@@ -409,7 +409,7 @@ describe("CLI thread workstream commands", () => {
     expect(clearRes.exitCode).toBe(0);
     expect(clearRes.stdout).toContain("to No workstream");
 
-    const threadAssignment = workstreamStore.assignment(rootThread.id);
+    const threadAssignment = workstreamStore.assignment(parentThread.id);
     expect(threadAssignment.status).toBe("none");
     expect(threadAssignment.workstreamId).toBeNull();
   });
@@ -418,22 +418,22 @@ describe("CLI thread workstream commands", () => {
     const {
       w,
       workstreamStore: workstreamStore,
-      rootThread,
+      parentThread,
       shelves,
     } = await setup();
-    workstreamStore.clear(rootThread.id);
+    workstreamStore.clear(parentThread.id);
 
     const reclassifyRes = await w.harness.behavior.runCli([
       "thread",
       "automatic",
-      rootThread.id,
+      parentThread.id,
     ]);
     expect(reclassifyRes.exitCode).toBe(0);
     expect(reclassifyRes.stdout).toContain(
-      `@thread:${rootThread.id} is now in`,
+      `@thread:${parentThread.id} is now in`,
     );
 
-    const assignment = workstreamStore.assignment(rootThread.id);
+    const assignment = workstreamStore.assignment(parentThread.id);
     expect(assignment.status).toBe("assigned");
     expect(assignment.workstreamId).toBe(shelves.id);
     expect(assignment.provenance).toBe("automatic");
@@ -443,7 +443,7 @@ describe("CLI thread workstream commands", () => {
     const {
       w,
       workstreamStore: workstreamStore,
-      rootThread,
+      parentThread,
       storage,
     } = await setup();
     const docks = workstreamStore.create("Docks", "Docks feature", storage.id);
@@ -454,7 +454,7 @@ describe("CLI thread workstream commands", () => {
     const assignRes = await w.harness.behavior.runCli([
       "thread",
       "move",
-      rootThread.id,
+      parentThread.id,
       docks.id,
     ]);
     expect(assignRes.exitCode).toBe(0);
@@ -469,7 +469,7 @@ describe("CLI thread workstream commands", () => {
     const clearRes = await w.harness.behavior.runCli([
       "thread",
       "move",
-      rootThread.id,
+      parentThread.id,
       "none",
     ]);
     expect(clearRes.exitCode).toBe(0);
@@ -484,7 +484,7 @@ describe("CLI thread workstream commands", () => {
     const reclassRes = await w.harness.behavior.runCli([
       "thread",
       "automatic",
-      rootThread.id,
+      parentThread.id,
     ]);
     expect(reclassRes.exitCode).toBe(0);
     expect(w.harness.inspection.realtimeSignals.length).toBeGreaterThan(count2);
@@ -498,13 +498,13 @@ describe("CLI thread workstream commands", () => {
     const {
       w,
       workstreamStore: workstreamStore,
-      rootThread,
+      parentThread,
       childThread,
       shelves,
     } = await setup({
       onPrompt: (p) => prompts.push(p),
     });
-    w.converse(rootThread.id, ["Design warehouse shelves distribution"]);
+    w.converse(parentThread.id, ["Design warehouse shelves distribution"]);
     w.converse(childThread.id, ["Fix minor child button styling"]);
 
     const reclassRes = await w.harness.behavior.runCli([
@@ -521,7 +521,7 @@ describe("CLI thread workstream commands", () => {
     expect(analysis).not.toContain("Fix minor child button styling");
     const childAssign = workstreamStore.assignment(childThread.id);
     expect(childAssign.workstreamId).toBe(shelves.id);
-    expect(childAssign.inheritedFrom).toBe(rootThread.id);
+    expect(childAssign.inheritedFrom).toBe(parentThread.id);
 
     const before = prompts.length;
     await w.harness.behavior.callRpc("organizeStatus", { action: "rebuild" });
@@ -563,10 +563,10 @@ describe("CLI thread workstream commands", () => {
   });
 
   it("reply inspects raw agent output and diagnoses malformed reply blocks by thread, mention, or URL", async () => {
-    const { w, rootThread } = await setup();
-    w.turn(rootThread.id);
-    w.say(rootThread.id, ":::reply\n# Valid first reply\n:::\n");
-    w.turn(rootThread.id);
+    const { w, parentThread } = await setup();
+    w.turn(parentThread.id);
+    w.say(parentThread.id, ":::reply\n# Valid first reply\n:::\n");
+    w.turn(parentThread.id);
     const broken = [
       ":::reply",
       "**Draft approval required.**",
@@ -576,14 +576,14 @@ describe("CLI thread workstream commands", () => {
       "Closing paragraph.",
       ":::reply",
     ].join("\n");
-    w.say(rootThread.id, broken);
+    w.say(parentThread.id, broken);
 
     const textRes = await w.harness.behavior.runCli([
       "reply",
-      `http://127.0.0.1:38886/projects/proj_1/threads/${rootThread.id}#msg=21`,
+      `http://127.0.0.1:38886/projects/proj_1/threads/${parentThread.id}#msg=21`,
     ]);
     expect(textRes.exitCode).toBe(0);
-    expect(textRes.stdout).toContain(`@thread:${rootThread.id}#msg=21`);
+    expect(textRes.stdout).toContain(`@thread:${parentThread.id}#msg=21`);
     expect(textRes.stdout).toContain("Status:   unclosed");
     expect(textRes.stdout).toContain(
       'Line 9: Closing line is ":::reply" — close ":::reply" with ":::" alone on a line, not ":::reply".',
@@ -592,13 +592,13 @@ describe("CLI thread workstream commands", () => {
 
     const jsonRes = await w.harness.behavior.runCli([
       "reply",
-      `@thread:${rootThread.id}#msg=11`,
+      `@thread:${parentThread.id}#msg=11`,
       "--json",
     ]);
     expect(jsonRes.exitCode).toBe(0);
     const parsed = JSON.parse(jsonRes.stdout);
     expect(parsed).toMatchObject({
-      threadId: rootThread.id,
+      threadId: parentThread.id,
       messageSeq: 11,
       status: "valid",
       issues: [],

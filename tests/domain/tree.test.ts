@@ -27,11 +27,11 @@ describe("buildForest", () => {
   it("promotes threads with missing parents to the top and reports them", () => {
     const forest = buildForest([
       thread("child", { parentThreadId: "archived-parent" }),
-      thread("root"),
+      thread("parent"),
     ]);
     expect(forest.threads.map((r) => r.thread.id).sort()).toEqual([
       "child",
-      "root",
+      "parent",
     ]);
     expect(forest.orphanIds).toEqual(["child"]);
   });

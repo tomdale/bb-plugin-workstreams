@@ -18,8 +18,8 @@ async function mount(indicator: "none" | "runtime" = "none") {
 }
 
 async function mountThread(overrides: Parameters<typeof sidebarThread>[1]) {
-  const thread = sidebarThread("root", {
-    title: "Root task",
+  const thread = sidebarThread("parent", {
+    title: "Parent task",
     isPinned: true,
     isUnread: true,
     ...overrides,
@@ -66,9 +66,9 @@ async function mountThread(overrides: Parameters<typeof sidebarThread>[1]) {
 
 it("wires the presented row to native shortcuts, split navigation, disclosure, and Archive", async () => {
   const { slot, props } = await mount();
-  const link = slot.getByRole("link", { name: "Root task" });
-  expect(link.getAttribute("href")).toBe("/projects/proj_1/threads/root");
-  expect(link.getAttribute("data-sidebar-thread-id")).toBe("root");
+  const link = slot.getByRole("link", { name: "Parent task" });
+  expect(link.getAttribute("href")).toBe("/projects/proj_1/threads/parent");
+  expect(link.getAttribute("data-sidebar-thread-id")).toBe("parent");
   expect(link.getAttribute("data-sidebar-thread-shortcut-target")).toBe("");
   expect(slot.getByRole("img", { name: "Pinned" })).toBeTruthy();
   // Unread alone draws no slot mark and no inline dot.
@@ -77,7 +77,7 @@ it("wires the presented row to native shortcuts, split navigation, disclosure, a
   fireEvent.click(link, { metaKey: true });
   expect(slot.inspection.sidebarActionCalls.at(-1)).toMatchObject({
     method: "open",
-    threadId: "root",
+    threadId: "parent",
     options: { split: true },
   });
   expect(props.onNavigate).toHaveBeenCalledOnce();
@@ -86,7 +86,7 @@ it("wires the presented row to native shortcuts, split navigation, disclosure, a
   fireEvent.click(slot.getByRole("button", { name: "Archive" }));
   expect(slot.inspection.sidebarActionCalls.at(-1)).toMatchObject({
     method: "archive",
-    threadId: "root",
+    threadId: "parent",
   });
   expect(props.onNavigate).toHaveBeenCalledOnce();
   await slot.behavior.emitRealtime("prefs", {
@@ -103,7 +103,7 @@ it("keeps the failure mark on a read thread whose last turn failed", async () =>
   // BB reports the error as a row indicator only while unread; the thread's
   // own status carries it afterwards.
   const { slot } = await mountThread({ isUnread: false, status: "error" });
-  const link = slot.getByRole("link", { name: "Root task, Failed" });
+  const link = slot.getByRole("link", { name: "Parent task, Failed" });
   expect(link).toBeTruthy();
   const mark = slot.getByRole("img", { name: "Failed" });
   expect(mark.className).toContain("ws-failed");

@@ -20,20 +20,20 @@ it("deletes an emptied workstream's section on the next pass and keeps its archi
   world = await starting;
   const workstreamStore = new WorkstreamStore(openDatabase(world.bb));
   const workstream = workstreamStore.create("Product", "Product");
-  const root = world.addThread("root");
+  const thread = world.addThread("thread");
   await world.harness.behavior.callRpc("threadMove", {
-    threadId: root.id,
+    threadId: thread.id,
     workstreamId: workstream.id,
   });
   await world.harness.behavior.callRpc("organizeStatus", { action: "rebuild" });
   const section = world.sections.find((s) => s.name === "Product")!;
   expect(section).toBeDefined();
-  const archived = world.threads.get(root.id)!;
+  const archived = world.threads.get(thread.id)!;
   archived.archivedAt = Date.now();
   await world.harness.behavior.emitThreadEvent("thread.archived", {
     thread: archived,
   });
   await vi.advanceTimersByTimeAsync(2000);
   expect(world.sections.some((s) => s.id === section.id)).toBe(false);
-  expect(world.threads.has(root.id)).toBe(true);
+  expect(world.threads.has(thread.id)).toBe(true);
 });

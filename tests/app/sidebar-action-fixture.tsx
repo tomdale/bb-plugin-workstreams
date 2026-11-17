@@ -3,7 +3,9 @@ import { mount, mountWithBands } from "./sidebar-fixture.tsx";
 
 /** Mounts a real sidebar with only Alpha and one row unless a case needs more. */
 export const mountOneWorkstream: typeof mount = (
-  threads = [sidebarThread("root", { sectionId: "sec_a", title: "Root task" })],
+  threads = [
+    sidebarThread("parent", { sectionId: "sec_a", title: "Parent task" }),
+  ],
   options = {},
 ) =>
   mount(threads, {
@@ -13,7 +15,9 @@ export const mountOneWorkstream: typeof mount = (
 
 /** Requests the same two bands as the full-list fixture, with one workstream. */
 export const mountOneWorkstreamWithBands: typeof mountWithBands = (
-  threads = [sidebarThread("root", { sectionId: "sec_a", title: "Root task" })],
+  threads = [
+    sidebarThread("parent", { sectionId: "sec_a", title: "Parent task" }),
+  ],
   options = {},
 ) =>
   mountWithBands(threads, {

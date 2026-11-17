@@ -132,7 +132,7 @@ it("labels unknown workstreams and No workstream and preserves within-group sort
 
 it("folds a complete subtree without hiding its next sibling and keeps placements independent", () => {
   const rows = [
-    row("root"),
+    row("parent"),
     row("child", {}, 1),
     row("grandchild", {}, 2),
     row("sibling", {}, 1),
@@ -140,28 +140,28 @@ it("folds a complete subtree without hiding its next sibling and keeps placement
   ];
   const before = rows.slice();
   expect(treesOf(rows).map(ids)).toEqual([
-    ["root", "child", "grandchild", "sibling"],
+    ["parent", "child", "grandchild", "sibling"],
     ["other"],
   ]);
   expect(
     [...descendantsOf([rows])].map(([id, children]) => [id, ids(children)]),
   ).toEqual([
-    ["root", ["child", "grandchild", "sibling"]],
+    ["parent", ["child", "grandchild", "sibling"]],
     ["child", ["grandchild"]],
   ]);
   expect(ids(unfoldedRows(rows, (id) => id === "child"))).toEqual([
-    "root",
+    "parent",
     "child",
     "sibling",
     "other",
   ]);
-  expect(ids(unfoldedRows(rows, (id) => id === "root"))).toEqual([
-    "root",
+  expect(ids(unfoldedRows(rows, (id) => id === "parent"))).toEqual([
+    "parent",
     "other",
   ]);
   expect(rows).toEqual(before);
-  expect(foldKey("group", "root")).toBe("thread:root");
-  expect(foldKey("up-next", "root")).toBe("up-next:thread:root");
+  expect(foldKey("group", "parent")).toBe("thread:parent");
+  expect(foldKey("up-next", "parent")).toBe("up-next:thread:parent");
   expect(foldDefault("group")).toBe(false);
   expect(foldDefault("snoozed")).toBe(false);
   expect(foldDefault("up-next")).toBe(true);
@@ -170,10 +170,10 @@ it("folds a complete subtree without hiding its next sibling and keeps placement
 
 it("lists archived children under their parent thread, excluding hidden and live threads", () => {
   const threads = [
-    sidebarThread("root", { sectionId: "a", isArchived: true }),
+    sidebarThread("parent", { sectionId: "a", isArchived: true }),
     sidebarThread("child", {
       sectionId: "b",
-      parentThreadId: "root",
+      parentThreadId: "parent",
       isArchived: true,
     }),
     sidebarThread("loose", { isArchived: true }),
@@ -189,7 +189,7 @@ it("lists archived children under their parent thread, excluding hidden and live
   expect(
     archive.rows.map((r) => [r.thread.id, r.workstreamId, r.depth]),
   ).toEqual([
-    ["root", "a", 0],
+    ["parent", "a", 0],
     ["child", "a", 0],
     ["loose", null, 0],
     ["unknown", null, 0],
@@ -215,8 +215,8 @@ it("bounds archived ancestry walks with missing or cyclic parents", () => {
 it("counts descendants in a snooze label but sends top-level threads, including Other", () => {
   const projection = projectWorkstreams(
     [
-      sidebarThread("root", { sectionId: "a" }),
-      sidebarThread("child", { parentThreadId: "root", sectionId: "b" }),
+      sidebarThread("parent", { sectionId: "a" }),
+      sidebarThread("child", { parentThreadId: "parent", sectionId: "b" }),
       sidebarThread("loose"),
     ],
     [section("a", "Alpha"), section("empty", "Empty")],
@@ -225,7 +225,7 @@ it("counts descendants in a snooze label but sends top-level threads, including 
   const request = groupSnoozeRequest(
     projection.groups.find((g) => g.id === "a")!,
   );
-  expect(request?.threads.map((t) => t.id)).toEqual(["root"]);
+  expect(request?.threads.map((t) => t.id)).toEqual(["parent"]);
   expect(request).toMatchObject({
     label: "Snooze 2 threads",
     subject: "2 threads in Alpha",

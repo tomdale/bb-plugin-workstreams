@@ -16,7 +16,7 @@ import {
 import { CORRECTION, DEPLOYED_CHANGE } from "../../fixtures/postTurn.ts";
 import { eventLog } from "./events.ts";
 
-const THREAD = "thr_root";
+const THREAD = "thr_thread";
 const idOf = (turnId: string, itemId = `${turnId}-final`) =>
   assistantMessageId({ threadId: THREAD, turnId, itemId });
 

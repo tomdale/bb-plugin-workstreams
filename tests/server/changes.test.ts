@@ -71,12 +71,12 @@ describe("client snapshot scope", () => {
     const seen = db.prepare(
       "INSERT INTO ws_seen_thread(thread_id, section_id, parent_thread_id, title) VALUES (?, NULL, ?, ?)",
     );
-    seen.run("root", null, "Root");
-    seen.run("child", "root", "Child");
+    seen.run("parent", null, "Parent");
+    seen.run("child", "parent", "Child");
     // A child whose archived parent is no longer seen inherits its workstream.
     seen.run("orphan", "archived-parent", "Orphan");
     seen.run("other", null, "Other");
-    workstreamStore.assign("root", workstream.id, { provenance: "manual" });
+    workstreamStore.assign("parent", workstream.id, { provenance: "manual" });
     workstreamStore.assign("archived-parent", workstream.id, {
       provenance: "automatic",
     });
@@ -89,7 +89,7 @@ describe("client snapshot scope", () => {
       "child",
       "orphan",
       "other",
-      "root",
+      "parent",
     ]);
     for (const [id, assignment] of Object.entries(visible))
       expect(assignment).toEqual(all[id]);

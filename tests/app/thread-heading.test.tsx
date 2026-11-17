@@ -145,10 +145,13 @@ it("names the thread exactly as BB lists it, whatever the analysis inferred", as
 it("uses the parent thread's workstream color for a child thread in a different native section", async () => {
   const child = sidebarThread("child", {
     title: "Child",
-    parentThreadId: "root",
+    parentThreadId: "parent",
     sectionId: "sec_2",
   });
-  const thread = sidebarThread("root", { title: "Root", sectionId: "sec_1" });
+  const thread = sidebarThread("parent", {
+    title: "Parent",
+    sectionId: "sec_1",
+  });
   const slot = await mount(
     child,
     {

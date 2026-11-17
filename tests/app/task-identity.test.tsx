@@ -43,8 +43,8 @@ const treeState: WorkstreamState = {
   workstreams,
   groups: { sec_a: "prod_platform" },
   assignments: {
-    "t-root": {
-      threadId: "t-root",
+    "t-parent": {
+      threadId: "t-parent",
       workstreamId: "feat_auth",
       status: "assigned",
       provenance: "manual",
@@ -61,7 +61,7 @@ const treeState: WorkstreamState = {
       label: "Platform › Auth",
       ancestorIds: ["feat_auth", "prod_platform"],
       evidence: "recap analysis",
-      inheritedFrom: "t-root",
+      inheritedFrom: "t-parent",
     },
     "t-auto": {
       threadId: "t-auto",
@@ -114,10 +114,10 @@ async function mountTaskIdentity(
 
   const currentTree = options.tree ?? treeState;
   const threads = options.threads ?? [
-    sidebarThread("t-root", { title: "Root task", sectionId: "sec_a" }),
+    sidebarThread("t-parent", { title: "Parent task", sectionId: "sec_a" }),
     sidebarThread("t-child", {
       title: "Child task",
-      parentThreadId: "t-root",
+      parentThreadId: "t-parent",
       sectionId: "sec_a",
     }),
     sidebarThread("t-auto", { title: "Automatic task", sectionId: "sec_a" }),
@@ -196,7 +196,7 @@ async function mountTaskIdentity(
 
 describe("Workstream control", () => {
   it("shows a workstream the user chose", async () => {
-    const slot = await mountTaskIdentity("t-root");
+    const slot = await mountTaskIdentity("t-parent");
     const button = await slot.findByRole("button", {
       name: "Workstream: Platform › Auth (moved there by you)",
     });
@@ -274,14 +274,14 @@ describe("Workstream control", () => {
 
   it("choosing Automatic hands the thread back to the classifier", async () => {
     const rpcCalls: { method: string; args: unknown }[] = [];
-    const slot = await mountTaskIdentity("t-root", { rpcCalls });
+    const slot = await mountTaskIdentity("t-parent", { rpcCalls });
     fireEvent.click(
       await slot.findByRole("button", { name: /^Workstream: Platform › Auth/ }),
     );
     fireEvent.click(await screen.findByRole("button", { name: /^Automatic/ }));
     await waitFor(() => {
       expect(rpcCalls).toEqual([
-        { method: "threadAutomatic", args: { threadId: "t-root" } },
+        { method: "threadAutomatic", args: { threadId: "t-parent" } },
       ]);
     });
     slot.lifecycle.unmount();

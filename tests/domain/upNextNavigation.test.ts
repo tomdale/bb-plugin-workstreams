@@ -75,8 +75,8 @@ describe("nextThreadAfterLeaving", () => {
   it("keeps going past Up Next when it has nothing else", () => {
     const quiet = projectWorkstreams(
       [
-        thread("root", { sectionId: "ws", latestAttentionAt: 300 }),
-        thread("child", { sectionId: "ws", parentThreadId: "root" }),
+        thread("parent", { sectionId: "ws", latestAttentionAt: 300 }),
+        thread("child", { sectionId: "ws", parentThreadId: "parent" }),
         thread("sibling", { sectionId: "ws", latestAttentionAt: 100 }),
         thread("recent", { sectionId: "elsewhere", latestAttentionAt: 200 }),
       ],
@@ -84,21 +84,28 @@ describe("nextThreadAfterLeaving", () => {
       { now: 0 },
     );
     // A child thread going away leaves the user on its parent thread.
-    expect(nextThreadAfterLeaving(quiet, [], "child", new Set())).toBe("root");
-    // A top-level thread goes on in its workstream, past its own subtree.
-    expect(nextThreadAfterLeaving(quiet, [], "root", new Set(["child"]))).toBe(
-      "sibling",
+    expect(nextThreadAfterLeaving(quiet, [], "child", new Set())).toBe(
+      "parent",
     );
+    // A top-level thread goes on in its workstream, past its own subtree.
+    expect(
+      nextThreadAfterLeaving(quiet, [], "parent", new Set(["child"])),
+    ).toBe("sibling");
     // With its workstream empty, the most recently active thread.
     expect(
-      nextThreadAfterLeaving(quiet, [], "sibling", new Set(["root", "child"])),
+      nextThreadAfterLeaving(
+        quiet,
+        [],
+        "sibling",
+        new Set(["parent", "child"]),
+      ),
     ).toBe("recent");
     expect(
       nextThreadAfterLeaving(
         quiet,
         [],
         "recent",
-        new Set(["root", "child", "sibling"]),
+        new Set(["parent", "child", "sibling"]),
       ),
     ).toBeNull();
   });

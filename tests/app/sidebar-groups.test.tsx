@@ -586,7 +586,7 @@ describe("small groups", () => {
       [
         sidebarThread("a1", {
           sectionId: "sec_studio_app",
-          title: "Studio App root",
+          title: "Studio App thread",
         }),
         sidebarThread("a2", {
           sectionId: "sec_studio_app",
@@ -595,19 +595,19 @@ describe("small groups", () => {
         }),
         sidebarThread("w1", {
           sectionId: "sec_studio_ws",
-          title: "Studio Workstreams root",
+          title: "Studio Workstreams thread",
         }),
         sidebarThread("c1", {
           sectionId: "sec_tools_cli",
-          title: "Tools CLI root",
+          title: "Tools CLI thread",
         }),
         sidebarThread("p1", {
           sectionId: "sec_prompting",
-          title: "Prompting root",
+          title: "Prompting thread",
         }),
         sidebarThread("q1", {
           sectionId: "sec_quality",
-          title: "Quality root",
+          title: "Quality thread",
         }),
       ],
       {
@@ -623,7 +623,7 @@ describe("small groups", () => {
     );
     await waitFor(() =>
       expect(groupRows(slot, "Studio › App")).toEqual([
-        "Studio App root",
+        "Studio App thread",
         "Studio App child",
       ]),
     );
@@ -654,7 +654,7 @@ describe("small groups", () => {
 
     // Thread row heights: top-level thread is 21px, child thread is 28px (h-7)
     const rootRow = within(studioApp)
-      .getByRole("link", { name: "Studio App root" })
+      .getByRole("link", { name: "Studio App thread" })
       .closest(".ws-row") as HTMLElement;
     expect(rootRow.className).toContain("h-[21px]");
     const childRow = within(studioApp)

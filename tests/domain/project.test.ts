@@ -20,9 +20,9 @@ describe("projectWorkstreams", () => {
   it("groups whole trees by the parent thread's section, ignoring children's sections", () => {
     const p = projectWorkstreams(
       [
-        thread("root", { sectionId: "sec_a", latestAttentionAt: now }),
+        thread("parent", { sectionId: "sec_a", latestAttentionAt: now }),
         thread("child", {
-          parentThreadId: "root",
+          parentThreadId: "parent",
           sectionId: "sec_b",
           latestAttentionAt: now,
         }),
@@ -32,7 +32,7 @@ describe("projectWorkstreams", () => {
       { now },
     );
     expect(p.groups.map((g) => [g.id, rowIds(g)])).toEqual([
-      ["sec_a", ["root", "child"]],
+      ["sec_a", ["parent", "child"]],
       ["sec_b", ["beta"]],
     ]);
     expect(p.rowOf.get("child")?.workstreamId).toBe("sec_a");
@@ -286,11 +286,11 @@ describe("pinned threads", () => {
   it("leaves out a pinned child and a pinned thread that is hidden, archived, or snoozed", () => {
     const p = projectWorkstreams(
       [
-        thread("root", { sectionId: "sec_a" }),
-        pinned("child", { parentThreadId: "root" }),
+        thread("parent", { sectionId: "sec_a" }),
+        pinned("child", { parentThreadId: "parent" }),
         pinned("hidden", { isHidden: true }),
         pinned("archived", { isArchived: true }),
-        pinned("snoozed", { parentThreadId: "root" }),
+        pinned("snoozed", { parentThreadId: "parent" }),
       ],
       sections,
       {
@@ -305,8 +305,8 @@ describe("pinned threads", () => {
 
 describe("snoozed threads", () => {
   const threads = () => [
-    thread("root", { sectionId: "sec_a", latestAttentionAt: now }),
-    thread("kid", { parentThreadId: "root", latestAttentionAt: now }),
+    thread("parent", { sectionId: "sec_a", latestAttentionAt: now }),
+    thread("kid", { parentThreadId: "parent", latestAttentionAt: now }),
     thread("grandkid", { parentThreadId: "kid", latestAttentionAt: now }),
     thread("asks", {
       sectionId: "sec_a",
@@ -326,7 +326,7 @@ describe("snoozed threads", () => {
 
   it("moves a snoozed thread out of its group and Needs you", () => {
     const p = project({ asks: now + 1000, beta: null });
-    expect(rowIds(p.groups[0]!)).toEqual(["root", "kid", "grandkid"]);
+    expect(rowIds(p.groups[0]!)).toEqual(["parent", "kid", "grandkid"]);
     expect(p.groups[0]!.needsYou).toBe(0);
     expect(p.needsYou).toEqual([]);
     expect(p.groups.find((g) => g.id === "sec_b")).toBeUndefined();
@@ -338,7 +338,7 @@ describe("snoozed threads", () => {
 
   it("takes a snoozed child's subtree along, with depths from the child", () => {
     const p = project({ kid: now + 1000 });
-    expect(rowIds(p.groups[0]!)).toEqual(["root", "asks"]);
+    expect(rowIds(p.groups[0]!)).toEqual(["parent", "asks"]);
     expect(p.snoozed.map((r) => [r.thread.id, r.depth])).toEqual([
       ["kid", 0],
       ["grandkid", 1],

@@ -56,7 +56,7 @@ const tree = {
 };
 
 const threads = () => [
-  sidebarThread("root", { sectionId: "sec_a", title: "Root task" }),
+  sidebarThread("parent", { sectionId: "sec_a", title: "Parent task" }),
 ];
 
 /** Opens a row's Move to submenu and returns its items. */
@@ -86,10 +86,10 @@ describe("the row menu's Move to submenu", () => {
       settings: { showRecent: false, showUpNext: false },
       tree,
     });
-    await slot.findByRole("link", { name: "Root task" });
+    await slot.findByRole("link", { name: "Parent task" });
     vi.mocked(workstreamIndex).mockClear();
     expect(workstreamIndex).not.toHaveBeenCalled();
-    await workstreamChoices(slot, "Root task");
+    await workstreamChoices(slot, "Parent task");
     expect(workstreamIndex).toHaveBeenCalledOnce();
     slot.lifecycle.unmount();
   });
@@ -99,7 +99,7 @@ describe("the row menu's Move to submenu", () => {
       settings: { showRecent: false, showUpNext: false },
       tree,
     });
-    const choices = await workstreamChoices(slot, "Root task");
+    const choices = await workstreamChoices(slot, "Parent task");
     expect(choices.map((item) => item.textContent)).toEqual([
       expect.stringMatching(/^Automatic/),
       "Area › Shipping",
@@ -116,7 +116,7 @@ describe("the row menu's Move to submenu", () => {
       tree,
       assignmentError: "Topic assignment failed",
     });
-    const choices = await workstreamChoices(slot, "Root task");
+    const choices = await workstreamChoices(slot, "Parent task");
     fireEvent.click(choices.find((item) => item.textContent === "Loose ends")!);
     const alert = await slot.findByRole("alert");
     expect(alert.textContent).toBe("Topic assignment failed");
@@ -128,12 +128,12 @@ describe("the row menu's Move to submenu", () => {
       settings: { showRecent: false, showUpNext: false },
       tree,
     });
-    const choices = await workstreamChoices(slot, "Root task");
+    const choices = await workstreamChoices(slot, "Parent task");
     fireEvent.click(choices.find((item) => item.textContent === "Loose ends")!);
     await waitFor(() =>
       expect(
         slot.inspection.rpcCalls.find((c) => c.method === "threadMove")?.input,
-      ).toEqual({ threadId: "root", workstreamId: "loose" }),
+      ).toEqual({ threadId: "parent", workstreamId: "loose" }),
     );
     expect(slot.queryByRole("alert")).toBeNull();
     slot.lifecycle.unmount();

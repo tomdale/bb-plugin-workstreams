@@ -13,15 +13,15 @@ const sections = [section("sec_a", "Alpha"), section("sec_b", "Beta")];
 const now = Date.now();
 
 /** Two workstreams of work: a thread with a child, and a second thread. */
-function snapshot(title = "Root task"): PluginSidebarThread[] {
+function snapshot(title = "Parent task"): PluginSidebarThread[] {
   return [
-    sidebarThread("root", {
+    sidebarThread("parent", {
       sectionId: "sec_a",
       title,
       latestAttentionAt: now,
     }),
     sidebarThread("kid", {
-      parentThreadId: "root",
+      parentThreadId: "parent",
       sectionId: "sec_a",
       title: "Kid task",
       latestAttentionAt: now - 60_000,
@@ -91,8 +91,8 @@ it("replaces the row and group of the thread that changed", () => {
     },
   );
 
-  expect(after.rowOf.get("root")).not.toBe(before.rowOf.get("root"));
-  expect(after.rowOf.get("root")?.thread.displayTitle).toBe("Renamed task");
+  expect(after.rowOf.get("parent")).not.toBe(before.rowOf.get("parent"));
+  expect(after.rowOf.get("parent")?.thread.displayTitle).toBe("Renamed task");
   expect(after.rowOf.get("kid")).toBe(before.rowOf.get("kid"));
   expect(after.rowOf.get("other")).toBe(before.rowOf.get("other"));
   expect(groupIn(after, "sec_b")).toBe(groupIn(before, "sec_b"));
@@ -119,7 +119,7 @@ it("replaces a row whose depth or status changed, even with the same thread", ()
   );
   expect(after.rowOf.get("kid")).not.toBe(before.rowOf.get("kid"));
   expect(after.rowOf.get("kid")?.depth).toBe(1);
-  expect(after.rowOf.get("root")).toBe(before.rowOf.get("root"));
+  expect(after.rowOf.get("parent")).toBe(before.rowOf.get("parent"));
 
   // A thread the user now has to answer draws a different row.
   const waiting = project.projectWorkstreams(threads, sections, {
@@ -129,7 +129,7 @@ it("replaces a row whose depth or status changed, even with the same thread", ()
   });
   expect(waiting.rowOf.get("other")).not.toBe(before.rowOf.get("other"));
   expect(waiting.rowOf.get("other")?.needsYou).toBe(true);
-  expect(waiting.rowOf.get("root")).toBe(before.rowOf.get("root"));
+  expect(waiting.rowOf.get("parent")).toBe(before.rowOf.get("parent"));
 });
 
 it("keeps unchanged workstream nodes across an arrangement update", () => {
@@ -262,7 +262,7 @@ it("shares rows in the sidebar's own projection update", async () => {
   const labels = slot
     .getAllByRole("link")
     .map((link) => link.getAttribute("aria-label"));
-  for (const label of ["Root task", "Kid task", "Other task"])
+  for (const label of ["Parent task", "Kid task", "Other task"])
     expect(labels).toContain(label);
   const mounted = projection();
   slot.replaceThread("other", (thread) => ({
@@ -274,7 +274,7 @@ it("shares rows in the sidebar's own projection update", async () => {
   const updated = projection();
   expect(updated).not.toBe(mounted);
   expect(updated.rowOf.get("other")).not.toBe(mounted.rowOf.get("other"));
-  expect(updated.rowOf.get("root")).toBe(mounted.rowOf.get("root"));
+  expect(updated.rowOf.get("parent")).toBe(mounted.rowOf.get("parent"));
   expect(updated.rowOf.get("kid")).toBe(mounted.rowOf.get("kid"));
   expect(groupIn(updated, "sec_a")).toBe(groupIn(mounted, "sec_a"));
   slot.lifecycle.unmount();

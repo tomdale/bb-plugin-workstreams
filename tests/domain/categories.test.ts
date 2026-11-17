@@ -193,7 +193,7 @@ describe("category classifier contract", () => {
     if (problem === "omission") decision.categories[0]!.threadIds.pop();
     if (problem === "duplicate") decision.categories[0]!.threadIds[0] = "r4";
     if (problem === "unknown")
-      decision.categories[0]!.threadIds[0] = "not-a-root";
+      decision.categories[0]!.threadIds[0] = "not-a-thread";
     if (problem === "duplicate name") decision.categories[1]!.name = "sidebar";
     if (problem === "unknown category")
       (decision.categories[0] as { id: string | null }).id = "missing";
