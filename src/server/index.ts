@@ -777,7 +777,7 @@ export default async function plugin(bb: BbPluginApi) {
   const journaledStarts = new Set<string>();
   /**
    * Gives a composed thread the workstream its composer showed: one you picked,
-   * or the workstream of the workstream whose ＋ opened it. A workstream the
+   * or the workstream whose ＋ opened the composer. A workstream the
    * composer's preview guessed holds the thread until the start call, on the
    * new-thread model, settles it: the preview runs on a faster model that
    * answers while you type.
@@ -811,9 +811,8 @@ export default async function plugin(bb: BbPluginApi) {
         : identity.workstreamId
           ? workstreamStore.getById(identity.workstreamId)
           : null;
-      // A picked workstream merged or deleted since, or one that has gained
-      // workstreams in a group, leaves the thread to the workstream choice
-      // rather than failing.
+      // A picked workstream merged or deleted since, or one that became a
+      // group, leaves the thread to the workstream choice rather than failing.
       if (identity.workstreamId && !workstream) {
         bb.log.warn(`Composed thread ${threadId} names an unknown workstream.`);
         return;

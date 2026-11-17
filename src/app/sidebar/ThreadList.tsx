@@ -547,7 +547,7 @@ export function WorkstreamsThreadList({
     entriesOf([row, ...(descendants.get(row.thread.id) ?? [])], placement).map(
       (entry) => renderRow(entry, { placement, slotWidth }),
     );
-  /** The new thread starts with this workstream's workstream. */
+  /** The new thread starts in this workstream. */
   const newThreadIn = useCallback(
     (group: ThreadNode) => () => {
       setComposerPreset(

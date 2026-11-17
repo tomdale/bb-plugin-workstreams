@@ -166,8 +166,7 @@ export type RepairPreview = z.infer<typeof repairPreviewSchema>;
 /**
  * The workstream the New thread composer shows for a draft. `automatic` is the
  * composer preview's guess, which holds the thread until its start call
- * settles it. `inherited` is the workstream of the workstream whose ＋ opened
- * the composer.
+ * settles it. `inherited` is the workstream whose ＋ opened the composer.
  */
 const taskIdentitySubmissionSchema = z.object({
   workstreamId: z.string().min(1).nullable().optional(),

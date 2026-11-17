@@ -14,9 +14,9 @@ import type { DraftWorkstreamProposal } from "../domain/workstreams.ts";
 import type { ProjectChoice } from "../domain/projectChoice.ts";
 
 /**
- * The workstream a composer showed: one you picked (`manual`), the workstream of the
- * workstream whose ＋ opened it (`inherited`, by `sectionId`), or the start
- * call's preview (`automatic`).
+ * The workstream a composer showed: one you picked (`manual`), the workstream
+ * whose ＋ opened it (`inherited`, by `sectionId`), or the start call's
+ * preview (`automatic`).
  */
 export type ComposedIdentity = {
   workstreamId?: string | null;
