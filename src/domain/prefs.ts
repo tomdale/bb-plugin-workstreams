@@ -66,9 +66,10 @@ export const DEFAULT_MODELS = {
     reasoningLevel: "none",
   },
   /**
-   * Guesses a draft's title and workstream in the composer as you type, so
+   * Guesses a draft's workstream in the composer as you type, so
    * it must answer in about a second and cost little per call. The start
-   * call settles both after send on the new-thread model.
+   * call sets the title and settles the workstream after send on the
+   * new-thread model.
    */
   composer: {
     kind: "gateway",
@@ -196,7 +197,7 @@ const GROUPS = {
      * the categories fit check.
      */
     newThreadModel: [modelChoiceSchema, DEFAULT_MODELS.newThread],
-    /** Guesses a draft's title and workstream in the composer as you type. */
+    /** Guesses a draft's workstream in the composer as you type. */
     composerModel: [modelChoiceSchema, DEFAULT_MODELS.composer],
     /** Updates a thread's title, goal, status, and workstream when a turn ends. */
     turnEndModel: [modelChoiceSchema, DEFAULT_MODELS.turnEnd],

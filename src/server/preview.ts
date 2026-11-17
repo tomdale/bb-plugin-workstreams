@@ -1,9 +1,9 @@
 /**
- * The New thread composer's preview of a draft: the title and workstream the
- * thread's start would give it (see `domain/start.ts`), or the workstream of a
- * workstream the draft mentions. It changes nothing, and it never sends the
- * draft anywhere: the composer creates the thread, and the workstream decides its
- * workstream. It runs on its own fast model so it can answer while you type;
+ * The New thread composer's preview of a draft: the workstream the thread's
+ * start would give it (see `domain/start.ts`), or a workstream the draft
+ * mentions. It changes nothing, and it never sends the draft anywhere: the
+ * composer creates the thread. Its title shows only in the composer's debug
+ * disclosure. It runs on its own fast model so it can answer while you type;
  * the thread's start call asks the new-thread model again after send.
  */
 import { randomUUID } from "node:crypto";
@@ -45,7 +45,7 @@ export class ComposerPreview {
       workstreamStore: WorkstreamStore;
       workstreamChoice: Pick<WorkstreamChoice, "draft">;
       inference: Inference;
-      /** The model that guesses a draft's title and workstream as you write. */
+      /** The model that guesses a draft's workstream as you write. */
       model: () => Promise<ModelChoice>;
     },
   ) {}
@@ -72,6 +72,9 @@ export class ComposerPreview {
       ? (projects.find((p) => p.id === options.pickedProjectId)?.name ?? null)
       : null;
     const choice = this.deps.workstreamChoice.draft(project);
+    // The start call, not the workstream-only choice: writing a title first
+    // makes a fast model choose the workstream more accurately, so the title
+    // is asked even though the composer doesn't show it.
     const { value, traceId } = await this.deps.inference.run(
       "start",
       { request: text, project, choice },

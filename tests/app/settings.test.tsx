@@ -538,7 +538,7 @@ it("saves New threads preferences", async () => {
   await slot.findByRole("switch", { name: "Name and organize as you write" });
   expect(
     slot.getByText(
-      "Show a guess at a new thread's title and workstream in the composer as you write. The guessed workstream holds the thread after you send until its start call answers.",
+      "Show a guess at a new thread's workstream in the composer as you write. The guessed workstream holds the thread after you send until its start call answers.",
     ),
   ).toBeTruthy();
   fireEvent.click(
