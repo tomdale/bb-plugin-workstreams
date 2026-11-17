@@ -75,10 +75,9 @@ export function BandGroup({
 /**
  * An overlay band. A plain band collapses from its header. A boxed band is an
  * always-open block spanning the column, with its header inside: `attention`
- * is the Up Next card (`.ws-needs`), `pinned` the quiet card of the threads
- * kept in reach (`.ws-pinned`), and `neutral` the
- * quieter Recent block (`.ws-band-neutral`). Each sets its rows apart from
- * the workstream list below.
+ * is the Up Next card (`.ws-needs`), and `pinned` the quiet card that Pinned
+ * and Recent share (`.ws-pinned`). Each sets its rows apart from the
+ * workstream list.
  */
 export const BOX_STYLES = {
   attention: {
@@ -88,12 +87,8 @@ export const BOX_STYLES = {
   },
   pinned: {
     section: "ws-pinned mx-2 mt-0 px-1 pt-1.5 pb-2", // slop-ok: 2 the Pinned band, the Up Next card's quieter neighbor
-    heading: "pb-1 text-[12px] font-medium text-muted-foreground",
-  },
-  neutral: {
-    section: "ws-band-neutral my-1 px-2 py-1", // slop-ok: 2 the neutral band, an established product surface
     heading:
-      "py-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground", // slop-ok: 1 the product's section-label style
+      "pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground", // slop-ok: 1 the product's section-label style
   },
 } as const;
 
@@ -113,7 +108,7 @@ export function Band({
   title: string;
   /** Row total, shown only while the band is collapsed. */
   count?: number;
-  box?: "attention" | "pinned" | "neutral";
+  box?: "attention" | "pinned";
   /** A small mark after the title. */
   badge?: ReactNode;
   /**

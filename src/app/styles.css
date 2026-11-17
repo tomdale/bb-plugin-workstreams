@@ -673,10 +673,11 @@ body:has([data-ws-suggestions])
   }
 }
 
-/* The Pinned block: the threads the user keeps in reach, directly under Up
-   Next in the same floating plate. A quiet card, so the Needs input tint above
-   stays the one thing shouting, drawn with the workstream list's own rows so
-   a pinned thread reads the same here and in its workstream. */
+/* The Pinned and Recent blocks. Pinned holds the threads the user keeps in
+   reach, directly under Up Next in the same floating plate; Recent holds the
+   most recently active threads. A quiet card, so the Needs input tint stays
+   the one thing shouting, drawn with the workstream list's own rows so a
+   thread reads the same here and in its workstream. */
 .ws-pinned {
   --ws-row-hover: color-mix(in oklab, var(--foreground) 7%, transparent);
   --ws-row-active: color-mix(in oklab, var(--foreground) 10%, transparent);
@@ -687,17 +688,6 @@ body:has([data-ws-suggestions])
     in oklab,
     var(--sidebar-accent, var(--accent)) 45%,
     var(--sidebar, transparent)
-  );
-}
-
-/* The Recent block: a quiet wash in the foreground color, without the Up
-   Next card's border or motion. */
-.ws-band-neutral {
-  background-image: linear-gradient(
-    160deg,
-    color-mix(in oklab, var(--foreground) 6%, transparent) 0%,
-    color-mix(in oklab, var(--foreground) 3%, transparent) 45%,
-    transparent 100%
   );
 }
 

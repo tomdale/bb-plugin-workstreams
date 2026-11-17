@@ -23,7 +23,9 @@
  *
  * Pinned lists the threads the user pinned, in BB's pin order, directly under
  * Up Next. The two bands share one sticky plate at the top of the list, so both
- * stay in reach while the workstreams scroll beneath them.
+ * stay in reach while the workstreams scroll beneath them. Recent is drawn
+ * the same way, as its own card in the list, and keeps its sort and
+ * grouping options.
  *
  * This file arranges the list and owns its state. The pieces it draws live
  * beside it: `Bands.tsx` (band headers, menus, the lower toggle),
@@ -536,6 +538,24 @@ export function WorkstreamsThreadList({
       ),
     [recentRows, bandOptions.recent, planningSnoozeOf, nameOf],
   );
+  // Recent opens, closes, and moves its rows as Pinned does. Grouped by
+  // workstream, its rows sit in folded sections instead (see `GroupedBand`).
+  const recentSlot = useMemo(
+    () => slotWidthOf(recentRows),
+    [recentRows, ws.server.analysis, ws.server.recaps, spinnerShape],
+  );
+  const sortedRecentRows = useMemo(
+    () =>
+      bandOptions.recent.grouped
+        ? []
+        : recentPlan[0]!.trees.map((tree) => tree[0]!),
+    [bandOptions.recent.grouped, recentPlan],
+  );
+  const recentBandPresence = usePresence(
+    ws.showRecent && recentRows.length > 0 ? ["recent"] : [],
+    String,
+  );
+  const recentRowPresence = usePresence(sortedRecentRows, rowKey);
   const snoozedPlan = useMemo(
     () =>
       planBandRows(
@@ -733,24 +753,39 @@ export function WorkstreamsThreadList({
       tone,
     );
   const bandControlStyle = { paddingLeft: bandTitleInset(needsSlot) };
-  const recentBlock =
-    ws.showRecent && recentRows.length > 0 ? (
-      <Band
-        key="recent"
-        title="Recent"
-        flipKey="recent"
-        box="neutral"
-        menu={
-          <BandOptionsMenu
-            section="recent"
-            options={bandOptions.recent}
-            onChange={(change) => updateBandOptions("recent", change)}
-          />
-        }
-      >
-        {bandBody("recent", recentRows, recentPlan)}
-      </Band>
-    ) : null;
+  const recentBlock = recentBandPresence.map((band) => (
+    <Presence key={band.key} data-flip-key="recent" phase={band.phase}>
+      <div>
+        <Band
+          title={RECENT}
+          box="pinned"
+          markless={recentSlot === 0}
+          style={{ marginTop: 4, marginBottom: 4 }}
+          menu={
+            <BandOptionsMenu
+              section="recent"
+              options={bandOptions.recent}
+              onChange={(change) => updateBandOptions("recent", change)}
+            />
+          }
+        >
+          {bandOptions.recent.grouped
+            ? bandBody("recent", recentRows, recentPlan)
+            : recentRowPresence.map((entry) =>
+                present(
+                  entry,
+                  entriesOf([entry.item], "recent").map((row) =>
+                    renderRow(row, {
+                      placement: "recent",
+                      slotWidth: recentSlot,
+                    }),
+                  ),
+                ),
+              )}
+        </Band>
+      </div>
+    </Presence>
+  ));
   const hasWorkstreams =
     focusedGroups.length +
       populatedGroups.length +
@@ -1120,3 +1155,4 @@ const UP_NEXT_MORE_KEY = ":more";
 const upNextItemKey = (item: UpNextItem) =>
   item.kind === "row" ? item.row.thread.id : UP_NEXT_MORE_KEY;
 const PINNED = "Pinned";
+const RECENT = "Recent";
