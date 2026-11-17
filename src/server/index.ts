@@ -76,6 +76,9 @@ import { registerQueueLab } from "./queueLab.ts";
 import { registerStreamDeck, type StreamDeck } from "./streamDeck.ts";
 import { PresentationStore } from "./postTurn/store.ts";
 import { PostTurnPresenter, type Compose } from "./postTurn/presenter.ts";
+import { SpendGuard } from "./spendGuard.ts";
+import { UsageLedger, type UsageGate } from "./usage.ts";
+import { UsageMonitor } from "./usageMonitor.ts";
 import {
   loadPresentationPrefs,
   savePresentationPrefs,
@@ -219,6 +222,34 @@ export default async function plugin(bb: BbPluginApi) {
     );
   };
   const traces = new TraceStore(db);
+  // Every attempt that may spend provider money asks the guard first and
+  // reports to the ledger after, through this one gate.
+  const usageLedger = new UsageLedger(db);
+  usageLedger.prune({ force: true });
+  const spendGuard = new SpendGuard({
+    db,
+    ledger: usageLedger,
+    prefs: () => currentPrefs().usage,
+    onChange: (state) => bb.realtime.publish("usage", { state }),
+    log: (message) => bb.log.warn(message),
+  });
+  bb.onDispose(() => spendGuard.dispose());
+  const usageMonitor = new UsageMonitor({
+    ledger: usageLedger,
+    prefs: () => currentPrefs().usage,
+  });
+  const usageGate: UsageGate = {
+    admit: (source) => spendGuard.admit(source),
+    record: (entry) => {
+      try {
+        usageLedger.record(entry);
+        usageLedger.prune();
+        spendGuard.observe();
+      } catch (error) {
+        bb.log.warn(`Usage not recorded: ${String(error)}`);
+      }
+    },
+  };
   const inference = new Inference({
     complete: async (prompt, choice, signal, maxTokens, context) => {
       const direct = gatewayModel(choice);
@@ -1563,6 +1594,7 @@ export default async function plugin(bb: BbPluginApi) {
     setPrefs: async ({ patch }) => {
       const prefs = savePrefs(db, patch);
       if (patch.organize) triggerOrganizer(0);
+      if (patch.usage) spendGuard.observe();
       bb.realtime.publish("prefs", { prefs });
       notify();
       return { prefs };
@@ -1742,6 +1774,34 @@ export default async function plugin(bb: BbPluginApi) {
         });
         return { threadId: thread.id };
       }),
+    usage: async ({ range }) => {
+      const now = Date.now();
+      const workstreams = workstreamStore.list();
+      const summary = usageLedger.summary(range, {
+        now,
+        groupOfThread: (threadId) => {
+          const { workstreamId } = workstreamStore.assignment(threadId);
+          return workstreamId
+            ? {
+                key: workstreamId,
+                label: workstreamPath(workstreamId, workstreams),
+              }
+            : null;
+        },
+      });
+      return {
+        ...summary,
+        now,
+        windows: usageLedger.totals(now),
+        state: spendGuard.status(),
+        flags: usageMonitor.flags(),
+      };
+    },
+    usageStatus: async () => ({
+      level: spendGuard.status().level,
+      flags: usageMonitor.flags().length,
+    }),
+    usageResume: async () => ({ state: spendGuard.resume() }),
   });
 
   streamDeck = registerStreamDeck(bb, async () => {

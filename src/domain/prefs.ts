@@ -129,6 +129,11 @@ const countVisibility = z.enum(["always", "collapsed", "never"]);
  * stored shape (`prefsSchema`) falls back to defaults field by field, so one
  * bad stored value never resets its neighbors.
  */
+/** A spend threshold in USD; null is off. */
+const spendThreshold = z.number().positive().max(1_000_000).nullable();
+/** A request-count threshold; null is off. */
+const callsThreshold = z.number().int().positive().max(1_000_000).nullable();
+
 const GROUPS = {
   sidebar: {
     /** The Up Next section: threads awaiting the user. */
@@ -225,6 +230,25 @@ const GROUPS = {
     needsInput: [colorChoiceSchema, DEFAULT_COLORS.needsInput],
     failed: [colorChoiceSchema, DEFAULT_COLORS.failed],
     automatic: [colorChoiceSchema, DEFAULT_COLORS.automatic],
+  },
+  /**
+   * Warnings and hard caps on what Workstreams' model calls spend (see
+   * `domain/usage.ts`). A blank threshold (`null`) is off. A cap pauses every
+   * Workstreams model call until its window resets, a resume, or a higher cap;
+   * warnings only mark the Usage page.
+   */
+  usage: {
+    hourSpendWarn: [spendThreshold, 3],
+    hourSpendCap: [spendThreshold, 10],
+    daySpendWarn: [spendThreshold, 10],
+    daySpendCap: [spendThreshold, 30],
+    monthSpendWarn: [spendThreshold, null],
+    monthSpendCap: [spendThreshold, null],
+    /** Requests in the last hour, which also counts calls with no reported cost. */
+    hourCallsWarn: [callsThreshold, 150],
+    hourCallsCap: [callsThreshold, 500],
+    /** Flag what looks wrong in recent usage (`detectUsageFlags`). */
+    detectors: [z.boolean(), true],
   },
   advanced: {
     /** The machine whose Pi key runs gateway calls; "" picks the only one. */

@@ -741,6 +741,30 @@ const MIGRATIONS = [
   `UPDATE ws_suggestion SET detail = 'Review a scope-based workstream split under the two-level identity rules.'
    WHERE kind = 'split' AND detail = 'Review a scope-based topic division under the two-level identity rules.'`,
   "ALTER TABLE ws_post_turn_document RENAME COLUMN topic TO workstream",
+  // The usage ledger (src/server/usage.ts): one row per attempt that may have
+  // spent provider money. It outlives model traces, which are pruned and
+  // deletable.
+  `CREATE TABLE ws_usage (
+    id TEXT PRIMARY KEY,
+    at INTEGER NOT NULL,
+    source TEXT NOT NULL,
+    path TEXT NOT NULL,
+    model TEXT NOT NULL,
+    thread_id TEXT,
+    trace_id TEXT,
+    status TEXT NOT NULL,
+    calls INTEGER NOT NULL DEFAULT 1,
+    input_tokens INTEGER,
+    output_tokens INTEGER,
+    cost REAL,
+    prompt_hash TEXT,
+    prompt_chars INTEGER,
+    duration_ms INTEGER NOT NULL DEFAULT 0,
+    replay INTEGER NOT NULL DEFAULT 0
+  )`,
+  "CREATE INDEX ws_usage_at ON ws_usage(at)",
+  "CREATE INDEX ws_usage_thread ON ws_usage(thread_id, at)",
+  "CREATE INDEX ws_usage_prompt ON ws_usage(prompt_hash, at) WHERE prompt_hash IS NOT NULL",
 ];
 
 export function openDatabase(bb: BbPluginApi): Database {

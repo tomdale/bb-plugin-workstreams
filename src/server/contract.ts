@@ -30,6 +30,12 @@ import {
   traceSchema,
   traceSummarySchema,
 } from "../domain/trace.ts";
+import {
+  USAGE_RANGES,
+  spendStateSchema,
+  usageIndicatorSchema,
+  usageReportSchema,
+} from "../domain/usage.ts";
 import { entrySchema } from "./journal.ts";
 import { changeStampSchema, stateSliceSchema } from "../domain/changes.ts";
 
@@ -992,6 +998,27 @@ export const rpcContract = defineRpcContract({
       message: z.string().min(1).max(400_000),
     }),
     output: z.object({ threadId: z.string() }),
+  },
+  /**
+   * Aggregate provider usage for the Usage page: totals, buckets, groupings,
+   * the current windows, the limits' state, and the detectors' flags.
+   */
+  usage: {
+    input: z.object({ range: z.enum(USAGE_RANGES) }),
+    output: usageReportSchema,
+  },
+  /** The light read behind the Page menu's mark: the limits' level and flag count. */
+  usageStatus: {
+    input: z.null(),
+    output: usageIndicatorSchema,
+  },
+  /**
+   * Lets model calls through past the caps reached now, until each cap's
+   * window resets. Warnings stay.
+   */
+  usageResume: {
+    input: z.null(),
+    output: z.object({ state: spendStateSchema }),
   },
 });
 
