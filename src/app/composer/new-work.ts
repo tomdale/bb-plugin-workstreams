@@ -266,6 +266,13 @@ export class NewWork {
    */
   private shownProjectId: string | null = null;
   /**
+   * The project a preview reads: the composer's own, or the one you chose,
+   * never a default a preview's workstream supplied. Feeding that default back
+   * in would have each answer shape the next question, and the workstream and
+   * project pickers would keep flipping with no typing.
+   */
+  private previewProjectId: string | null = null;
+  /**
    * Every selection already observed. A kept-alive view can report an older
    * selection after a newer one; BB replaces the object on every change, so a
    * seen object is stale.
@@ -432,6 +439,7 @@ export class NewWork {
     this.submitRequested = false;
     this.restore = null;
     this.moves.clear();
+    this.previewProjectId = this.state.selection?.projectId || null;
   }
 
   observeSelection(selection: ComposerSelection | null) {
@@ -442,6 +450,10 @@ export class NewWork {
     const previous = this.shownProjectId;
     const changed = !!projectId && projectId !== previous;
     if (projectId) this.shownProjectId = projectId;
+    // A workstream default is an effect of the preview, not an input to it.
+    const supplied = !!projectId && projectId === this.state.suppliedProjectId;
+    const previewInput = changed && !supplied;
+    if (projectId && !supplied) this.previewProjectId = projectId;
     // A workstream default or a restored choice landing ends its move.
     let landed = false;
     if (changed)
@@ -477,7 +489,7 @@ export class NewWork {
         : {}),
     });
     // The preview reads the project, so a new one asks again.
-    if (changed && previous) this.schedule();
+    if (previewInput && previous) this.schedule();
   }
 
   /**
@@ -705,7 +717,7 @@ export class NewWork {
     this.pending = true;
     this.set({ classifying: true });
     const prompt = this.state.text;
-    const pickedProjectId = this.state.selection?.projectId ?? null;
+    const pickedProjectId = this.previewProjectId;
     const finish = this.begin("classify", { prompt, pickedProjectId });
     try {
       const decision = await this.deps.route(prompt, pickedProjectId);

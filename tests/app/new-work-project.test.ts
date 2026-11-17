@@ -129,3 +129,37 @@ it("holds a send until the project move ends", () => {
     vi.useRealTimers();
   }
 });
+
+it("asks the preview about your project, not a default its own answer supplied", async () => {
+  vi.useFakeTimers();
+  try {
+    const route = vi.fn(deps.route);
+    const work = new NewWork({ ...deps, route });
+    work.observeSelection({ projectId: "a" });
+    work.observe("Look for plugins in the BB plugin market");
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(route).toHaveBeenCalledTimes(1);
+    expect(route).toHaveBeenLastCalledWith(expect.any(String), "a");
+
+    // The preview's workstream supplies project b, and the composer lands on it.
+    work.supplyProject("b");
+    work.observeSelection({ projectId: "b" });
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(route).toHaveBeenCalledTimes(1);
+
+    // Typing more asks again, still with the project that wasn't supplied.
+    work.observe("Look for plugins in the BB plugin market for PRs");
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(route).toHaveBeenCalledTimes(2);
+    expect(route).toHaveBeenLastCalledWith(expect.any(String), "a");
+
+    // A project you choose is asked about.
+    work.observeSelection({ projectId: "c" });
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(route).toHaveBeenCalledTimes(3);
+    expect(route).toHaveBeenLastCalledWith(expect.any(String), "c");
+    work.dispose();
+  } finally {
+    vi.useRealTimers();
+  }
+});
