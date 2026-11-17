@@ -932,7 +932,9 @@ images, and the analysis machine needs Chrome (or `CHROME_PATH`).
 
 When an agent needs a structured decision (and the active provider does not
 supply its own native question tool), `AskUserQuestion` renders an amber card
-above the composer:
+above the composer, which stays visible beneath it as it does under a recap
+card. While the agent is waiting, BB still blocks sending from the composer
+until you answer:
 
 - Supports `1–4` questions in tabs, each with up to `4` single-select or
   multi-select options (with number-key shortcuts and optional Markdown

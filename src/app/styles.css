@@ -1278,6 +1278,14 @@ section[data-testid="plugin-interaction-shell"]:has(.ws-question-portaled) {
   display: none;
 }
 
+/* BB hides the composer while a question is live. The card above it is a
+   composer banner like the recap card, so keep the composer drawn beneath it.
+   BB still blocks sending until the question is answered. */
+[data-app-composer]:has(.ws-question-portaled)
+  [data-follow-up-composer][hidden] {
+  display: block !important;
+}
+
 /* The portal is a direct child of the delivery row, outside BB's clipped
    message body. Keep host DOM for reconciliation and restore it on unmount. */
 .ws-delivered-question-row > :not([data-ws-delivered-anchor]),
