@@ -14,6 +14,12 @@ const pickerValue = (
         model: `vercel-ai-gateway/${choice.model}`,
         reasoningLevel: (choice.reasoningLevel ??
           "none") as ExperimentalProviderModelPickerValue["reasoningLevel"],
+        ...(choice.serviceTier
+          ? {
+              serviceTier:
+                choice.serviceTier as ExperimentalProviderModelPickerValue["serviceTier"],
+            }
+          : {}),
       }
     : {
         providerId: choice.providerId,

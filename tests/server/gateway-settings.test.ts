@@ -5,6 +5,7 @@ import {
 } from "../../src/server/inference/gateway.ts";
 import { fakeWorld } from "./fake-bb.ts";
 import { savePrefs } from "../../src/server/prefs.ts";
+import { DEFAULT_MODELS } from "../../src/domain/prefs.ts";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -194,4 +195,32 @@ it("forwards saved Pi Gateway controls through host RPC and traces the direct pr
   } finally {
     await world.harness.lifecycle.dispose();
   }
+});
+
+it("sends a gateway choice's service tier with its call", async () => {
+  const world = await fakeWorld();
+  try {
+    world.addThread("analysis");
+    savePrefs(world.bb.storage.database(), {
+      analysis: {
+        turnEndModel: {
+          kind: "gateway",
+          model: "openai/test",
+          reasoningLevel: "none",
+          serviceTier: "fast",
+        },
+      },
+    });
+    await world.harness.behavior.runCli(["analyze", "analysis"]);
+    expect(world.completions.at(-1)).toMatchObject({
+      model: "openai/test",
+      serviceTier: "fast",
+    });
+  } finally {
+    await world.harness.lifecycle.dispose();
+  }
+});
+
+it("asks new-thread calls on the fast tier by default", () => {
+  expect(DEFAULT_MODELS.newThread).toMatchObject({ serviceTier: "fast" });
 });

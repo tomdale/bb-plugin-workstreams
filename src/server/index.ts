@@ -235,13 +235,7 @@ export default async function plugin(bb: BbPluginApi) {
             ...(choice.reasoningLevel
               ? { reasoningLevel: choice.reasoningLevel }
               : {}),
-            ...(choice.kind === "provider"
-              ? {
-                  ...(choice.serviceTier
-                    ? { serviceTier: choice.serviceTier }
-                    : {}),
-                }
-              : {}),
+            ...(choice.serviceTier ? { serviceTier: choice.serviceTier } : {}),
           },
           { hostId: await analysisHost(), timeoutMs: 95_000, signal },
         );

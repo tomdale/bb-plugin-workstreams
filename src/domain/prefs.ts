@@ -28,6 +28,7 @@ export const modelChoiceSchema = z.discriminatedUnion("kind", [
     kind: z.literal("gateway"),
     model: z.string().min(1).max(200),
     reasoningLevel: z.string().min(1).max(50).optional(),
+    serviceTier: z.string().min(1).max(50).optional(),
   }),
   z.object({
     kind: z.literal("provider"),
@@ -63,6 +64,9 @@ export const DEFAULT_MODELS = {
     kind: "gateway",
     model: "openai/gpt-6.1-sol",
     reasoningLevel: "none",
+    // The composer asks this call as you type. The fast tier answers about 40%
+    // sooner with the same model and prompt.
+    serviceTier: "fast",
   },
   /** Settles a thread's title, goal, status, and workstream when a turn ends. */
   turnEnd: {
