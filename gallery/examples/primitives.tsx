@@ -65,7 +65,7 @@ function StatusDotExample() {
         </Variant>
         <Variant
           label="Workstream and hollow"
-          note="Home's group heads: the topic's hue, or a ring that holds its place."
+          note="Home's group heads: the workstream's hue, or a ring that holds its place."
         >
           <div className="flex flex-col gap-2 text-sm">
             <Row>
@@ -166,10 +166,10 @@ function SectionHeadingExample() {
         </Variant>
         <Variant label="With an action">
           <SectionHeading className="flex items-center gap-2">
-            Topics
+            Workstreams
             <span className="flex-1" />
             <span className="font-normal normal-case tracking-normal">
-              New topic…
+              New workstream…
             </span>
           </SectionHeading>
         </Variant>

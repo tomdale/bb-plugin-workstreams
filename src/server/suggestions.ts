@@ -2,7 +2,7 @@
  * Reviewed changes to durable workstream identity. The workstream choice can
  * identify a lasting area within a populated top-level workstream; its division
  * request asks for a complete plan of where every thread moves rather than
- * adding a child around existing threads. Asking for suggestions also considers
+ * adding a workstream around existing threads. Asking for suggestions also considers
  * divisions explicitly. Volume-based categories have their own lifecycle and
  * never change this tree.
  *
@@ -79,7 +79,7 @@ type SuggestionView = {
   /** The model call that proposed it, while that trace is still stored. */
   traceId: string | null;
   /**
-   * Threads that joined a split's group since it was made; accepting asks
+   * Threads that joined a split's workstream since it was made; accepting asks
    * the model which workstream each goes in.
    */
   arrivals: { id: string; title: string }[];

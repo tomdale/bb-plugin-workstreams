@@ -21,8 +21,8 @@ export type CollapseScope = {
 
 /**
  * Every group fold in the thread list. A group's stored state follows its
- * workstream, so it survives its section being deleted and recreated; a shared
- * workstream's header has no section to look the workstream up by, so it names its own.
+ * workstream record, so it survives its section being deleted and recreated;
+ * a group header has no section to look up its record by, so it supplies its id.
  * Folded threads and bands use the stored state directly (`isCollapsed`,
  * `toggle`).
  */

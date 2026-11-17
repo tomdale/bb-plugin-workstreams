@@ -68,7 +68,7 @@ export function Row({
   active: boolean;
   /**
    * Shown after the title in overlay bands and inline groups: the row's
-   * workstream or workstream name, or when a snoozed row wakes.
+   * workstream name, or when a snoozed row wakes.
    */
   context?: string;
   /**

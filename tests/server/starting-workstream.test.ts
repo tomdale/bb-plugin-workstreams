@@ -120,7 +120,7 @@ describe("a new thread's first workstream", () => {
     });
   });
 
-  it("weighs the workstream it was started from when that is a group", async () => {
+  it("weighs the group it was started from", async () => {
     const {
       w,
       workstreamStore: workstreamStore,

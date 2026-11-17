@@ -1,4 +1,4 @@
-/** Button styles shared by the Map tab's editor and organizing flow. */
+/** Button styles shared by the Organize tab's editor and organizing flow. */
 const base =
   "inline-flex h-7 shrink-0 items-center justify-center rounded-md px-3 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50";
 

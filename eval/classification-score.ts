@@ -34,7 +34,7 @@ export function scoreClassification(
       assertProposalLevels(resolved.proposed, input.workstreams);
     const selected = value.workstreamId ?? resolved?.workstreamId;
     if (selected && workstreamAncestors(selected, input.workstreams).length > 2)
-      throw new Error("Topic depth exceeds two levels.");
+      throw new Error("Workstream depth exceeds two levels.");
   } catch {
     return {
       owner: false,

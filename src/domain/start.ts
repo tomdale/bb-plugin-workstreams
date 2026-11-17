@@ -119,8 +119,8 @@ const outputSchema = z.object({
 /**
  * The checked answer. The title drops names its listing shows: for a thread
  * with no parent, the workstream this answer chose. An invalid workstream is
- * refused on its own (`topicError`), so it never moves a thread and the title
- * still stands.
+ * refused on its own (`workstreamError`), so it never moves a thread and the
+ * title still stands.
  */
 export function parseStart(text: string, input: StartInput): StartOutput {
   const raw: unknown = JSON.parse(stripFence(text));

@@ -97,7 +97,7 @@ describe("a nested fold's rows", () => {
   });
 });
 
-describe("a nested row's menu when its outer workstream closes", () => {
+describe("a nested row's menu when its outer group closes", () => {
   const workstream = (id: string, name: string, parentId: string | null) => ({
     id,
     name,

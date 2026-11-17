@@ -13,7 +13,7 @@ const workstreams = [
 ];
 
 describe("durable workstream layout", () => {
-  it("lists a one-level product and each populated second-level workstream", () => {
+  it("lists a top-level workstream and each populated workstream in a group", () => {
     const layout = layoutGroups({
       workstreams,
       counts: { vertex: 1, review: 4, automations: 4 },
@@ -48,7 +48,7 @@ describe("durable workstream layout", () => {
       listed: [],
     });
   });
-  it("does not repeat a product prefix already present in its child's name", () => {
+  it("does not repeat a group prefix already present in its workstream's name", () => {
     const layout = layoutGroups({
       workstreams: [
         { id: "a", name: "Vercel", parentId: null },

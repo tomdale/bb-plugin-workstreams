@@ -450,7 +450,7 @@ export const rpcContract = defineRpcContract({
   },
   /**
    * The New thread composer's preview of a draft: the start call's title
-   * and workstream for the new thread, or the workstream of a mentioned workstream.
+   * and workstream for the new thread, or the workstream the draft mentions.
    * Changes nothing.
    */
   preview: {
@@ -731,7 +731,7 @@ export const rpcContract = defineRpcContract({
     }),
     output: z.object({ target: workstreamSchema }),
   },
-  /** Chooses an existing leaf within the user's destination group and sets it manually. */
+  /** Chooses an existing workstream within the user's destination group and sets it manually. */
   threadMoveToGroup: {
     input: z.object({
       threadId: z.string().min(1),

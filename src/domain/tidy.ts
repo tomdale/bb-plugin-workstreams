@@ -60,8 +60,7 @@ export type Split = {
   readonly workstreamId: string;
   readonly threadTitles?: Readonly<Record<string, string>>;
   /**
-   * It moves the threads of a workstream that holds them beside workstreams in
-   * a group.
+   * It moves the threads a group holds of its own into its workstreams.
    */
   readonly repair?: boolean;
   readonly workstreams: readonly {
@@ -157,8 +156,8 @@ export type SplitInput = {
 const SPLIT_RULES = `The workstreams of a group identify lasting products, capabilities, or maintained areas within a broad product. Each scope must be supported by the requests and independently assignable to a future thread without comparing it with other threads. A single-purpose tool covers its fixes, refactors, and reviews without separate workstreams for those stages. Thread volume and recurring categories do not establish lasting scope. Name each workstream for its supported scope, rather than General or Other, so future threads follow the area instead of leftover membership. Give every listed thread one supported workstream and leave the split unapplied if no complete supported split is available. Workstreams go at most two levels deep: these workstreams sit inside the group and hold threads. Name them in Title Case, preserving product spelling, without repeating the group's name.`;
 
 /**
- * The group's workstreams a thread can be moved into: those without workstreams
- * in a group.
+ * The group's workstream records that can hold threads: those that aren't
+ * groups.
  */
 const fileable = (input: Pick<SplitInput, "workstreams" | "workstreamId">) =>
   input.workstreams.filter(
@@ -789,7 +788,7 @@ export function refusal(edit: TidyEdit, state: TreeState): string | null {
 }
 
 /**
- * Top-level workstreams named as if they belonged under another workstream: "Vercel
+ * Top-level workstreams named as if they belonged under a group: "Vercel
  * Agent Code Review" beside "Vercel Agent". Each becomes a move under the
  * group its name begins with (the longest, when several do),
  * renamed without the shared words. Workstreams already under a parent keep it; moves that would

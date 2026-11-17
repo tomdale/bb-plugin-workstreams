@@ -71,7 +71,7 @@ export function planDrop<T extends WorkstreamThread>(
 ): DropPlan {
   if (drop.kind === "group") {
     // Headers drag top-level groups, which may stand for several sections
-    // or for a shared workstream with none. The stored order stays a list of
+    // or have no section of their own. The stored order stays a list of
     // sections: each group's sections move together, keeping their order.
     const ordered = applyOrder(
       sections,

@@ -280,7 +280,7 @@ describe("a suggestion's delta equals accepting it", () => {
       }),
     ],
     [
-      "repair moving a workstream's threads beside its children",
+      "repair moving a group's threads beside its workstreams",
       "split",
       (id) => ({
         workstreamId: id.support!,

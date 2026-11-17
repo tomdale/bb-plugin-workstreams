@@ -28,7 +28,7 @@ const workstreams: Workstream[] = [
   },
 ];
 
-it("uses the nearest workstream's associated project, including a child workstream's override", () => {
+it("uses the group's associated project unless the workstream overrides it", () => {
   expect(chosenProject("parent", workstreams)).toBe("project-root");
   expect(chosenProject("child", workstreams)).toBe("project-root");
   expect(chosenProject("override", workstreams)).toBe("project-child");

@@ -206,7 +206,7 @@ export type Miniature = {
 type Section = { readonly id: string; readonly name: string };
 type Synthetic = WorkstreamThread & { readonly title: string };
 
-/** The section a workstream's workstream is drawn from. */
+/** The section a workstream with no native section is drawn from. */
 const sectionKey = (workstreamId: string) => `miniature:${workstreamId}`;
 
 type State = {

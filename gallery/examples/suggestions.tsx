@@ -21,7 +21,8 @@ import { LiveExample, Variant, Variants } from "../ExampleFrame";
 import type { GalleryExample } from "../examples";
 
 /**
- * The sidebar the specimens draw: topics, their threads, and one color each.
+ * The sidebar the specimens draw: groups and workstreams, each with a color,
+ * and the threads in each workstream.
  * The product, its areas and thread titles are invented for the gallery.
  */
 const rows = [

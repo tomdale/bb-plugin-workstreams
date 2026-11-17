@@ -851,7 +851,8 @@ export default async function plugin(bb: BbPluginApi) {
   }): string | null => ctx.thread.sourceThreadId ?? ctx.senderThreadId ?? null;
   // A new top-level thread gets its first workstream here: inherited from the
   // thread or workstream it was started from, the one its composer showed, or
-  // the start call's from its first request. The hook itself always proceeds.
+  // the one the start call picks from its first request. The hook itself
+  // always proceeds.
   bb.experimental_hooks.on("message.dispatch", async (ctx) => {
     const reminder = await recaps.onDispatch(ctx);
     if (reminder) return reminder;

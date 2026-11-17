@@ -572,7 +572,7 @@ export class Organizer {
       // Seed visible population after derived moves, before an immediate archive.
       await this.deps.service.reconcile();
 
-      // Workstreams Workstreams discovered that nothing uses any more go away.
+      // Discovered workstreams that nothing uses any more go away.
       const pruned = this.deps.workstreamStore.prune();
       if (pruned.length)
         this.deps.journal?.add({
@@ -655,7 +655,7 @@ export class Organizer {
 
   /**
    * Records one pass's section changes as one Activity entry. It has no undo:
-   * workstreams follow workstreams, so the next pass would redo whatever an undo
+   * sections follow workstreams, so the next pass would redo whatever an undo
    * reverted. Changing a thread's workstream is how to move it.
    */
   private record(changes: SyncChanges, failed: boolean): void {

@@ -209,7 +209,7 @@ const ActivityEntryRow = memo(function ActivityEntryRow({
  * The Activity log: every change Workstreams made or observed, with filters
  * by workstream and action.
  * With the debug UI on it also lists each model call in place, with what the
- * decided.
+ * model decided.
  */
 export function Activity({
   rpc,

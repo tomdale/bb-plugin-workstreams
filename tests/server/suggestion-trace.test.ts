@@ -20,7 +20,7 @@ const trace = (overrides: Partial<NewTrace> = {}): NewTrace => ({
   at: NOW - 60_000,
   kind: "tidy",
   status: "ok",
-  label: "12 threads, 4 topics",
+  label: "12 threads, 4 workstreams",
   model: "test/model",
   durationMs: 1_000,
   replayOf: null,

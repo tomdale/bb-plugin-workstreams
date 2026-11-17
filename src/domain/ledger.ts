@@ -5,8 +5,8 @@
  * Pure, so tests can check the rows.
  *
  * A suggestion that moves threads has one row per thread. One that only
- * changes groups (merge, move under, rename, create) has one row per group it
- * changes; no thread changes group. A group is a workstream as the sidebar shows it.
+ * changes workstreams or groups (merge, move under, rename, create) has one row
+ * per workstream or group it changes; no thread changes workstream.
  */
 import {
   movesThreads,

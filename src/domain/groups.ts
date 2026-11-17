@@ -6,9 +6,9 @@
  * the rest hide behind a "Show other workstreams" toggle. Pure, so both
  * surfaces agree.
  *
- * Workstreams nest by workstream. Each workstream is a BB section bound to one
+ * Workstreams nest by group. Each BB section is bound to one
  * workstream, and BB keeps sections flat, so the nesting comes from the layout the
- * organizer last applied (see `layoutGroups`): which workstreams list threads,
+ * organizer last applied (see `layoutGroups`): which groups list threads,
  * which only head workstreams, and the names dimmed before each header.
  * Focus, dormancy, and ordering apply to the top-level group as a whole.
  *
@@ -54,7 +54,7 @@ export type WorkstreamNode<T extends WorkstreamThread> = Group<T> & {
    */
   readonly label: string;
   /**
-   * The container workstream whose name that prefix shows, when the label has one.
+   * The group whose name that prefix shows, when the label has one.
    * Its color identifies the parent wherever its areas appear, so one parent
    * reads the same under each of them.
    */

@@ -282,7 +282,7 @@ it.each([false, true])(
             groups: { sec_a: "a", sec_b: "b" },
           },
           moveWait,
-          assignmentError: fails ? "Topic assignment failed" : undefined,
+          assignmentError: fails ? "Workstream assignment failed" : undefined,
         },
       );
       await waitFor(() =>
@@ -311,7 +311,7 @@ it.each([false, true])(
       ).toBeTruthy();
       release();
       if (fails) {
-        await slot.findByText("Topic assignment failed");
+        await slot.findByText("Workstream assignment failed");
         expect(groupRows(slot, "Alpha")).toEqual(["Alpha task", "Child"]);
         expect(groupRows(slot, "Beta")).toEqual(["Beta task"]);
         expect(

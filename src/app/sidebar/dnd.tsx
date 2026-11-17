@@ -36,7 +36,7 @@ import { CSS } from "@dnd-kit/utilities";
 
 /** What each draggable or droppable is. `groupId` is a section id or "other". */
 type DragData =
-  /** `pinned`: a focused workstream, which reorders only among its tier. */
+  /** `focused`: a focused workstream, which reorders only among its tier. */
   | { type: "group"; groupId: string; focused?: boolean }
   | { type: "thread"; threadId: string; groupId: string }
   /** A group that takes thread drops but does not itself reorder. */

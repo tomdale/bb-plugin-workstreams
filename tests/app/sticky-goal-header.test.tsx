@@ -1118,7 +1118,7 @@ it.each(["fade", "scroll"] as const)(
       overlay()!.querySelector<HTMLElement>(
         '[data-ws-heading="expanded"] .ws-sticky-goal__title',
       )!;
-    // A anchored band hands over to its feather through a mask the stylesheet
+    // An anchored band hands over to its feather through a mask the stylesheet
     // builds from these two lengths.
     const band = () =>
       overlay()!.querySelector<HTMLElement>(".ws-sticky-goal")!;
@@ -1188,7 +1188,7 @@ it.each(["fade", "scroll"] as const)(
   },
 );
 
-it("left aligns a anchored title and its goal when title alignment is centered", async () => {
+it("left aligns an anchored title and its goal when title alignment is centered", async () => {
   paneFixture({ recap: false });
   const scroller = document.querySelector<HTMLElement>(
     '[data-test="messages"]',
@@ -1369,7 +1369,7 @@ it.each(["fade"] as const)(
 );
 
 it.each([false, true])(
-  "steps a anchored backdrop at the scroll threshold (reduced motion %s)",
+  "steps an anchored backdrop at the scroll threshold (reduced motion %s)",
   async (reduced) => {
     vi.stubGlobal("matchMedia", (query: string) => ({
       matches: reduced && query === REDUCED_MOTION_QUERY,
@@ -1817,7 +1817,7 @@ it.each([
   },
 );
 
-it("commits a anchored heading only when scrolling crosses its step", async () => {
+it("commits an anchored heading only when scrolling crosses its step", async () => {
   paneFixture({ recap: false });
   const { scroller, move } = movableScroller();
   vi.spyOn(scroller, "getBoundingClientRect").mockReturnValue(

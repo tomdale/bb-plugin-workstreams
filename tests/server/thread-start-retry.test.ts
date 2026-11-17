@@ -38,7 +38,7 @@ async function setup() {
     sdk: () => world!.bb.sdk,
     inference: { run, annotate: vi.fn() } as unknown as Inference,
     model: async () => ({ kind: "gateway", model: "test" }),
-    // Only the workstream is asked, so these tests follow its choice alone.
+    // Only the workstream choice is requested, so these tests follow it alone.
     titles: () => false,
     analyzed: () => false,
     title: async () => {},

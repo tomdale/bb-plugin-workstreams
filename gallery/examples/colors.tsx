@@ -124,7 +124,7 @@ function workstreamSamples(family: WorkstreamColor) {
     [family, firstChild],
   );
   return [
-    { name: "Release tools", color: family, relationship: "Parent topic" },
+    { name: "Release tools", color: family, relationship: "Group" },
     {
       name: "Release tools: Publishing",
       color: firstChild,
@@ -385,8 +385,8 @@ export function ColorsExample({
           ))}
         </dl>
       </GalleryNotes>
-      <LiveExample // slop-ok: 1 Keep the requested Live example frame and topic-sample identity
-        name="Topic colors" // slop-ok: 1 User-requested accurate sample identity
+      <LiveExample // slop-ok: 1 Keep the requested Live example frame and workstream-sample identity
+        name="Workstream colors" // slop-ok: 1 User-requested accurate sample identity
         sources={[
           "src/app/WorkstreamIcon.tsx",
           "src/app/WorkstreamName.tsx",

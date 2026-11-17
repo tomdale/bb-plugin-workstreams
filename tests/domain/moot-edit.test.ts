@@ -40,7 +40,7 @@ describe("mootEdit", () => {
     expect(
       mootEdit({ ...create, parent: null, children: ["gone"] }, state),
     ).toBe("The workstreams it would hold are gone.");
-    // One child left still makes a parent worth creating.
+    // One child left still makes a group worth creating.
     expect(
       mootEdit({ ...create, parent: null, children: ["gone", "cli"] }, state),
     ).toBeNull();

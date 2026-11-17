@@ -57,7 +57,7 @@ it("requires three distinct threads agreeing on one available project", () => {
   );
 });
 
-it("learns narrow workstreams first and associates parents only when all children agree", () => {
+it("learns narrow workstreams first and a group only when all its workstreams agree", () => {
   const workstreams = [
     workstream("parent"),
     workstream("a", "parent"),
@@ -84,7 +84,7 @@ it("learns narrow workstreams first and associates parents only when all childre
   ).toEqual(["a", "b"]);
 });
 
-it("preserves manual choices and disabled learning, including a parent's explicit exception", () => {
+it("preserves manual choices and disabled learning, including a workstream's explicit exception", () => {
   for (const projectSource of ["manual", "disabled"] as const)
     expect(
       projectLearningPlan(

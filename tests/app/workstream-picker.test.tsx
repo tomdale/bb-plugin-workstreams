@@ -42,7 +42,7 @@ vi.mock("../../src/app/composer/picker-options.tsx", async (importOriginal) => {
           onDone();
         }}
       >
-        Use no topic
+        Use no workstream
       </button>
     ),
     useTreeWorkstreams: () => [],
@@ -96,13 +96,13 @@ it("skips native parent and draft-text renders without blocking view updates or 
   ).toBeTruthy();
 
   fireEvent.click(view.getByRole("button", { name: "Workstream: Billing" }));
-  fireEvent.click(view.getByRole("button", { name: "Use no topic" }));
+  fireEvent.click(view.getByRole("button", { name: "Use no workstream" }));
   expect(newWork.snapshot().identity).toMatchObject({
     workstreamId: null,
     label: "No workstream",
     provenance: "manual",
   });
-  expect(view.queryByRole("button", { name: "Use no topic" })).toBeNull();
+  expect(view.queryByRole("button", { name: "Use no workstream" })).toBeNull();
   expect(
     view.getByRole("button", { name: "Workstream: No workstream" }),
   ).toBeTruthy();

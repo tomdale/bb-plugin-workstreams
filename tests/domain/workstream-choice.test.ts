@@ -36,7 +36,7 @@ const input: WorkstreamChoiceInput = {
 };
 
 describe("workstreamChoicePrompt", () => {
-  it("lists workstreams by name slug, marking the ones that can't hold threads", () => {
+  it("lists workstreams and groups by name slug, marking groups", () => {
     const ids = promptIds(workstreams);
     expect([...ids.entries()]).toEqual([
       ["auto", "automations"],

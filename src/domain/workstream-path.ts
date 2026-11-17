@@ -15,7 +15,7 @@ export const pathNames = (path: string): string[] =>
     .map((name) => name.trim())
     .filter(Boolean);
 
-/** Full ancestry distinguishes same-named features in different component scopes. */
+/** Full ancestry distinguishes same-named workstreams in different groups. */
 export function workstreamPath(
   id: string,
   workstreams: readonly Workstream[],

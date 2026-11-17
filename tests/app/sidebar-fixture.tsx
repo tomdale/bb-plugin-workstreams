@@ -247,7 +247,7 @@ export async function mount(
         const leaf = options.tree?.workstreams.find(
           (e) => e.parentId === workstreamId,
         );
-        if (!sectionId || !leaf) throw new Error("No destination topic");
+        if (!sectionId || !leaf) throw new Error("No destination workstream");
         const index = threads.findIndex((t) => t.id === threadId);
         threads[index] = { ...threads[index]!, sectionId };
         return {
@@ -276,7 +276,7 @@ export async function mount(
                 ([, workstream]) => workstream === workstreamId,
               )?.[0];
         if (sectionId === undefined)
-          throw new Error("Unknown destination topic");
+          throw new Error("Unknown destination workstream");
         const index = threads.findIndex((t) => t.id === threadId);
         threads[index] = { ...threads[index]!, sectionId };
         return {

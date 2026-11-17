@@ -401,7 +401,7 @@ function ReceiptLine({
   );
 }
 
-/** Focus and Snooze for the whole workstream, as on its sidebar header. */
+/** Focus and Snooze for the whole group, as on its sidebar header. */
 function HeaderMenu({
   ws,
   group,

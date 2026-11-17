@@ -26,8 +26,8 @@ The organizer makes no model calls itself. After relevant facts change, it:
    regardless of how many it holds.
 4. Logs outside membership changes and restores each thread to its workstream's
    section.
-5. Removes workstreams Workstreams discovered that have no threads, section, or
-   workstreams inside them.
+5. Removes discovered workstreams and groups that have no threads, section, or
+   workstreams.
 6. Notifies the category coordinator and checks whether organizing suggestions
    or project learning are due.
 
@@ -215,17 +215,17 @@ Every proposed and accepted edit passes the two-level and threads-or-workstreams
 guards. Activity records each accepted suggestion as **Suggestion accepted**,
 with a guarded snapshot for Undo. Undo requires the workstreams and thread
 workstreams to still match and cannot bring back a path deeper than two levels.
-Workstreams Workstreams discovered are removed only when they have no threads
-and no workstreams inside them; workstreams you created stay.
+Discovered workstreams and groups are removed only when they have no threads and
+no workstreams; workstreams you created stay.
 
 ## Two-level migration
 
 `bb workstreams migration preview --json` prepares a preview without changing
 any workstreams or threads. Deeper workstreams fold into their second-level
-ancestor. Threads in a top-level workstream that also has workstreams inside it
-are blockers until explicit meaningful destinations are supplied. `--mapping`
-accepts `choices`, `newWorkstreams`, and `resetThreadIds`; a choice may refer to
-a new workstream's `key`. `resetThreadIds` removes selected automatic workstream
+ancestor. Threads in a top-level workstream that has become a group are blockers
+until explicit meaningful destinations are supplied. `--mapping` accepts
+`choices`, `newWorkstreams`, and `resetThreadIds`; a choice may refer to a new
+workstream's `key`. `resetThreadIds` removes selected automatic workstream
 choices, saving them in the backup. A reset can't undo a move you made or
 overlap a choice for the same thread, and never deletes threads or transcripts.
 A reset thread can be in No workstream when reopened until Workstreams or you

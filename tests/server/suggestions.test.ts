@@ -99,7 +99,7 @@ describe("split suggestions", () => {
     expect(split!.headline).toBe(
       "Split Automations into Planning and Triggers",
     );
-    // Review shows each new subgroup and the threads that go to it.
+    // Review shows each new workstream and the threads that go to it.
     expect(split!.change).toEqual({
       op: "split",
       moves: [
@@ -138,7 +138,7 @@ describe("split suggestions", () => {
     );
 
     // Undo puts the tree back, even after the organizer has bound the new
-    // subgroups' workstreams.
+    // workstreams' sections.
     await rpc("organizeStatus", { action: "rebuild" });
     const { entries } = await rpc<{
       entries: { id: string; action: string }[];
@@ -378,7 +378,7 @@ describe("tidy suggestions", () => {
     ]);
   });
 
-  it("applies a create, then an edit that names the created workstream", async () => {
+  it("applies a create, then an edit that names the created group", async () => {
     const { w, workstreamStore, run, decide, rpc } = await setup({
       tidy: () => ({
         edits: [
@@ -405,7 +405,7 @@ describe("tidy suggestions", () => {
     const [create, reparent] = (await run()).suggestions;
     expect(reparent!.summary).toBe("Move Beta into Vercel");
     expect(reparent!.headline).toBe("Move Beta into Vercel");
-    // The workstream the create would make reads as new until it exists.
+    // The group the create would make reads as new until it exists.
     expect(reparent!.change?.moves).toEqual([
       {
         from: [{ name: "Beta", created: false }],

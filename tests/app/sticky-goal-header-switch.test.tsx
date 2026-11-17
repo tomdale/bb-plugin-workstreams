@@ -283,7 +283,7 @@ it("draws the heading for a column that stays empty", async () => {
   slot.lifecycle.unmount();
 });
 
-it("shows BB's title when the selected thread has no workstreams context", async () => {
+it("shows BB's title when the selected thread has no Workstreams context", async () => {
   paneFixture("Earlier transcript");
   const slot = mountHeading();
   await waitFor(() => expect(opacity("expanded")).toBe(1));

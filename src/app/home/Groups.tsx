@@ -239,7 +239,7 @@ const inlineGroups = (
     .flatMap((sub) => [sub, ...inlineGroups(sub)]);
 
 /**
- * A workstream: a header that opens and closes its threads, then those of
+ * A group: a header that opens and closes its threads, then those of
  * its workstreams drawn inline, each labeled with its workstream, then its other
  * workstreams (see `arrangeGroups`), which start open and fold on their own.
  */

@@ -241,7 +241,7 @@ describe("NewWork canonical identity reports", () => {
     expect(reportIdentity).toHaveBeenCalledTimes(3);
   });
 
-  it("reports proposal, inherited section, and automatic goal metadata exactly", async () => {
+  it("reports proposal, inherited section, and automatic workstream metadata exactly", async () => {
     const reportIdentity = vi.fn();
     const { newWork } = setup(
       { reportIdentity },

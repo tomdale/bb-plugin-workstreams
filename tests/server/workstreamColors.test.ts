@@ -89,14 +89,22 @@ describe("workstream colors", () => {
     const { workstreamStore, read } = store();
     const parent = workstreamStore.create("Many");
     const ids = Array.from({ length: 15 }, (_, i) => {
-      const workstream = workstreamStore.create(`Topic ${i}`, "", parent.id);
+      const workstream = workstreamStore.create(
+        `Workstream ${i}`,
+        "",
+        parent.id,
+      );
       workstreamStore.bindGroup(`sec-${i}`, workstream.id);
       return workstream.id;
     });
     const first = read();
     expect(new Set(ids.map((id) => JSON.stringify(first[id]))).size).toBe(15);
     for (let i = 15; i < 24; i++) {
-      const workstream = workstreamStore.create(`Topic ${i}`, "", parent.id);
+      const workstream = workstreamStore.create(
+        `Workstream ${i}`,
+        "",
+        parent.id,
+      );
       workstreamStore.bindGroup(`sec-${i}`, workstream.id);
       ids.push(workstream.id);
     }

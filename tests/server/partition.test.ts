@@ -136,7 +136,7 @@ describe("a workstream holds threads and a group holds workstreams", () => {
 });
 
 describe("merging a lone workstream into its group", () => {
-  it("leaves the parent holding the threads", () => {
+  it("leaves the parent as a workstream holding the threads", () => {
     const { workstreamStore, see } = store();
     const parent = workstreamStore.create("Automations");
     const only = workstreamStore.create("Planning", "", parent.id);

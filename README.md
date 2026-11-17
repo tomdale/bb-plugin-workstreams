@@ -291,10 +291,10 @@ out of a group can change its color. Native sections that belong to no
 workstream use a section-based fallback color. Labels remain necessary when
 colors look similar.
 
-**Categories** arrange rows inside a workstream without changing its workstream,
-native section, or color. Both the sidebar and phone Home screen show them. Any
-workstream can have categories, whether or not it is in a group. Sidebar
-category headings use a subdued version of the workstream color:
+**Categories** arrange rows inside a workstream without changing any thread's
+workstream, native section, or color. Both the sidebar and phone Home screen
+show them. Any workstream can have categories, whether or not it is in a group.
+Sidebar category headings use a subdued version of the workstream color:
 
 - At **6 threads**, the category classifier sees the whole collection and
   creates useful categories. It counts visible, non-archived, unsnoozed threads,

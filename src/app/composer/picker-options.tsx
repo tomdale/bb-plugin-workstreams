@@ -137,7 +137,7 @@ interface OptionsProps {
   onDone: () => void;
 }
 
-/** The Workstream list: Automatic, the workstreams and groups, a new workstream, and No workstream. */
+/** The Workstream list: Automatic, the workstreams, a new workstream, and No workstream. */
 export function IdentityOptions({
   newWork,
   workstreams,

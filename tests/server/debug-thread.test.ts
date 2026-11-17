@@ -11,7 +11,7 @@ afterEach(async () => {
 
 const brief = {
   title: "Debug: Merge Payments into Billing",
-  message: "Where it came from.\n\n#### Prompt\n\nYou tidy topics.",
+  message: "Where it came from.\n\n#### Prompt\n\nYou tidy workstreams.",
 };
 
 /** The world's projects are proj_1, proj_home, proj_other, proj_personal. */

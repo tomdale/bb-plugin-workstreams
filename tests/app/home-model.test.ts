@@ -457,7 +457,7 @@ describe("home.css", () => {
   });
 });
 
-describe("planHome with nested workstreams", () => {
+describe("planHome with workstreams in a group", () => {
   it("nests workstreams and focuses a whole top-level group", () => {
     const nested = [
       { id: "sec_p", name: "Product" },

@@ -19,7 +19,7 @@ type Suggestion = SuggestionsStateWire["suggestions"][number];
 
 const PROVENANCE: Record<string, string> = {
   manual: "set by the user",
-  inherited: "inherited from the workstream's parent",
+  inherited: "inherited from where the thread started",
   full: "chosen automatically from its requests",
   quick: "shown by the composer for an earlier draft",
 };

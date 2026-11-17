@@ -153,7 +153,7 @@ describe("automatic update coordinator lifecycle", () => {
     const state = await rebuildOrg(w);
     expect(state.counts.activeThreads).toBe(0);
     expect(state.groups).toHaveLength(0);
-    // Nothing is left to move into it, so the workstream goes with its threads.
+    // Nothing is left to move into it, so the empty section is removed.
     expect(w.sections.some((s) => s.name === "Lantern")).toBe(false);
     expect(w.threads.get("t1")?.archivedAt).not.toBeNull();
   });
@@ -210,7 +210,7 @@ describe("automatic update coordinator lifecycle", () => {
     state = await rebuildOrg(w);
     expect(state.counts.activeThreads).toBe(1);
     expect(state.counts.completedThreads).toBe(3);
-    // Four visible threads in one workstream stay its one workstream,
+    // Four visible threads in one workstream stay in one section,
     // regardless of completion state.
     expect(state.groups).toHaveLength(1);
     expect(state.groups[0]!.name).toBe("Lantern › Shelves");
@@ -241,8 +241,8 @@ describe("automatic update coordinator lifecycle", () => {
       threadId: "t1",
       workstreamId: feat.id,
     });
-    // A top-level workstream with no threads of its own is a context, so
-    // the feature lists its thread under its own name.
+    // ProductOne is a group holding FeatureX, so the thread lists under
+    // the workstream's name prefixed by the group's name.
     let state = await rebuildOrg(w);
     expect(state.groups[0]!.name).toBe("ProductOne › FeatureX");
 
@@ -491,7 +491,7 @@ describe("automatic update coordinator lifecycle", () => {
     ]);
   });
 
-  it("no workstream set yourself stays: analysis never gives that thread one", async () => {
+  it("a manual No workstream choice stays: analysis never gives that thread one", async () => {
     world = await fakeWorld({
       complete: () =>
         JSON.stringify({

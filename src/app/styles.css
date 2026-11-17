@@ -1020,7 +1020,7 @@ body:has([data-ws-suggestions])
     transparent
   );
 }
-/* A category inherits its workstream hue, tempered by the theme's muted ink. */
+/* A workstream name inherits its identity color. */
 .ws-workstream-name {
   color: var(--ws-color-light, oklch(46% 0.16 var(--ws-hue, 250)));
 }

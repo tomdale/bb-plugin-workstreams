@@ -245,7 +245,7 @@ export function MergeWorkstreamDialog({
             <DialogTitle>Merge workstream</DialogTitle>
             <DialogDescription>
               Merge &ldquo;{workstream.name}&rdquo; into another workstream or
-              group. Its threads and workstreams move there, and &ldquo;
+              group. Its threads or workstreams move there, and &ldquo;
               {workstream.name}&rdquo; is deleted.
             </DialogDescription>
           </DialogHeader>

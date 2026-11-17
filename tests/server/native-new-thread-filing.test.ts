@@ -195,7 +195,7 @@ describe("message.dispatch for the New thread view", () => {
     expect(await starts("t-repeat")).toHaveLength(1);
   });
 
-  it("leaves a thread naming an unknown subject for classification", async () => {
+  it("leaves a thread naming an unknown workstream for classification", async () => {
     const {
       w,
       workstreamStore: workstreamStore,

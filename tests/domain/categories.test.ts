@@ -86,7 +86,7 @@ describe("category lifecycle", () => {
 });
 
 describe("category classifier contract", () => {
-  it("uses explicit nullable category schemas accepted by the Organization model", () => {
+  it("uses explicit nullable category schemas accepted by the Arrange categories model", () => {
     expect(categorySchema(input())).toMatchObject({
       properties: {
         categories: { items: { properties: { id: { type: "null" } } } },

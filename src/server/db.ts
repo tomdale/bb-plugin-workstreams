@@ -2,8 +2,8 @@ import type { BbPluginApi } from "@get-bb/plugin-sdk";
 
 export type Database = ReturnType<BbPluginApi["storage"]["database"]>;
 
-// The established ws_corpus_* table names hold workstreams, each thread's
-// workstream, and section bindings.
+// The ws_workstream, ws_thread_workstream, and ws_workstream_section tables
+// hold workstream records, each thread's workstream, and section bindings.
 /**
  * A JSON value read at `path` in `column`, as json_set should write it back:
  * json_extract alone returns booleans as 0 or 1 and objects as text.
@@ -342,12 +342,12 @@ const MIGRATIONS = [
   "INSERT OR REPLACE INTO ws_corpus_subject_v2(thread_id, entity_id, evidence, source) SELECT thread_id, entity_id, evidence, source FROM ws_corpus_subject",
   "DROP TABLE ws_corpus_subject",
   "ALTER TABLE ws_corpus_subject_v2 RENAME TO ws_corpus_subject",
-  // Workstreams Workstreams discovered may be pruned once unused; yours never are.
+  // Discovered workstreams may be pruned once unused; yours never are.
   "ALTER TABLE ws_corpus_entity ADD COLUMN origin TEXT NOT NULL DEFAULT 'user'",
   "UPDATE ws_corpus_subject SET source = 'full' WHERE source IN ('automatic', 'legacy')",
   "DROP TABLE IF EXISTS ws_drift_dismissed",
   "DROP TABLE IF EXISTS ws_project_shape",
-  // Workstreams follow workstreams, so where a thread was placed and by whom no
+  // Sections follow workstreams, so where a thread was placed and by whom no
   // longer decides anything.
   "DROP TABLE IF EXISTS ws_placement",
   "DELETE FROM ws_trace_link WHERE trace_id IN (SELECT id FROM ws_trace WHERE kind IN ('analysis', 'opening-goal', 'classify', 'regroup', 'route'))",
@@ -641,7 +641,7 @@ const MIGRATIONS = [
   "UPDATE ws_meta SET key = 'migration_backup:' || substr(key, 24) WHERE key LIKE 'topic\\_migration\\_backup:%' ESCAPE '\\'",
   // Previews and the organizer's status are recomputed on demand.
   "DELETE FROM ws_meta WHERE key IN ('topic_reclassification_plan', 'topic_migration_preview', 'live_organization')",
-  // Focused workstreams were stored as focused, and Other was unsorted.
+  // Focused workstreams were stored as `prioritized`, and Other as `unsorted`.
   `UPDATE ws_meta SET value = replace(replace(replace(value, '"prioritized":', '"focused":'), '"unsorted"', '"other"'), '"__unsorted"', '"__other"')
    WHERE key = 'sidebar-order'`,
   // Where a thread's workstream came from: the turn-end or start call
@@ -737,6 +737,9 @@ const MIGRATIONS = [
     created_at INTEGER NOT NULL
   )`,
   "CREATE INDEX ws_post_turn_document_thread ON ws_post_turn_document (thread_id)",
+  // Retired split suggestions say workstream, not topic.
+  `UPDATE ws_suggestion SET detail = 'Review a scope-based workstream split under the two-level identity rules.'
+   WHERE kind = 'split' AND detail = 'Review a scope-based topic division under the two-level identity rules.'`,
 ];
 
 export function openDatabase(bb: BbPluginApi): Database {

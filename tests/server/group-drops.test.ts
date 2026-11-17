@@ -103,7 +103,8 @@ describe("moving into a group", () => {
           ...w.threads.get("parent")!,
           latestAttentionAt: Date.now() + 1,
         });
-      if (change === "tree") workstreamStore.create("New Topic", "", group.id);
+      if (change === "tree")
+        workstreamStore.create("New Workstream", "", group.id);
       if (change === "archive")
         w.threads.set("parent", {
           ...w.threads.get("parent")!,

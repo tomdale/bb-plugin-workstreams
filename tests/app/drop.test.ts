@@ -205,7 +205,7 @@ describe("planDrop", () => {
     });
   });
 
-  it("requires a known workstream and chooses within parent destinations", () => {
+  it("requires a known workstream or group and requests a choice within a group", () => {
     const withChild = {
       ...workstreams,
       workstreams: [

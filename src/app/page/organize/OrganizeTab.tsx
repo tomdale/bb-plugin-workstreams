@@ -2,9 +2,9 @@
  * The Organize view: the organizing suggestions waiting for a decision, the
  * threads in no workstream, and every workstream and group.
  *
- * Each suggestion is a block of rows (Thread or Group · Now · After) in one
+ * Each suggestion is a block of rows (Thread or Workstream · Now · After) in one
  * grid, so the columns align down the page: **Threads move** lists those that
- * change threads' groups, **Groups change** those that only reshape the tree,
+ * move threads, **Workstreams change** those that only reshape the tree,
  * and **Out of date** (collapsed) those that can't apply now. Accept and
  * Decline show on the focused or hovered block. A decision applies at once
  * and leaves a line in its place with Undo; `j`/`k` move between blocks and

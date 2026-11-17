@@ -126,7 +126,7 @@ describe("CLI workstream commands", () => {
     expect(showUnknown.exitCode).not.toBe(0);
   });
 
-  it("create creates a new product or feature with parent and aliases", async () => {
+  it("create creates a new workstream with a group and aliases", async () => {
     const { w, workstreamStore: workstreamStore } = await setup();
 
     const createRes = await w.harness.behavior.runCli([
@@ -361,7 +361,7 @@ describe("CLI thread workstream commands", () => {
     expect(parsed.assignment.workstreamId).toBe(shelves.id);
   });
 
-  it("thread assign manually sets identity and updates the parent of child threads", async () => {
+  it("thread move manually sets the parent's workstream when called on a child thread", async () => {
     const {
       w,
       workstreamStore: workstreamStore,

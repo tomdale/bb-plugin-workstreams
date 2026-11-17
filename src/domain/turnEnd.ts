@@ -94,7 +94,7 @@ export function turnEndSchema(input: TurnEndInput): Record<string, unknown> {
 
 /**
  * The checked answer. An invalid workstream is refused on its own
- * (`topicError`), so it never moves the thread or clears a valid workstream,
+ * (`workstreamError`), so it never moves the thread or clears a valid workstream,
  * and the turn's description still stands. A new title drops names its listing
  * shows: the workstream this answer chose when it chose one.
  */

@@ -81,7 +81,7 @@ function asTitleParts(answer: string) {
 
 /**
  * Tests answer every call with one JSON shape, naming a workstream by its ID
- * as `subjectId` or proposing one as `proposed`. The workstream choice names
+ * as `workstreamId` or proposing one as `proposed`. The workstream choice names
  * workstreams by short IDs and proposes with `propose`, so translate a test's
  * answer for it.
  */

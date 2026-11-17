@@ -44,7 +44,7 @@ describe("workstream colors", () => {
       hue: workstreamHue("unbound"),
       level: 0,
     });
-    expect(colorForWorkstream("topic:topic", tree, "workstream")).toEqual(
+    expect(colorForWorkstream("section:section", tree, "workstream")).toEqual(
       tree.colors.workstream,
     );
   });

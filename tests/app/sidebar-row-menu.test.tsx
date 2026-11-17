@@ -114,12 +114,12 @@ describe("the row menu's Move to submenu", () => {
     const slot = await mount(threads(), {
       settings: { showRecent: false, showUpNext: false },
       tree,
-      assignmentError: "Topic assignment failed",
+      assignmentError: "Workstream assignment failed",
     });
     const choices = await workstreamChoices(slot, "Parent task");
     fireEvent.click(choices.find((item) => item.textContent === "Loose ends")!);
     const alert = await slot.findByRole("alert");
-    expect(alert.textContent).toBe("Topic assignment failed");
+    expect(alert.textContent).toBe("Workstream assignment failed");
     slot.lifecycle.unmount();
   });
 

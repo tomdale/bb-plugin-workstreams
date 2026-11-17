@@ -439,7 +439,7 @@ it("submits a picked No workstream when selecting it", async () => {
   });
 });
 
-it("submits proposal identity when proposing a new feature", async () => {
+it("submits proposal identity when proposing a new workstream", async () => {
   const proposalDecision: Preview = {
     id: "route-billing",
     traceId: "trace-billing",

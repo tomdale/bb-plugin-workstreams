@@ -45,7 +45,7 @@ export type WorkstreamState = {
   /** The groups the organizer last applied (see `layoutGroups`). */
   layout?: readonly LayoutNode[];
   categories?: { [workstreamId: string]: CategoryGeneration };
-  /** Persistent colors for workstreams that have had a workstream. */
+  /** Persistent colors for workstreams that have been assigned a color. */
   colors?: Record<string, WorkstreamColor>;
 };
 
@@ -137,7 +137,7 @@ const sameName = (
  * the anchor's own path or an existing child of the anchor (an existing
  * top-level workstream without one) becomes the anchor; the first other segment
  * starts the missing remainder. Names match by name or alias, ignoring case, as
- * the workstreams and groups's sibling lookup does. When the leaf resolves too,
+ * the workstreams and groups' sibling lookup does. When the leaf resolves too,
  * the proposal is that existing workstream.
  */
 export function resolveProposal(

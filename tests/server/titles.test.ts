@@ -29,7 +29,7 @@ async function setup(goals: (string | null)[], prefs?: PrefsPatch) {
   world = await fakeWorld({
     prefs,
     // Workstream-choice calls share the model; only the turn-end call names
-    // goals.
+    // titles.
     complete: ({ prompt }) =>
       JSON.stringify({
         recap: "Working.",
@@ -160,14 +160,14 @@ describe("keeping thread titles current", () => {
     await turn(w, "t1", 100);
     expect(w.threads.get("t1")?.title).toBe("Explain build caching");
     expect(await retitles(w)).toEqual([]);
-    // The goal is still kept, as the context for the next analysis.
+    // The title is still kept, as the context for the next analysis.
     const { analysis } = await rpc<{
       analysis: Record<string, { title: string | null }>;
     }>(w, "state", null);
     expect(analysis.t1?.title).toBe("Explain build caching");
   });
 
-  it("does nothing when the goal is null or the setting is off", async () => {
+  it("does nothing when the title is null or the setting is off", async () => {
     const kept = await setup([null]);
     kept.addThread("t1", { title: null });
     await rpc(kept, "refresh", null);

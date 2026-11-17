@@ -166,7 +166,7 @@ describe("naming a thread from its opening request", () => {
       "Validation requirement: return only a JSON object with the requested fields",
     );
     // You set its workstream, so the repair asks nothing about workstreams.
-    expect(openingCalls(w)[1]!.prompt).not.toMatch(/topic_tree/);
+    expect(openingCalls(w)[1]!.prompt).not.toMatch(/workstream_tree/);
   });
 
   it("titles it while its first turn is still running, without waiting on the model", async () => {
@@ -257,7 +257,7 @@ describe("naming a thread from its opening request", () => {
     expect(w.threads.get("t1")?.title).toBe("Cache the monorepo build");
   });
 
-  it("settles when the first analysis agrees and accepts a later changed goal", async () => {
+  it("settles when the first analysis agrees and accepts a later changed title", async () => {
     const w = await setup(
       models({
         opening: ["Fix stale build cache"],
@@ -448,7 +448,7 @@ describe("naming a thread from its opening request", () => {
     await finishTurn(w, "t1", 200);
     pending.release(opening("Fix stale build cache"));
     await settle(6_000);
-    // Its analysis named the thread; the stale opening goal did not.
+    // Its analysis named the thread; the stale opening title did not.
     expect(w.threads.get("t1")?.title).toBe("Speed up the monorepo build");
     expect((await retitles(w)).map((e) => e.rationale)).toEqual([
       "Titled an untitled thread",

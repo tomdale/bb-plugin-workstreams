@@ -4,7 +4,7 @@ import { requestEvidence } from "./requests.ts";
 import type { WorkstreamStore } from "./workstreams.ts";
 
 /**
- * A workstream division reviews archived threads' workstreams as well as
+ * A workstream division reviews archived threads as well as
  * current threads.
  */
 export async function workstreamDivisionEvidence(

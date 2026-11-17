@@ -1,11 +1,11 @@
 /**
- * Product/Feature identity control for New work, built to sit beside BB's
+ * Workstream control for New work, built to sit beside BB's
  * project and environment pickers: a ghost trigger with searchable popover
  * command.
  *
- * New-work UI ONLY exposes Product/Feature identity selection, auto
- * preview, and No workstream. The workstream decides the thread's workstream, so
- * the composer never asks for one.
+ * New-work UI ONLY exposes Workstream selection, auto
+ * preview, and No workstream. In Automatic mode, Workstreams chooses the
+ * workstream from the thread's request.
  */
 import { memo, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
@@ -95,7 +95,7 @@ function IdentityControl({ newWork }: { newWork: NewWork }) {
 }
 
 /**
- * The field New work adds to BB's picker row: the Product/Feature identity chip.
+ * The field New work adds to BB's picker row: the Workstream chip.
  */
 export const WorkstreamPicker = memo(function WorkstreamPicker({
   newWork,

@@ -241,7 +241,7 @@ describe("Workstream control", () => {
     slot.lifecycle.unmount();
   });
 
-  it("shows a fork's parent workstream without letting it change", async () => {
+  it("shows a fork's parent thread's workstream without letting it change", async () => {
     const slot = await mountTaskIdentity("t-child");
     const button = (await slot.findByRole("button", {
       name: "Workstream: Platform › Auth (follows its parent thread)",

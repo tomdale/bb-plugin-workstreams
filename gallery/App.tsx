@@ -297,8 +297,8 @@ export default function App() {
             <>
               {isIntroduction && (
                 <p className="gallery-prose gallery-intro-lead">
-                  A topic shows which work belongs together. A recap shows what
-                  happened and what needs you.
+                  A workstream shows which work belongs together. A recap shows
+                  what happened and what needs you.
                 </p>
               )}
               <section

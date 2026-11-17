@@ -270,7 +270,7 @@ describe("WorkstreamStore", () => {
     expect(assignment.workstreamId).toBe(workstream.id);
   });
 
-  it("merges update references across subjects, groups, and children", () => {
+  it("merges update references across thread assignments, groups, and children", () => {
     const { workstreamStore: workstreamStore } = store();
     const source = workstreamStore.create(
       "OldAlpha",
@@ -593,14 +593,14 @@ describe("WorkstreamStore", () => {
     ]);
     const target = workstreamStore.create(
       "Target",
-      "Target entity",
+      "Target workstream",
       parentA.id,
     );
 
     // Source under parentB has alias "ConflictAlias" (valid in parentB scope)
     const source = workstreamStore.create(
       "Source",
-      "Source entity",
+      "Source workstream",
       parentB.id,
       ["ConflictAlias"],
     );

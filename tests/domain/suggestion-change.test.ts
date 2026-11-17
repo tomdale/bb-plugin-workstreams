@@ -152,7 +152,7 @@ describe("suggestionChange", () => {
     ]);
   });
 
-  it("merges a workstream's threads and child workstreams into another", () => {
+  it("merges a group's thread and workstreams into another", () => {
     expect(
       suggestionChange({ op: "merge", from: "auto", into: "todo" }, context()),
     ).toEqual({
@@ -174,7 +174,7 @@ describe("suggestionChange", () => {
     });
   });
 
-  it("moves a workstream with every thread below it", () => {
+  it("moves a group or workstream with every thread below it", () => {
     expect(
       suggestionChange(
         { op: "move-workstream", workstream: "agent", parent: "bb" },
@@ -196,7 +196,7 @@ describe("suggestionChange", () => {
     ).toMatchObject({ from: at("bb", "Todo Plugin"), to: at("Todo Plugin") });
   });
 
-  it("counts only visible threads moving with a workstream", () => {
+  it("counts only visible threads moving with a group or workstream", () => {
     const hidden = context({ visible: (id) => id !== "t4" && id !== "t1" });
     expect(
       suggestionChange(
@@ -569,7 +569,7 @@ describe("changeDelta", () => {
     );
   });
 
-  it("creates a workstream, adopting the workstreams it names", () => {
+  it("creates a group, adopting the workstreams it names", () => {
     const created = changeDelta(
       {
         op: "group",
@@ -640,8 +640,8 @@ describe("changeDelta", () => {
       { threadId: "d1", workstreamId: newWorkstreamId("docs", "Guides") },
       { threadId: "d2", workstreamId: newWorkstreamId("docs", "Reference") },
     ]);
-    // A subgroup named like an existing workstream, or its alias, moves into
-    // it.
+    // A split reuses an existing workstream when its name or alias matches
+    // the proposed name.
     expect(
       changeDelta(
         {

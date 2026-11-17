@@ -51,7 +51,7 @@ export class ComposerPreview {
   ) {}
 
   /**
-   * The draft's preview: the workstream of a workstream it mentions, or the
+   * The draft's preview: the workstream of a section it mentions, or the
    * start call's title and workstream.
    */
   async preview(
@@ -110,7 +110,7 @@ export class ComposerPreview {
     };
   }
 
-  /** The workstream of a workstream the draft mentions with `@section:<id>`. */
+  /** The workstream of the section the draft mentions with `@section:<id>`. */
   private mentionedWorkstream(
     text: string,
     explain: (note: string) => void,

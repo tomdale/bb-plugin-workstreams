@@ -368,7 +368,7 @@ function describe(
     if (!(id in threadWorkstream)) throw new Error("That thread is gone.");
     return { id, title: context.title(id) };
   };
-  /** Visible threads in a workstream or any workstream below it. */
+  /** Visible threads to count within a workstream or across a group's workstreams. */
   const shown = Object.entries(threadWorkstream).filter(
     ([id]) => context.visible?.(id) ?? true,
   );

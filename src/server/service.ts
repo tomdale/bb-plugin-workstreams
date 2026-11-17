@@ -46,7 +46,7 @@ export class WorkstreamService {
     private readonly onChange: (scope?: ChangeScope) => void,
     private readonly now: () => number = Date.now,
     private readonly titlesEnabled: () => boolean = () => true,
-    /** Undo put the workstreams and groups back, so workstreams must follow it. */
+    /** Undo put the workstreams and groups back, so sections must follow it. */
     private readonly onWorkstreamsRestored: () => void = () => {},
   ) {}
 
@@ -69,8 +69,8 @@ export class WorkstreamService {
   }
 
   /**
-   * Applies a title that Workstreams inferred as the thread's goal, under the
-   * retitle policy. `revision` is the thread revision the goal
+   * Applies a title that Workstreams inferred for the thread, under the
+   * retitle policy. `revision` is the thread revision the title
    * was inferred for, and `basis` says from what: a finished turn's analysis,
    * or the opening request alone while the first turn runs. When the policy
    * declines, nothing changes and `skipped` says why.

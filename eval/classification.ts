@@ -141,8 +141,8 @@ try {
             workstreamId: workstream.workstreamId,
             proposed: workstream.proposed,
           };
-          // Subgroups come only from splits, so the workstream choice moves
-          // work on a new capability in its product while the product has none.
+          // Splitting turns a workstream into a group, so the workstream choice
+          // can keep work on a new capability in its product's workstream.
           const inside = test.expectNew?.inside;
           const intoProduct =
             !!inside &&

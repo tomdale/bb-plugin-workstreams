@@ -63,7 +63,7 @@ import {
 import { UserError } from "./service.ts";
 import { boundedJson, type TraceStore } from "./trace.ts";
 
-/** A call recorded before turn ends chose workstreams asks for none. */
+/** A recorded call without a workstream choice asks for none. */
 const withPlacement = (input: TurnEndInput): TurnEndInput => ({
   ...input,
   choice: input.choice ?? null,

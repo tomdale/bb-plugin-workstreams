@@ -38,7 +38,7 @@ it.each([
     automatic: false,
   },
 ])(
-  "saves a topic's project as $expected from its editor",
+  "saves a workstream's project as $expected from its editor",
   async ({ initial, source, option, expected, automatic }) => {
     const call = vi.fn(async () => ({}));
     const workstream = {

@@ -215,7 +215,7 @@ function RowMenuContent({
                       );
                     })
                   ) : (
-                    // A workstreams and groups always has a leaf, so this is an empty workstream tree.
+                    // A workstream tree always has a leaf, so this one is empty.
                     <Item disabled onSelect={() => undefined}>
                       No workstreams yet
                     </Item>

@@ -184,7 +184,7 @@ export function workstreamsFingerprint(db: Database): string {
  * Puts back the workstreams and groups and threads' workstreams a snapshot
  * recorded, while they still match `fingerprint`: any later change to a
  * workstream or a thread's workstream means undoing would discard it, so
- * nothing is restored. Workstreams bound to workstreams the snapshot lacks are
+ * nothing is restored. Sections bound to workstreams the snapshot lacks are
  * unbound. Returns whether it restored.
  *
  * Rows are updated in place rather than replaced, so foreign keys from
@@ -355,7 +355,7 @@ export class WorkstreamStore {
     return out;
   }
 
-  /** How many workstreams sit directly beneath `entityId`. */
+  /** How many workstreams sit directly beneath `workstreamId`. */
   workstreams(workstreamId: string): number {
     return (
       this.db
@@ -920,7 +920,7 @@ export class WorkstreamStore {
   }
 
   /**
-   * Whether an answer names a workstream strictly beneath `entityId`: an existing
+   * Whether an answer names a workstream strictly beneath `workstreamId`: an existing
    * descendant, or a proposal anchored at it or below it.
    */
   private narrows(
@@ -1325,10 +1325,10 @@ export class WorkstreamStore {
     return this.db.transaction(() => {
       const source = this.getById(sourceWorkstreamId);
       if (!source)
-        throw new Error(`Unknown source entity: ${sourceWorkstreamId}`);
+        throw new Error(`Unknown source workstream: ${sourceWorkstreamId}`);
       const target = this.getById(targetWorkstreamId);
       if (!target)
-        throw new Error(`Unknown target entity: ${targetWorkstreamId}`);
+        throw new Error(`Unknown target workstream: ${targetWorkstreamId}`);
 
       const workstreams = this.list();
       const targetAncestors = workstreamAncestors(target.id, workstreams);

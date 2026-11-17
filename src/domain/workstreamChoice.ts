@@ -44,7 +44,7 @@ type ChoiceWorkstream = {
 export type WorkstreamChoiceInput = {
   /** The thread's generated title, when it has one. */
   readonly title: string | null;
-  /** A user-chosen destination: choose an existing leaf inside this workstream only. */
+  /** A user-chosen group: choose an existing workstream inside it only. */
   readonly within?: string;
   /** Substantive requests, oldest first: the first, second, and latest. */
   readonly requests: readonly string[];

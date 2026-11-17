@@ -90,7 +90,7 @@ export const cases: TidyCase[] = [
   {
     id: "prefix-sibling",
     about:
-      "A top-level topic named for a part of another product moves under it",
+      "This case expects a group named for part of another product to move under it",
     input: input(
       [
         ...BACKDROP,
@@ -149,7 +149,7 @@ export const cases: TidyCase[] = [
   {
     id: "nested-redundant-prefix",
     about:
-      "An already nested topic repeats its parent's name and should be renamed locally",
+      "An already nested workstream repeats its parent's name and should be renamed locally",
     input: input(
       [
         ...BACKDROP,
@@ -229,7 +229,7 @@ export const cases: TidyCase[] = [
   {
     id: "described-part",
     about:
-      "A top-level topic whose description says it's part of another product moves under it",
+      "A top-level workstream whose description says it's part of another product moves under it",
     input: input(
       [
         ...BACKDROP,
@@ -257,7 +257,7 @@ export const cases: TidyCase[] = [
   },
   {
     id: "near-duplicate",
-    about: "Two top-level topics for one product merge",
+    about: "A top-level workstream joins a group for the same product",
     input: input(
       [
         ...BACKDROP,

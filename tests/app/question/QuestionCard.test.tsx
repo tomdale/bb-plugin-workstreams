@@ -568,7 +568,7 @@ describe("question interaction adapter", () => {
   it("marks the awaiting-answer state with the question's accent, not a label", () => {
     const slot = render(singleSelect);
     expect(slot.queryByRole("status")).toBeNull();
-    expect(slot.queryByText("Needs inputr answer")).toBeNull();
+    expect(slot.queryByText("Needs your answer")).toBeNull();
     expect(slot.getByRole("heading", { level: 2 }).className).toContain(
       "text-(--ws-needs-input-text)",
     );

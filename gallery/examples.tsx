@@ -117,8 +117,8 @@ const workstreamColors = [
 const identityNames = ["Release tools", "Workstreams: Recaps"] as const;
 
 const identitySamples = [
-  { label: "Topic hue, first topic", tone: "accent", hue: 0 },
-  { label: "Topic hue, second topic", tone: "accent", hue: 1 },
+  { label: "Workstream hue, first workstream", tone: "accent", hue: 0 },
+  { label: "Workstream hue, second workstream", tone: "accent", hue: 1 },
   { label: "Neutral", tone: "neutral", hue: 0 },
 ] as const;
 
@@ -386,7 +386,7 @@ function ReplyExample() {
           {[...replyAccents, null].map((accent, index) => (
             <Variant
               key={index}
-              label={accent ? `Topic color ${index + 1}` : "Other"}
+              label={accent ? `Workstream color ${index + 1}` : "Other"}
             >
               <div
                 className={`ws-reply-accent min-w-0 break-words ${BODY_CLASS}`}
@@ -545,7 +545,7 @@ export const examples: GalleryExample[] = [
     id: "work-identity",
     title: "Work identity",
     group: "Components",
-    description: "The shared icon and name, with topic hues.",
+    description: "The shared icon and name, with workstream hues.",
     source: `import { WorkstreamIcon } from "../src/app/WorkstreamIcon";\nimport { WorkstreamName } from "../src/app/WorkstreamName";\nimport { allocateFamilyColor, workstreamColorStyle } from "../src/domain/workstreamColor";\n\n<div style={workstreamColorStyle(allocateFamilyColor([]))}>\n  <WorkstreamIcon />\n  <WorkstreamName name="Workstreams: Recaps" accent />\n</div>`,
     render: () => <IdentityExample />,
   },

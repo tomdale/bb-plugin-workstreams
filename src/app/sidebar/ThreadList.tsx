@@ -6,7 +6,7 @@
  * Next, Pinned, and Recent are overlays: every visible thread appears in
  * exactly one group, or in Snoozed.
  *
- * Workstreams nest by workstream (see `nestGroups`): a group lists its own
+ * Groups nest by workstream (see `nestGroups`): a group lists its own
  * threads, then the threads of workstreams too small for headers, each
  * labeled with its workstream, then its other workstreams. Each group's contents
  * sit one step (`childIndent`) in. A header folds from the chevron beside its

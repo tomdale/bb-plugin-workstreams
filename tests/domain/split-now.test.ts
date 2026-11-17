@@ -51,7 +51,7 @@ describe("splitNow", () => {
     ).toBe("2 threads joined Automations since; ask again to include them.");
   });
 
-  it("stops when none of its threads remain, or the split leaves one subgroup", () => {
+  it("stops when none of its threads remain, or the split leaves one workstream", () => {
     expect(splitNow(split, tree({ n1: "auto" }))).toMatchObject({
       problem: "None of its threads are in Automations anymore.",
       moot: true,
@@ -69,7 +69,7 @@ describe("splitNow", () => {
     ).toBe("Its group is gone.");
   });
 
-  it("lets a move of threads beside subgroups go ahead with one subgroup, until none are left", () => {
+  it("lets a move of threads beside workstreams go ahead with one workstream, until none are left", () => {
     const repair: Split = {
       workstreamId: "auto",
       repair: true,

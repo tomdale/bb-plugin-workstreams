@@ -20,7 +20,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe("nested workstreams", () => {
+describe("groups and their workstreams", () => {
   const workstream = (id: string, name: string, parentId: string | null) => ({
     id,
     name,
@@ -99,7 +99,7 @@ describe("nested workstreams", () => {
     settings: { showRecent: false, showUpNext: false },
   };
 
-  it("draws a group's workstreams as subgroups of its group", async () => {
+  it("draws a group's workstreams as subgroups", async () => {
     const slot = await mount(nestedThreads(), options);
     // The tree arrives after the first frame, which draws flat groups.
     const top = () =>

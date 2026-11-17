@@ -1,7 +1,7 @@
 /**
  * The line under the New thread composer's picker row when you picked a workstream
- * and then chose a project other than its workstream's. The thread starts in
- * the project you chose; this line offers to save that project as the
+ * and then chose a project other than that workstream's project. The thread
+ * starts in the project you chose; this line offers to save that project as the
  * workstream's default, and then reads "Saved". Ignoring it leaves the workstream as it is.
  */
 import { useEffect, useState, useSyncExternalStore } from "react";
