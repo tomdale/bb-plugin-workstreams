@@ -1,7 +1,7 @@
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import type { CategoryInput } from "../domain/categories.ts";
 import { excerpt } from "../domain/analysis.ts";
-import { placementRequests, requestEvidence } from "./requests.ts";
+import { choiceRequests, requestEvidence } from "./requests.ts";
 
 /**
  * Fetch requests only for an assessment, not for every sidebar refresh. A fit
@@ -27,7 +27,7 @@ export async function categoryEvidence<T extends CategoryInput>(
         const requests = await requestEvidence(sdk, thread.id);
         const pending = pendingRequest(thread.id, thread.workKey);
         const current = pending
-          ? placementRequests([
+          ? choiceRequests([
               ...requests.filter((request) => request !== pending),
               pending,
             ])

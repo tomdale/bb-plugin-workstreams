@@ -25,7 +25,7 @@ import type {
 import { workstreamPath } from "../domain/workstream-path.ts";
 import type { Database } from "./db.ts";
 import type { Inference } from "./model.ts";
-import { isSubstantiveRequest, placementRequests } from "./requests.ts";
+import { isSubstantiveRequest, choiceRequests } from "./requests.ts";
 import { continuationThreadId } from "./requestProvenance.ts";
 import type { WorkstreamStore } from "./workstreams.ts";
 
@@ -132,7 +132,7 @@ export class WorkstreamChoice {
     const workstreamStore = this.deps.workstreamStore;
     const assignment = workstreamStore.assignment(thread.id);
     if (assignment.provenance === "manual" && !options.within) return null;
-    const requests = placementRequests(rawRequests);
+    const requests = choiceRequests(rawRequests);
     // With neither a substantive request nor a title there is nothing to choose
     // by; settling "no workstream" keeps the thread from being asked again
     // until a request arrives.

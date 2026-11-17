@@ -37,7 +37,7 @@ const requestText = (text: string) =>
   text.replace(/^\[bb message from thread:[^\]]*\]\s*/i, "").trim();
 
 /** Selects request positions, so repeating an earlier request still establishes the latest work. */
-export function placementRequests(requests: readonly string[]): string[] {
+export function choiceRequests(requests: readonly string[]): string[] {
   const substantive = requests.map(requestText).filter(isSubstantiveRequest);
   return [...new Set([0, 1, substantive.length - 1])]
     .filter((index) => index >= 0 && index < substantive.length)
@@ -59,7 +59,7 @@ export async function requestEvidence(
       ? [opening, ...recent]
       : recent;
   const clean = await withoutSubagentDeliveries(sdk, threadId, requests);
-  return placementRequests(clean);
+  return choiceRequests(clean);
 }
 
 /** The first user request among a thread's `client/turn/requested` events. */

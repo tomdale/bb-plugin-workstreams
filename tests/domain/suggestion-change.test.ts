@@ -744,11 +744,11 @@ describe("changeDelta", () => {
       { op: "merge", from: "docs", into: "infra" },
       context,
     )!;
-    const filing = { ...context.threadWorkstream };
-    const after = applyDelta(context.workstreams, filing, change);
+    const placed = { ...context.threadWorkstream };
+    const after = applyDelta(context.workstreams, placed, change);
     expect(after.workstreams.map((t) => t.id)).not.toContain("docs");
-    expect(after.filing.d1).toBe("infra");
-    expect(filing.d1).toBe("docs");
+    expect(after.placed.d1).toBe("infra");
+    expect(placed.d1).toBe("docs");
     expect(context.workstreams.map((t) => t.id)).toContain("docs");
   });
 });

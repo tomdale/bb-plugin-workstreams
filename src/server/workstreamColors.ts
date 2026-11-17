@@ -74,16 +74,16 @@ export class WorkstreamColors {
         }
       }
       const used = () => {
-        const roots = [...colors.values()].filter(
+        const families = [...colors.values()].filter(
           (color) => color.workstreamId === color.familyId,
         );
-        return roots.flatMap((root) => {
+        return families.flatMap((family) => {
           const children = [...colors.values()].filter(
             (color) =>
-              color.familyId === root.workstreamId &&
-              color.workstreamId !== root.workstreamId,
+              color.familyId === family.workstreamId &&
+              color.workstreamId !== family.workstreamId,
           );
-          return children.length ? children : [root];
+          return children.length ? children : [family];
         });
       };
       const put = (

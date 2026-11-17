@@ -461,7 +461,7 @@ export default async function plugin(bb: BbPluginApi) {
     unsettled: (threadId) =>
       workstreamStore.assignment(threadId).provenance !== "manual" &&
       !workstreamStore.basis(threadId),
-    file: (threadId, answer, basis, traceId) =>
+    applyWorkstream: (threadId, answer, basis, traceId) =>
       applyWorkstream(threadId, answer, "automatic", basis, traceId),
     log: (message) => bb.log.warn(message),
   });
@@ -1143,7 +1143,7 @@ export default async function plugin(bb: BbPluginApi) {
     threadId: string;
   }): Promise<{ assignment: WorkstreamAssignment }> => {
     await service.reconcile();
-    const rootId = workstreamStore.findParentmostThread(input.threadId);
+    const rootId = workstreamStore.topThreadOf(input.threadId);
     const current = workstreamStore.assignment(rootId);
     // Whatever it is now becomes Workstreams' own, to settle afresh.
     workstreamStore.assign(rootId, current.workstreamId, {
@@ -1434,7 +1434,7 @@ export default async function plugin(bb: BbPluginApi) {
     threadMoveToGroup: ({ threadId, workstreamId }) =>
       userFacing(async () => {
         await service.reconcile();
-        if (workstreamStore.findParentmostThread(threadId) !== threadId)
+        if (workstreamStore.topThreadOf(threadId) !== threadId)
           throw new Error(
             "Move its parent thread; child threads go wherever their parent goes.",
           );

@@ -90,7 +90,7 @@ export function pruneCategories(
 
 const clean = (value: string, max: number) =>
   redact(value).replace(/\s+/g, " ").trim().slice(0, max);
-const rootIds = (input: CategoryInput) =>
+const shortIds = (input: CategoryInput) =>
   new Map(input.threads.map((thread, i) => [thread.id, `r${i + 1}`]));
 const categoryIds = (input: CategoryInput) =>
   new Map(
@@ -101,7 +101,7 @@ const categoryIds = (input: CategoryInput) =>
   );
 
 export function categoryPrompt(input: CategoryInput): string {
-  const roots = rootIds(input);
+  const shortOf = shortIds(input);
   const categories = categoryIds(input);
   return `${HEADER}
 
@@ -118,7 +118,7 @@ ${tagged(
   input.threads
     .map(
       (thread) =>
-        `- [${roots.get(thread.id)}] ${clean(thread.title, 120)}${thread.work ? ` — ${clean(thread.work, 1200)}` : ""}`,
+        `- [${shortOf.get(thread.id)}] ${clean(thread.title, 120)}${thread.work ? ` — ${clean(thread.work, 1200)}` : ""}`,
     )
     .join("\n"),
 )}
@@ -130,7 +130,7 @@ ${tagged(
         .map(
           (category) =>
             `- [${categories.get(category.id)}] ${clean(category.name, 80)}: ${category.threadIds
-              .map((id) => roots.get(id))
+              .map((id) => shortOf.get(id))
               .filter(Boolean)
               .join(", ")}`,
         )
@@ -166,7 +166,7 @@ export function categorySchema(input: CategoryInput): Record<string, unknown> {
             name: { type: "string" },
             threadIds: {
               type: "array",
-              items: { type: "string", enum: [...rootIds(input).values()] },
+              items: { type: "string", enum: [...shortIds(input).values()] },
             },
           },
           required: ["id", "name", "threadIds"],
@@ -204,7 +204,7 @@ export function parseCategories(
   const decision = decisionSchema.parse(JSON.parse(stripFence(text)));
   const expected = new Set(input.threads.map((thread) => thread.id));
   if (expected.size !== input.threads.length)
-    throw new Error("The category collection repeats a root.");
+    throw new Error("The category collection repeats a thread.");
   if (decision.keep) {
     if (
       !input.current ||
@@ -221,7 +221,7 @@ export function parseCategories(
     throw new Error(
       "A fresh category generation needs at least two categories.",
     );
-  const roots = new Map([...rootIds(input)].map(([id, short]) => [short, id]));
+  const idOf = new Map([...shortIds(input)].map(([id, short]) => [short, id]));
   const categories = new Map(
     [...categoryIds(input)].map(([id, short]) => [short, id]),
   );
@@ -239,9 +239,10 @@ export function parseCategories(
       ...category,
       id,
       threadIds: category.threadIds.map((short) => {
-        const root = roots.get(short);
-        if (!root) throw new Error("The classifier named an unknown root.");
-        return root;
+        const threadId = idOf.get(short);
+        if (!threadId)
+          throw new Error("The classifier named an unknown thread.");
+        return threadId;
       }),
     };
   });
@@ -251,7 +252,7 @@ export function parseCategories(
       expected,
     )
   )
-    throw new Error("Categories must file every root exactly once.");
+    throw new Error("Categories must place every thread exactly once.");
   return { ...decision, categories: resolved };
 }
 
@@ -282,7 +283,7 @@ export type CategoryFitInput = CategoryInput & {
 export type CategoryFit = { [threadId: string]: string | null };
 
 export function categoryFitPrompt(input: CategoryFitInput): string {
-  const roots = rootIds(input);
+  const shortOf = shortIds(input);
   const categories = categoryIds(input);
   const changed = new Set(input.changed);
   const members = (category: Category) =>
@@ -320,7 +321,7 @@ ${tagged(
     .filter((thread) => changed.has(thread.id))
     .map(
       (thread) =>
-        `- [${roots.get(thread.id)}] ${clean(thread.title, 120)}${thread.work ? ` — ${clean(thread.work, 1200)}` : ""}`,
+        `- [${shortOf.get(thread.id)}] ${clean(thread.title, 120)}${thread.work ? ` — ${clean(thread.work, 1200)}` : ""}`,
     )
     .join("\n"),
 )}
@@ -331,7 +332,7 @@ Return {"threads": [{"thread": string, "category": string|null}]}: every thread 
 export function categoryFitSchema(
   input: CategoryFitInput,
 ): Record<string, unknown> {
-  const roots = rootIds(input);
+  const shortOf = shortIds(input);
   return {
     type: "object",
     additionalProperties: false,
@@ -344,7 +345,7 @@ export function categoryFitSchema(
           properties: {
             thread: {
               type: "string",
-              enum: input.changed.map((id) => roots.get(id)!),
+              enum: input.changed.map((id) => shortOf.get(id)!),
             },
             category: {
               anyOf: [
@@ -373,13 +374,13 @@ export function parseCategoryFit(
   input: CategoryFitInput,
 ): CategoryFit {
   const parsed = fitSchema.parse(JSON.parse(stripFence(text)));
-  const roots = new Map([...rootIds(input)].map(([id, short]) => [short, id]));
+  const idOf = new Map([...shortIds(input)].map(([id, short]) => [short, id]));
   const categories = new Map(
     [...categoryIds(input)].map(([id, short]) => [short, id]),
   );
   const fit: CategoryFit = {};
   for (const answer of parsed.threads) {
-    const id = roots.get(answer.thread);
+    const id = idOf.get(answer.thread);
     if (!id || !input.changed.includes(id) || id in fit)
       throw new Error("The fit check named an unexpected thread.");
     const category =

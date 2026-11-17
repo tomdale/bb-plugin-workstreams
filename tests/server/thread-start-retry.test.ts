@@ -47,7 +47,7 @@ async function setup() {
     unsettled: (threadId) =>
       workstreamStore.assignment(threadId).provenance !== "manual" &&
       !workstreamStore.basis(threadId),
-    file: apply,
+    applyWorkstream: apply,
     log,
   });
   const thread = world.addThread("new", { environmentId: null });

@@ -29,22 +29,20 @@ export function useGoalContext(threadId: string | null): GoalContext | null {
         if (!thread) return null;
         // Child threads follow their parent thread's workstream, even when BB
         // keeps a different native section on the child thread itself.
-        let root = thread;
-        const seen = new Set([root.id]);
-        while (root.parentThreadId && !seen.has(root.parentThreadId)) {
-          const parent = threads.find(
-            (item) => item.id === root.parentThreadId,
-          );
+        let top = thread;
+        const seen = new Set([top.id]);
+        while (top.parentThreadId && !seen.has(top.parentThreadId)) {
+          const parent = threads.find((item) => item.id === top.parentThreadId);
           if (!parent) break;
-          root = parent;
-          seen.add(root.id);
+          top = parent;
+          seen.add(top.id);
         }
-        const section = root.sectionId
-          ? (sections.find((item) => item.id === root.sectionId) ?? null)
+        const section = top.sectionId
+          ? (sections.find((item) => item.id === top.sectionId) ?? null)
           : null;
         // Only this thread's ancestry and section reach the subscriber. An
         // unrelated thread update therefore leaves the selected value equal.
-        return { thread, root, section };
+        return { thread, top, section };
       },
       [threadId],
     ),

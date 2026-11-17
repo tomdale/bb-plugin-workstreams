@@ -295,23 +295,23 @@ export function projectWorkstreams<T extends WorkstreamThread>(
   );
 
   const threadsBySection = new Map<string, TreeNode<T>[]>();
-  for (const root of activeThreads) {
-    const key = groupKeyOf(root.thread);
-    const roots = threadsBySection.get(key) ?? [];
-    roots.push(root);
-    threadsBySection.set(key, roots);
+  for (const node of activeThreads) {
+    const key = groupKeyOf(node.thread);
+    const nodes = threadsBySection.get(key) ?? [];
+    nodes.push(node);
+    threadsBySection.set(key, nodes);
   }
   const rowsBySection = new Map<string, Row<T>[]>();
   const rowOf = new Map<string, Row<T>>();
-  for (const [key, roots] of threadsBySection) {
+  for (const [key, nodes] of threadsBySection) {
     const workstreamId = key === OTHER_ID ? null : key;
     const rows: Row<T>[] = [];
     const ordered = [
-      ...roots.filter((root) => root.thread.isPinned),
+      ...nodes.filter((node) => node.thread.isPinned),
       ...applyOrder(
-        roots.filter((root) => !root.thread.isPinned),
+        nodes.filter((node) => !node.thread.isPinned),
         options.order?.threads[key],
-        (root) => root.thread.id,
+        (node) => node.thread.id,
         "first",
       ),
     ];

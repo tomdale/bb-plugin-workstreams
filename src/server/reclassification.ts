@@ -48,9 +48,7 @@ export class Repair {
         continue;
       }
       try {
-        if (
-          this.deps.workstreamStore.findParentmostThread(threadId) !== threadId
-        )
+        if (this.deps.workstreamStore.topThreadOf(threadId) !== threadId)
           throw new Error("A child thread goes wherever its parent goes.");
         const row = await this.deps.analyzer.previewWorkstream(threadId);
         const proposal = row.answer.proposed;

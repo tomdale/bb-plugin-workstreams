@@ -489,7 +489,7 @@ export class ProjectAssociations {
             ? "Threads of their own consistently use a different project."
             : new Set(roots.map((thread) => thread.projectId)).size > 1
               ? "Threads of their own use different projects."
-              : "The project used by these independent roots is unavailable.",
+              : "The project used by these independent threads is unavailable.",
           threads: roots.map((thread) => ({
             id: thread.id,
             name: thread.name,

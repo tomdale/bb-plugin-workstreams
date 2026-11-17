@@ -132,7 +132,7 @@ export function miniatureBase(
       name,
       parentId,
     })),
-    filing: Object.fromEntries(
+    placed: Object.fromEntries(
       threads.map((thread) => [
         thread.id,
         tree.assignments[thread.id]?.workstreamId ?? null,
@@ -151,7 +151,7 @@ export type MiniatureInput = {
   readonly threads: readonly MiniThread[];
   readonly workstreams: readonly DeltaWorkstream[];
   /** Each thread's workstream id; absent or null for Other. */
-  readonly filing: Readonly<Record<string, string | null>>;
+  readonly placed: Readonly<Record<string, string | null>>;
   /** Native section id to workstream id, and the workstream colors. */
   readonly colors: MiniColors | undefined;
   readonly sort: GroupSort;
@@ -223,7 +223,7 @@ type State = {
 function arrange(
   input: MiniatureInput,
   workstreams: readonly DeltaWorkstream[],
-  filing: Readonly<Record<string, string | null>>,
+  placed: Readonly<Record<string, string | null>>,
   realSection: ReadonlyMap<string, string>,
   manualOrder: readonly string[],
   touched: ReadonlySet<string>,
@@ -231,7 +231,7 @@ function arrange(
   const known = new Set(workstreams.map((t) => t.id));
   const parents = new Set(workstreams.map((t) => t.parentId));
   const workstreamOf = (thread: MiniThread) => {
-    const id = filing[thread.id] ?? null;
+    const id = placed[thread.id] ?? null;
     return id && known.has(id) ? id : null;
   };
   // Work outside the sidebar is drawn only in a workstream the change touches, and
@@ -436,8 +436,8 @@ function draw(shown: MiniatureInput): Miniature {
         hidden: true,
       })),
     ],
-    filing: {
-      ...shown.filing,
+    placed: {
+      ...shown.placed,
       ...Object.fromEntries(unlisted.map((h) => [h.threadId, h.workstreamId])),
     },
   };
@@ -453,19 +453,19 @@ function draw(shown: MiniatureInput): Miniature {
     ...input.delta.workstreams.map((t) => t.id),
   ]);
   for (const { threadId, workstreamId } of input.delta.assignments) {
-    const was = input.filing[threadId];
+    const was = input.placed[threadId];
     if (was) touchedWorkstreams.add(was);
     if (workstreamId) touchedWorkstreams.add(workstreamId);
   }
   const now = arrange(
     input,
     input.workstreams,
-    input.filing,
+    input.placed,
     realSection,
     input.manualOrder,
     touchedWorkstreams,
   );
-  const next = applyDelta(input.workstreams, input.filing, input.delta);
+  const next = applyDelta(input.workstreams, input.placed, input.delta);
   const nextWorkstreams = new Map(next.workstreams.map((t) => [t.id, t]));
   const nowWorkstreams = new Map(input.workstreams.map((t) => [t.id, t]));
 
@@ -479,7 +479,7 @@ function draw(shown: MiniatureInput): Miniature {
     /** The last workstream placed after each anchor, so new ones keep order. */
     const placed = new Map<string, string>();
     for (const thread of input.threads) {
-      const to = next.filing[thread.id] ?? null;
+      const to = next.placed[thread.id] ?? null;
       if (!to || !nextWorkstreams.has(to)) continue;
       const section = sectionAfter(to);
       if (manual.includes(section)) continue;
@@ -498,7 +498,7 @@ function draw(shown: MiniatureInput): Miniature {
   const after = arrange(
     input,
     next.workstreams,
-    next.filing,
+    next.placed,
     realSection,
     manual,
     touchedWorkstreams,

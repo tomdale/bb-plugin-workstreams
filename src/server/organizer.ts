@@ -197,12 +197,14 @@ export class Organizer {
   }
 
   /** Whether each thread is done, from only its analysis and recap. */
-  private completed(roots: readonly InventoryThread[]): Map<string, boolean> {
+  private completed(
+    topThreads: readonly InventoryThread[],
+  ): Map<string, boolean> {
     const current = new Map(
       this.deps.service.threads().map((thread) => [thread.id, thread]),
     );
     return new Map(
-      roots.map((thread) => [
+      topThreads.map((thread) => [
         thread.id,
         isComplete(
           workView(
@@ -232,7 +234,7 @@ export class Organizer {
         JSON.stringify({
           treeRevision: plan.revision,
           layout: this.storedLayout().nodes,
-          roots: threads.map((thread) => [
+          threads: threads.map((thread) => [
             thread.id,
             thread.title,
             projected?.has(thread.id)
@@ -272,20 +274,20 @@ export class Organizer {
       const forest = buildForest(allThreads);
 
       // Only independently actionable visible, non-archived top-level threads
-      const roots = forest.threads
+      const topThreads = forest.threads
         .map((r) => r.thread)
         .filter((t) => !t.isHidden && !t.isArchived);
 
       const factRevision = this.factRevision;
       const revision = this.deps.workstreamStore.revision();
-      const isCompletedMap = this.completed(roots);
-      const threadIds = roots.map((thread) => thread.id);
+      const isCompletedMap = this.completed(topThreads);
+      const threadIds = topThreads.map((thread) => thread.id);
       const assignments = this.deps.workstreamStore.assignmentsOf(threadIds);
 
       // Check if snapshot is identical to last completed run
       const snapshotHash = this.fingerprint({
         revision,
-        threads: roots,
+        threads: topThreads,
         completed: isCompletedMap,
         assignments,
       });
@@ -309,7 +311,7 @@ export class Organizer {
       const workstreams = this.deps.workstreamStore.list();
 
       const counts: Record<string, number> = {};
-      for (const root of roots) {
+      for (const root of topThreads) {
         const assignment = assignments.get(root.id);
         if (
           assignment &&
@@ -331,7 +333,7 @@ export class Organizer {
       const appliedSectionIds = new Map<string, string | null>();
 
       passContext = {
-        threads: roots,
+        threads: topThreads,
         isCompletedMap,
         assignments,
         selectedWorkstreamIds,
@@ -376,7 +378,7 @@ export class Organizer {
         if (
           evidence(
             this.deps.workstreamStore.list(),
-            this.completed(roots),
+            this.completed(topThreads),
             this.deps.workstreamStore.assignmentsOf(threadIds),
           ) !== planEvidence
         )
@@ -393,13 +395,13 @@ export class Organizer {
           const liveSections = await awaitBb(listSections(sdk));
           for (const section of liveSections)
             changes.name(section.id, section.name);
-          const groupBindings = new Map(this.deps.workstreamStore.groups()); // sectionId -> entityId
+          const groupBindings = new Map(this.deps.workstreamStore.groups()); // sectionId -> workstreamId
           assertCurrent();
           for (const workstreamId of selectedWorkstreamIds) {
             assertCurrent();
             const expectedName = workstreamPath(workstreamId, workstreams);
 
-            // Check if an existing section is already bound to this entityId
+            // Check if an existing section is already bound to this workstreamId
             let section = liveSections.find(
               (s) => groupBindings.get(s.id) === workstreamId,
             );
@@ -461,7 +463,7 @@ export class Organizer {
           }
 
           // Update top-level threads' sectionId in BB
-          for (const thread of roots) {
+          for (const thread of topThreads) {
             assertCurrent();
             const assignment = assignments.get(thread.id);
             let targetSectionId: string | null = null;
@@ -592,7 +594,7 @@ export class Organizer {
       const finalState = this.assembleOrganizerState({
         status: "idle",
         error: null,
-        threads: roots,
+        threads: topThreads,
         isCompletedMap,
         assignments,
         selectedWorkstreamIds,
@@ -609,7 +611,7 @@ export class Organizer {
 
       this.lastSyncedHash = this.fingerprint({
         revision,
-        threads: roots,
+        threads: topThreads,
         completed: isCompletedMap,
         assignments,
         projected: appliedSectionIds,
@@ -675,7 +677,7 @@ export class Organizer {
     const {
       status,
       error,
-      threads: roots,
+      threads: topThreads,
       isCompletedMap,
       assignments,
       selectedWorkstreamIds,
@@ -706,7 +708,7 @@ export class Organizer {
     let activeCount = 0;
     let completedCount = 0;
 
-    for (const thread of roots) {
+    for (const thread of topThreads) {
       const assignment = assignments.get(thread.id);
       const isCompleted = isCompletedMap.get(thread.id) ?? false;
       if (isCompleted) {
@@ -799,7 +801,7 @@ export class Organizer {
       counts: {
         activeThreads: activeCount,
         completedThreads: completedCount,
-        totalThreads: roots.length,
+        totalThreads: topThreads.length,
         noWorkstreamThreads: noWorkstreamThreads.length,
         activeWorkstreams: finalGroups.length,
       },

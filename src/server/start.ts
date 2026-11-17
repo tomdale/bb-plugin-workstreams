@@ -117,7 +117,7 @@ export class ThreadStart {
       /** Whether nothing else has settled the thread's workstream. */
       unsettled: (threadId: string) => boolean;
       /** Applies a workstream answer under the source priority. */
-      file: (
+      applyWorkstream: (
         threadId: string,
         answer: WorkstreamChoiceOutput,
         basis: string,
@@ -249,8 +249,8 @@ export class ThreadStart {
   ): Promise<void> {
     if (!isUserRequest(request)) return;
     let title = want.title && this.titleWanted(thread);
-    const root = want.workstream === true && !thread.parentThreadId;
-    if (!title && !(root && this.deps.unsettled(thread.id))) return;
+    const choosing = want.workstream === true && !thread.parentThreadId;
+    if (!title && !(choosing && this.deps.unsettled(thread.id))) return;
 
     this.running.get(thread.id)?.abort();
     const controller = new AbortController();
@@ -258,7 +258,7 @@ export class ThreadStart {
     const revision = revisionOf(thread);
     const evidence = threadEvidence({ ...thread, status: undefined });
     const workstreamWanted = () =>
-      root && !controller.signal.aborted && this.deps.unsettled(thread.id);
+      choosing && !controller.signal.aborted && this.deps.unsettled(thread.id);
     try {
       for (let attempt = 0; ; attempt++) {
         try {
@@ -269,20 +269,23 @@ export class ThreadStart {
           // A thread with nothing to choose by settles "no workstream" without
           // a call.
           if (question?.settled)
-            this.deps.file(thread.id, question.settled, question.basis, null);
-          const placing = question && !question.settled ? question : null;
-          if (!title && !placing) return;
+            this.deps.applyWorkstream(
+              thread.id,
+              question.settled,
+              question.basis,
+              null,
+            );
+          const asking = question && !question.settled ? question : null;
+          if (!title && !asking) return;
           const { value, traceId } = await this.deps.inference.run(
             "start",
             {
               request,
-              project: placing?.input.project ?? null,
-              choice: placing
-                ? (({ requests: _r, title: _t, ...rest }) => rest)(
-                    placing.input,
-                  )
+              project: asking?.input.project ?? null,
+              choice: asking
+                ? (({ requests: _r, title: _t, ...rest }) => rest)(asking.input)
                 : null,
-              listing: placing ? null : this.deps.listing(thread),
+              listing: asking ? null : this.deps.listing(thread),
             },
             {
               model: await this.deps.model(),
@@ -305,12 +308,17 @@ export class ThreadStart {
             title = false;
           }
           // An invalid workstream is asked again; the title already stands.
-          if (placing && value.workstreamError)
+          if (asking && value.workstreamError)
             throw new Error(value.workstreamError);
           // The thread may have been moved or corrected while the call ran.
-          if (placing && value.workstream && workstreamWanted())
-            this.deps.file(thread.id, value.workstream, placing.basis, traceId);
-          else if (placing)
+          if (asking && value.workstream && workstreamWanted())
+            this.deps.applyWorkstream(
+              thread.id,
+              value.workstream,
+              asking.basis,
+              traceId,
+            );
+          else if (asking)
             this.deps.inference.annotate(traceId, {
               workstream:
                 "not applied: the thread's workstream was chosen meanwhile",

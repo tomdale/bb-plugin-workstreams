@@ -64,13 +64,13 @@ export type StartOutput = {
   readonly workstreamError?: string;
 };
 
-const placementOf = (input: StartInput): WorkstreamChoiceInput | null =>
+const choiceOf = (input: StartInput): WorkstreamChoiceInput | null =>
   input.choice
     ? { ...input.choice, title: null, requests: [input.request] }
     : null;
 
 export function startPrompt(input: StartInput): string {
-  const choice = placementOf(input);
+  const choice = choiceOf(input);
   const project = input.project ? redact(input.project).slice(0, 100) : null;
   const title = `- title: the title wherever threads are listed. ${TITLE_RULES}
   ${choice ? "It is read beside the workstream you choose, so leave out that workstream's names and products. " : ""}null when the request doesn't say what the work is (a greeting, or a bare "continue" or "yes").`;
@@ -99,7 +99,7 @@ ${[title, ...(choice ? choiceFields(choice) : [])].join("\n")}`;
 
 /** JSON Schema constrains workstream IDs at generation as well as at parsing. */
 export function startSchema(input: StartInput): Record<string, unknown> {
-  const choice = placementOf(input);
+  const choice = choiceOf(input);
   const properties: Record<string, unknown> = {
     title: titleFieldSchema,
     ...(choice ? choiceProperties(choice) : {}),
@@ -124,7 +124,7 @@ const outputSchema = z.object({
  */
 export function parseStart(text: string, input: StartInput): StartOutput {
   const raw: unknown = JSON.parse(stripFence(text));
-  const choice = placementOf(input);
+  const choice = choiceOf(input);
   let workstream: WorkstreamChoiceOutput | null = null;
   let workstreamError: string | undefined;
   if (choice)

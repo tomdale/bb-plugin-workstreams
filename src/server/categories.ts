@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { placementRequests } from "./requests.ts";
+import { choiceRequests } from "./requests.ts";
 import { z } from "zod";
 import {
   applyCategoryFit,
@@ -127,7 +127,7 @@ export class Categories {
 
   async requestChanged(threadId: string, text: string): Promise<void> {
     if (this.controller.signal.aborted) return;
-    const request = placementRequests([text])[0];
+    const request = choiceRequests([text])[0];
     if (!request) return;
     const collections = this.deps.collections();
     const collection = collections.find((item) =>
@@ -252,7 +252,7 @@ export class Categories {
             attemptId: randomUUID(),
             status: "settled",
           });
-          this.commit(records, id, "Removed roots that left the collection.");
+          this.commit(records, id, "Removed threads that left the collection.");
         } else if (JSON.stringify(work) !== JSON.stringify(record.work))
           this.save(records);
       }
@@ -336,7 +336,7 @@ export class Categories {
           this.commit(
             records,
             collection.workstreamId,
-            "The collection has three roots or fewer.",
+            "The collection has three threads or fewer.",
           );
         else this.save(records);
       }
@@ -370,7 +370,7 @@ export class Categories {
       this.commit(
         records,
         collection.workstreamId,
-        "Removed roots that left the collection.",
+        "Removed threads that left the collection.",
       );
     else this.save(records);
     const filed = new Set(current?.categories.flatMap((c) => c.threadIds));

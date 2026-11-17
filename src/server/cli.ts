@@ -1490,9 +1490,7 @@ export function registerCli(
             await service.reconcile();
             const thread = resolveThread(service, positionals.thread);
             const assignment = workstreamStore.assignment(thread.id);
-            const parentmostId = workstreamStore.findParentmostThread(
-              thread.id,
-            );
+            const parentmostId = workstreamStore.topThreadOf(thread.id);
             const parentmost =
               parentmostId !== thread.id
                 ? service.threads().find((t) => t.id === parentmostId)

@@ -7,7 +7,7 @@ import {
   type WorkstreamChoiceInput,
 } from "../../src/domain/workstreamChoice.ts";
 import { pointsElsewhere } from "../../src/server/workstreamChoice.ts";
-import { placementRequests } from "../../src/server/requests.ts";
+import { choiceRequests } from "../../src/server/requests.ts";
 
 const workstream = (
   id: string,
@@ -252,7 +252,7 @@ describe("the workstream choice within a user-chosen group", () => {
 describe("workstream choice evidence", () => {
   it("keeps the first, second, and latest substantive requests, unwrapped", () => {
     expect(
-      placementRequests([
+      choiceRequests([
         "[bb message from thread:thr_1] Fix the cache",
         "continue",
         "Also the CLI",
@@ -260,9 +260,9 @@ describe("workstream choice evidence", () => {
         "Ship it",
       ]),
     ).toEqual(["Fix the cache", "Also the CLI", "Ship it"]);
-    expect(placementRequests(["Only one", "yes"])).toEqual(["Only one"]);
+    expect(choiceRequests(["Only one", "yes"])).toEqual(["Only one"]);
     expect(
-      placementRequests([
+      choiceRequests([
         "Build billing",
         "Work on access control",
         "Build billing",

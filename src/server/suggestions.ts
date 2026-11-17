@@ -375,7 +375,7 @@ export class Suggestions {
     }
     for (const row of rows) {
       try {
-        entries[row.id] = this.apply(row, await this.filed(row));
+        entries[row.id] = this.apply(row, await this.withArrivals(row));
         applied.push(row.id);
       } catch (error) {
         const reason = error instanceof Error ? error.message : String(error);
@@ -537,7 +537,7 @@ export class Suggestions {
   private async tidy(manual: boolean): Promise<void> {
     const memo = this.memo();
     const workstreams = this.deps.workstreamStore.list();
-    const roots = this.deps.threads();
+    const threads = this.deps.threads();
     const fingerprint = this.fingerprint();
     if (!manual) {
       // Older installations have no fingerprint. Adopt the current snapshot
@@ -594,7 +594,7 @@ export class Suggestions {
     try {
       ({ value, traceId } = await this.deps.inference.run("tidy", input, {
         model: await this.deps.model(),
-        label: `${roots.length} threads, ${workstreams.length} workstreams`,
+        label: `${threads.length} threads, ${workstreams.length} workstreams`,
       }));
     } catch (error) {
       this.failedFingerprint = fingerprint;
@@ -903,7 +903,7 @@ export class Suggestions {
    * moved by one split call; undefined for other suggestions. The call's
    * failure leaves the suggestion waiting.
    */
-  private async filed(row: Row): Promise<Split | undefined> {
+  private async withArrivals(row: Row): Promise<Split | undefined> {
     if (row.kind !== "split") return undefined;
     const now = splitNow(JSON.parse(row.body) as Split, this.tree());
     if (now.problem || now.arrivals.length === 0) return now.split;
@@ -954,7 +954,7 @@ export class Suggestions {
       ).value;
     } catch (error) {
       throw new NotYet(
-        `Couldn't file the threads that joined since: ${error instanceof Error ? error.message : String(error)}`,
+        `Couldn't move the threads that joined since: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
     const created = split.workstreams.map((g) => ({
@@ -970,7 +970,7 @@ export class Suggestions {
   }
 
   /** Applies an accepted suggestion; returns its Activity entry's id. */
-  private apply(row: Row, filed?: Split): string {
+  private apply(row: Row, current?: Split): string {
     const workstreamStore = this.deps.workstreamStore;
     const db = this.deps.db;
     const body = JSON.parse(row.body) as TidyEdit | Split;
@@ -980,7 +980,7 @@ export class Suggestions {
       if ("workstreams" in body) {
         const now = splitNow(body, this.tree());
         if (now.problem) throw new Error(now.problem);
-        const split = filed ?? now.split;
+        const split = current ?? now.split;
         const listed = new Set(split.workstreams.flatMap((g) => g.threadIds));
         if (now.arrivals.some((id) => !listed.has(id)))
           throw new NotYet("More threads joined its group; accept it again.");
@@ -1072,7 +1072,7 @@ export class Suggestions {
     const workstreams = this.deps.workstreamStore.list();
     const titles = new Map(this.deps.threads().map((r) => [r.id, r.title]));
     const assignments = this.deps.workstreamStore.assignments();
-    const filed = Object.values(assignments)
+    const moved = Object.values(assignments)
       .filter(
         (a) =>
           a.provenance === "manual" &&
@@ -1092,7 +1092,7 @@ export class Suggestions {
         )
         .all() as { summary: string }[]
     ).map((row) => `You accepted: ${row.summary}`);
-    return [...accepted, ...filed];
+    return [...accepted, ...moved];
   }
 
   /** Suggestions you declined, newest first, for tidy's memory. */

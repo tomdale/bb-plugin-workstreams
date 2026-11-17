@@ -168,7 +168,7 @@ function delta(body: TidyEdit | Split, context: ChangeContext): ChangeDelta {
     ]),
   );
   const workstreams = new Map<string, DeltaWorkstream>(before);
-  const filing = new Map(Object.entries(context.threadWorkstream));
+  const placed = new Map(Object.entries(context.threadWorkstream));
   const workstream = (ref: string | null) => {
     if (ref === null) return null;
     const found = workstreams.get(ref);
@@ -180,8 +180,8 @@ function delta(body: TidyEdit | Split, context: ChangeContext): ChangeDelta {
   const childrenOf = (id: string) =>
     [...workstreams.values()].filter((t) => t.parentId === id);
   const file = (threadId: string, to: string | null) => {
-    if (!filing.has(threadId)) throw new Error("That thread is gone.");
-    filing.set(threadId, to);
+    if (!placed.has(threadId)) throw new Error("That thread is gone.");
+    placed.set(threadId, to);
   };
 
   if ("workstreams" in body) {
@@ -247,8 +247,8 @@ function delta(body: TidyEdit | Split, context: ChangeContext): ChangeDelta {
         // The merged workstream's threads and workstreams in a group join the target's; a
         // a workstream whose name matches one of the target's own workstreams merges into it.
         const fold = (source: string, target: string) => {
-          for (const [threadId, at] of filing)
-            if (at === source) filing.set(threadId, target);
+          for (const [threadId, at] of placed)
+            if (at === source) placed.set(threadId, target);
           for (const child of childrenOf(source)) {
             if (child.id === target) continue;
             const twin = childrenOf(target).find(
@@ -272,7 +272,7 @@ function delta(body: TidyEdit | Split, context: ChangeContext): ChangeDelta {
     return !was || was.name !== t.name || was.parentId !== t.parentId;
   });
   const removed = [...before.keys()].filter((id) => !workstreams.has(id));
-  const assignments = [...filing]
+  const assignments = [...placed]
     .filter(([threadId, to]) => context.threadWorkstream[threadId] !== to)
     .map(([threadId, workstreamId]) => ({ threadId, workstreamId }));
   const touched = new Set([
@@ -308,20 +308,20 @@ function delta(body: TidyEdit | Split, context: ChangeContext): ChangeDelta {
 
 /**
  * The workstreams and thread workstreams after accepting: `delta` applied to
- * `workstreams` and to `filing`, each thread's workstream id (null for Other).
+ * `workstreams` and to `placed`, each thread's workstream id (null for Other).
  */
 export function applyDelta(
   workstreams: readonly DeltaWorkstream[],
-  filing: Readonly<Record<string, string | null>>,
+  placed: Readonly<Record<string, string | null>>,
   change: ChangeDelta,
-): { workstreams: DeltaWorkstream[]; filing: Record<string, string | null> } {
+): { workstreams: DeltaWorkstream[]; placed: Record<string, string | null> } {
   const next = new Map(workstreams.map((t) => [t.id, t]));
   for (const id of change.removed) next.delete(id);
   for (const t of change.workstreams) next.set(t.id, t);
-  const after = { ...filing };
+  const after = { ...placed };
   for (const { threadId, workstreamId } of change.assignments)
     after[threadId] = workstreamId;
-  return { workstreams: [...next.values()], filing: after };
+  return { workstreams: [...next.values()], placed: after };
 }
 
 /**

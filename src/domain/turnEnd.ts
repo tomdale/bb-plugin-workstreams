@@ -5,7 +5,7 @@
  * replays, and the eval share one prompt and parser.
  *
  * The description is the turn-end call's own (see analysis.ts); the workstream
- * choice is workstreamChoice.ts's, asked only when `placement` is supplied. The
+ * choice is workstreamChoice.ts's, asked only when `choice` is supplied. The
  * digest is this call's own memory: it reads the digest it settled last time
  * and returns a revised one, so a single later request refines what the thread
  * is about instead of replacing it.

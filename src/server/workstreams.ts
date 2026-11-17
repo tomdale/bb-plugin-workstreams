@@ -84,38 +84,38 @@ type AssignmentRow = {
 };
 
 /**
- * The workstream `threadId` has through the subject row of the thread at the
- * top of its tree. `entities` holds at least that workstream and its ancestors.
+ * The workstream `threadId` has through the assignment row of the thread at the
+ * top of its tree. `workstreams` holds at least that workstream and its ancestors.
  */
 function resolveAssignment(
   threadId: string,
-  rootId: string,
-  subject: AssignmentRow | undefined,
+  topId: string,
+  row: AssignmentRow | undefined,
   workstreams: readonly Workstream[],
 ): WorkstreamAssignment {
-  const inheritedFrom = rootId !== threadId ? rootId : null;
-  const workstream = subject?.workstream_id
-    ? workstreams.find((e) => e.id === subject.workstream_id)
+  const inheritedFrom = topId !== threadId ? topId : null;
+  const workstream = row?.workstream_id
+    ? workstreams.find((e) => e.id === row.workstream_id)
     : undefined;
-  if (!subject || !workstream)
+  if (!row || !workstream)
     return {
       threadId,
       workstreamId: null,
       status: "none",
-      provenance: subject ? readSource(subject.source) : null,
+      provenance: row ? readSource(row.source) : null,
       label: null,
       ancestorIds: [],
-      evidence: subject?.evidence ?? null,
+      evidence: row?.evidence ?? null,
       inheritedFrom,
     };
   return {
     threadId,
     workstreamId: workstream.id,
     status: "assigned",
-    provenance: readSource(subject.source),
+    provenance: readSource(row.source),
     label: workstreamPath(workstream.id, workstreams),
     ancestorIds: workstreamAncestors(workstream.id, workstreams),
-    evidence: subject.evidence ?? null,
+    evidence: row.evidence ?? null,
     inheritedFrom,
   };
 }
@@ -623,7 +623,7 @@ export class WorkstreamStore {
     );
   }
 
-  findParentmostThread(threadId: string): string {
+  topThreadOf(threadId: string): string {
     const lookup = this.db.prepare(
       "SELECT parent_thread_id FROM ws_seen_thread WHERE thread_id = ?",
     );
@@ -639,7 +639,7 @@ export class WorkstreamStore {
     return currentId;
   }
 
-  private subject(threadId: string): AssignmentRow | undefined {
+  private row(threadId: string): AssignmentRow | undefined {
     return this.db
       .prepare(
         "SELECT workstream_id, evidence, source FROM ws_thread_workstream WHERE thread_id = ?",
@@ -649,17 +649,17 @@ export class WorkstreamStore {
 
   /**
    * One thread's workstream. It reads only the thread at the top of its tree,
-   * its subject row, and the workstream's lineage, so callers may use it per
+   * its assignment row, and the workstream's lineage, so callers may use it per
    * thread; a caller resolving many threads at once uses `assignmentsOf`.
    */
   assignment(threadId: string): WorkstreamAssignment {
-    const rootId = this.findParentmostThread(threadId);
-    const subject = this.subject(rootId);
+    const topId = this.topThreadOf(threadId);
+    const row = this.row(topId);
     return resolveAssignment(
       threadId,
-      rootId,
-      subject,
-      subject?.workstream_id ? this.lineage(subject.workstream_id) : [],
+      topId,
+      row,
+      row?.workstream_id ? this.lineage(row.workstream_id) : [],
     );
   }
 
@@ -673,19 +673,19 @@ export class WorkstreamStore {
     const workstreams = this.list();
     const out = new Map<string, WorkstreamAssignment>();
     for (const threadId of threadIds) {
-      const rootId = this.findParentmostThread(threadId);
+      const topId = this.topThreadOf(threadId);
       out.set(
         threadId,
-        resolveAssignment(threadId, rootId, this.subject(rootId), workstreams),
+        resolveAssignment(threadId, topId, this.row(topId), workstreams),
       );
     }
     return out;
   }
 
-  /** Every seen thread's and every stored subject's workstream. */
+  /** Every seen thread's and every stored assignment's workstream. */
   assignments(): Record<string, WorkstreamAssignment> {
     const workstreams = this.list();
-    const subjects = new Map(
+    const rows = new Map(
       (
         this.db
           .prepare(
@@ -703,7 +703,7 @@ export class WorkstreamStore {
       parentMap.set(row.thread_id, row.parent_thread_id);
     }
 
-    const resolveRoot = (id: string) => {
+    const resolveTop = (id: string) => {
       let current = id;
       const visited = new Set<string>();
       while (current && !visited.has(current)) {
@@ -715,18 +715,15 @@ export class WorkstreamStore {
       return current;
     };
 
-    const threadIds = new Set<string>([
-      ...parentMap.keys(),
-      ...subjects.keys(),
-    ]);
+    const threadIds = new Set<string>([...parentMap.keys(), ...rows.keys()]);
 
     const result: Record<string, WorkstreamAssignment> = {};
     for (const threadId of threadIds) {
-      const rootId = resolveRoot(threadId);
+      const topId = resolveTop(threadId);
       result[threadId] = resolveAssignment(
         threadId,
-        rootId,
-        subjects.get(rootId),
+        topId,
+        rows.get(topId),
         workstreams,
       );
     }
@@ -743,7 +740,7 @@ export class WorkstreamStore {
         throw new Error(`Unknown workstream: ${workstreamId}`);
       if (!threadId.trim()) throw new Error("Thread ID must not be empty");
 
-      const rootId = this.findParentmostThread(threadId);
+      const topId = this.topThreadOf(threadId);
 
       const provenance: AssignmentProvenance = options?.provenance ?? "manual";
       const evidence: string | null = options?.evidence ?? null;
@@ -752,7 +749,7 @@ export class WorkstreamStore {
         .prepare(
           "SELECT workstream_id, evidence, source FROM ws_thread_workstream WHERE thread_id = ?",
         )
-        .get(rootId) as
+        .get(topId) as
         | {
             workstream_id: string | null;
             evidence: string | null;
@@ -788,7 +785,7 @@ export class WorkstreamStore {
              evidence = excluded.evidence,
              source = excluded.source`,
         )
-        .run(rootId, workstreamId, evidence, provenance);
+        .run(topId, workstreamId, evidence, provenance);
 
       if (!isInitialClear) {
         this.bumpRevision();
@@ -807,10 +804,9 @@ export class WorkstreamStore {
   /**
    * Applies an analysis's workstream under the source priority (see
    * `AssignmentProvenance`): your workstream is never replaced, an inherited
-   * one only by an automatic choice (`full`) on a scope shift or with a more
-   * specific workstream beneath it, and a composer preview of earlier text
-   * (`quick`) only fills a thread that has no workstream yet or replaces its
-   * own earlier one. Returns whether the thread's workstream changed.
+   * one only by an automatic choice on a scope shift or with a more specific
+   * workstream beneath it, and the composer's guess (`composer`) only fills a
+   * thread that has no workstream yet or replaces its own earlier guess. Returns whether the thread's workstream changed.
    */
   applyAnalysis(
     threadId: string,
@@ -823,12 +819,12 @@ export class WorkstreamStore {
     basis: string | null,
   ): boolean {
     return this.db.transaction(() => {
-      const rootId = this.findParentmostThread(threadId);
+      const topId = this.topThreadOf(threadId);
       const row = this.db
         .prepare(
           "SELECT workstream_id, evidence, source FROM ws_thread_workstream WHERE thread_id = ?",
         )
-        .get(rootId) as
+        .get(topId) as
         | {
             workstream_id: string | null;
             evidence: string | null;
@@ -852,7 +848,7 @@ export class WorkstreamStore {
             .prepare(
               "UPDATE ws_thread_workstream SET evidence = ? WHERE thread_id = ?",
             )
-            .run(basis, rootId);
+            .run(basis, topId);
         return false;
       }
       if (kind === "composer" && current !== null && current !== "composer")
@@ -875,10 +871,10 @@ export class WorkstreamStore {
           this.db
             .prepare(
               `INSERT INTO ws_thread_workstream(thread_id, workstream_id, evidence, source)
-               VALUES (?, NULL, ?, 'full')
+               VALUES (?, NULL, ?, 'automatic')
                ON CONFLICT(thread_id) DO UPDATE SET evidence = excluded.evidence`,
             )
-            .run(rootId, basis);
+            .run(topId, basis);
         return false;
       }
       const workstreamId = workstream?.id ?? null;
@@ -893,7 +889,7 @@ export class WorkstreamStore {
             .prepare(
               "UPDATE ws_thread_workstream SET evidence = ? WHERE thread_id = ?",
             )
-            .run(basis, rootId);
+            .run(basis, topId);
         return false;
       }
       if (
@@ -916,7 +912,7 @@ export class WorkstreamStore {
              evidence = excluded.evidence,
              source = excluded.source`,
         )
-        .run(rootId, workstreamId, basis, kind);
+        .run(topId, workstreamId, basis, kind);
       if (changed) this.bumpRevision();
       return changed;
     })();
@@ -963,8 +959,8 @@ export class WorkstreamStore {
   }
 
   /**
-   * Gives a thread that has no workstream of its own, or only a composer
-   * preview's (`quick`), the workstream `entityId` as inherited.
+   * Gives a thread that has no workstream of its own, or only the composer's
+   * guess, the workstream `workstreamId` as inherited.
    */
   inheritWorkstream(threadId: string, workstreamId: string): boolean {
     // A workstream with workstreams in a group holds no threads; the workstream
@@ -1084,7 +1080,7 @@ export class WorkstreamStore {
   basis(threadId: string): string | null {
     const row = this.db
       .prepare("SELECT evidence FROM ws_thread_workstream WHERE thread_id = ?")
-      .get(this.findParentmostThread(threadId)) as
+      .get(this.topThreadOf(threadId)) as
       { evidence: string | null } | undefined;
     return row?.evidence ?? null;
   }
@@ -1144,7 +1140,7 @@ export class WorkstreamStore {
       let cleanName = workstream.name;
       if (updates.name !== undefined) {
         cleanName = updates.name.trim();
-        if (!cleanName) throw new Error("Entity name must not be empty");
+        if (!cleanName) throw new Error("Workstream name must not be empty");
         if (normalize(workstream.name) !== normalize(cleanName)) {
           const conflict = this.resolve(cleanName, workstream.parentId);
           if (conflict && conflict.id !== workstreamId) {
@@ -1322,7 +1318,7 @@ export class WorkstreamStore {
 
   merge(sourceWorkstreamId: string, targetWorkstreamId: string): Workstream {
     if (sourceWorkstreamId === targetWorkstreamId) {
-      throw new Error("Cannot merge an entity into itself");
+      throw new Error("Cannot merge a workstream into itself");
     }
 
     return this.db.transaction(() => {
@@ -1410,7 +1406,7 @@ export class WorkstreamStore {
       }
 
       const mergeSubtree = (src: Workstream, dst: Workstream) => {
-        // 1. Move subjects assigned to src -> dst
+        // 1. Move rows assigned to src -> dst
         this.db
           .prepare(
             "UPDATE ws_thread_workstream SET workstream_id = ? WHERE workstream_id = ?",
@@ -1546,7 +1542,7 @@ export class WorkstreamStore {
    * The workstreams of visible, non-archived threads (`ws_seen_thread`), one
    * for each, for client snapshots. Plans that move threads and checks of
    * stored workstreams use `assignments()`, which also covers archived
-   * subjects; clients read an archived thread's workstream on demand.
+   * rows; clients read an archived thread's workstream on demand.
    */
   visibleAssignments(): Record<string, WorkstreamAssignment> {
     const workstreams = this.list();
@@ -1559,7 +1555,7 @@ export class WorkstreamStore {
     );
     // A top-level thread is a seen thread or the unseen parent a seen chain
     // stops at.
-    const subjects = new Map(
+    const rows = new Map(
       (
         this.db
           .prepare(
@@ -1572,18 +1568,18 @@ export class WorkstreamStore {
     );
     const result: Record<string, WorkstreamAssignment> = {};
     for (const threadId of parents.keys()) {
-      let rootId = threadId;
+      let topId = threadId;
       const visited = new Set<string>();
-      while (!visited.has(rootId)) {
-        visited.add(rootId);
-        const parent = parents.get(rootId);
+      while (!visited.has(topId)) {
+        visited.add(topId);
+        const parent = parents.get(topId);
         if (!parent) break;
-        rootId = parent;
+        topId = parent;
       }
       result[threadId] = resolveAssignment(
         threadId,
-        rootId,
-        subjects.get(rootId),
+        topId,
+        rows.get(topId),
         workstreams,
       );
     }

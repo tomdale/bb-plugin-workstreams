@@ -122,7 +122,7 @@ const filingOf = (workstreamStore: WorkstreamStore) =>
  */
 function canonical(
   workstreams: readonly DeltaWorkstream[],
-  filing: Record<string, string | null>,
+  placed: Record<string, string | null>,
   existing: ReadonlySet<string>,
 ) {
   const byId = new Map(workstreams.map((t) => [t.id, t]));
@@ -136,8 +136,8 @@ function canonical(
     workstreams: workstreams
       .map((t) => [key(t.id), t.parentId ? key(t.parentId) : null, t.name])
       .sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
-    filing: Object.fromEntries(
-      Object.entries(filing)
+    placed: Object.fromEntries(
+      Object.entries(placed)
         .filter(([, workstreamId]) => workstreamId)
         .map(([threadId, workstreamId]) => [threadId, key(workstreamId!)])
         .sort(([a], [b]) => a!.localeCompare(b!)),
@@ -175,10 +175,10 @@ async function accept(
       name: t.name,
       parentId: t.parentId,
     })),
-    filing: filingOf(w.workstreamStore),
+    placed: filingOf(w.workstreamStore),
   };
   const existing = new Set(before.workstreams.map((t) => t.id));
-  const predicted = applyDelta(before.workstreams, before.filing, whole);
+  const predicted = applyDelta(before.workstreams, before.placed, whole);
   const result = await w.suggestions.decide([suggestion!.id], "accept");
   expect(result.failed).toEqual([]);
   const actual = {
@@ -187,14 +187,14 @@ async function accept(
       name: t.name,
       parentId: t.parentId,
     })),
-    filing: filingOf(w.workstreamStore),
+    placed: filingOf(w.workstreamStore),
   };
-  expect(canonical(predicted.workstreams, predicted.filing, existing)).toEqual(
-    canonical(actual.workstreams, actual.filing, existing),
+  expect(canonical(predicted.workstreams, predicted.placed, existing)).toEqual(
+    canonical(actual.workstreams, actual.placed, existing),
   );
   // The accepted change did something worth drawing.
-  expect(canonical(actual.workstreams, actual.filing, existing)).not.toEqual(
-    canonical(before.workstreams, before.filing, existing),
+  expect(canonical(actual.workstreams, actual.placed, existing)).not.toEqual(
+    canonical(before.workstreams, before.placed, existing),
   );
 }
 

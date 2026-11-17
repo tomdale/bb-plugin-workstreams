@@ -49,7 +49,7 @@ const input = (extra: Partial<MiniatureInput> = {}): MiniatureInput => ({
     activeAt: NOW - ago * DAY,
   })),
   workstreams,
-  filing: Object.fromEntries(
+  placed: Object.fromEntries(
     threads.map(([id, workstream]) => [id, workstream]),
   ),
   colors: {
@@ -318,14 +318,14 @@ describe("miniature", () => {
           activeAt: NOW - i,
         })),
       ],
-      filing: {
-        ...big.filing,
+      placed: {
+        ...big.placed,
         ...Object.fromEntries(many.map((id) => [id, "docs"])),
       },
     });
     const ctx = {
       ...context(),
-      threadWorkstream: { ...context().threadWorkstream, ...withMany.filing },
+      threadWorkstream: { ...context().threadWorkstream, ...withMany.placed },
     };
     const m = miniature({
       ...withMany,
@@ -531,7 +531,7 @@ describe("miniatureBase", () => {
       { id: "d1", title: "Quick start", sectionId: "sec_docs", activeAt: 5 },
       { id: "u1", title: "Untitled thread", sectionId: null, activeAt: 5 },
     ]);
-    expect(base.filing).toEqual({ d1: "docs", u1: null });
+    expect(base.placed).toEqual({ d1: "docs", u1: null });
     expect(base).toMatchObject({
       sort: "activity",
       manualOrder: ["sec_docs"],
