@@ -228,7 +228,7 @@ export const CallRow = memo(function CallRow({
             </dd>
             <dt>Reported cost</dt>
             <dd className="tabular-nums">
-              {trace.usage
+              {trace.usage && trace.usage.cost !== null
                 ? new Intl.NumberFormat(undefined, {
                     style: "currency",
                     currency: "USD",

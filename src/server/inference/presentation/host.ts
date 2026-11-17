@@ -14,10 +14,11 @@ import { gatewayToolModel } from "./gatewayModel.ts";
 import { PreviewHost, type Theme } from "./preview.ts";
 import { PREVIEW_STYLES } from "./styles.ts";
 
+/** Nothing reached a model. */
 const none = {
   previews: 0,
   modelCalls: 0,
-  usage: { input: 0, output: 0, cost: 0 },
+  usage: { input: 0, output: 0, cost: null },
 };
 
 export async function presentOnHost(options: {

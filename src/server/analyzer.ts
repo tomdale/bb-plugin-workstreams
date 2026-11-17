@@ -20,6 +20,12 @@
  *
  * The title reaches BB only through `onResult` and the retitle policy; the
  * workstream only through `workstreams.apply`.
+ *
+ * A run whose model call a spend cap refused (`SpendCapError`) did not
+ * happen: it stores nothing, counts no failed attempt, and its thread waits in
+ * `deferred` until `runDeferred` queues it again when the pause lifts. A
+ * refused `analyzeNow` also leaves its thread in `settleWorkstream`, so that
+ * later run chooses the workstream even when the stored analysis is current.
  */
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import { createHash } from "node:crypto";
@@ -51,6 +57,7 @@ import {
 } from "./requestProvenance.ts";
 import { observeThreadTitle } from "./titles.ts";
 import { assignmentEvidence, threadEvidence } from "./evidence.ts";
+import { SpendCapError } from "./spendGuard.ts";
 
 type Sdk = BbPluginApi["sdk"];
 
@@ -93,6 +100,8 @@ export class Analyzer {
   >();
   /** Threads with no workstream yet, queued to run despite a current result. */
   private readonly settleWorkstream = new Set<string>();
+  /** Threads whose run a spend cap refused; see `runDeferred`. */
+  private readonly deferred = new Set<string>();
   private disposed = false;
   lastError: string | null = null;
 
@@ -230,6 +239,7 @@ export class Analyzer {
     this.forgotten.add(threadId);
     this.rerun.delete(threadId);
     this.failures.delete(threadId);
+    this.deferred.delete(threadId);
     this.deps.db
       .prepare("DELETE FROM ws_analysis WHERE thread_id = ?")
       .run(threadId);
@@ -293,8 +303,29 @@ export class Analyzer {
         continue;
       if (this.timers.has(thread.id) || this.running.has(thread.id)) continue;
       if (this.waiting.includes(thread.id)) continue;
+      // Its run would be refused again; the lift queues it.
+      if (this.deferred.has(thread.id)) continue;
       if (unworkstreamed) this.settleWorkstream.add(thread.id);
       this.waiting.push(thread.id);
+      queued++;
+    }
+    this.pump();
+    return queued;
+  }
+
+  /**
+   * A spend pause lifted: queues the threads whose runs it refused. Each run
+   * decides afresh what its thread needs, so one that needs nothing by now
+   * asks nothing.
+   */
+  runDeferred(): number {
+    const threads = [...this.deferred];
+    this.deferred.clear();
+    let queued = 0;
+    for (const threadId of threads) {
+      if (this.timers.has(threadId) || this.waiting.includes(threadId))
+        continue;
+      this.waiting.push(threadId);
       queued++;
     }
     this.pump();
@@ -401,6 +432,9 @@ export class Analyzer {
     let revision = -1;
     const epoch = (this.epochs.get(threadId) ?? 0) + 1;
     this.epochs.set(threadId, epoch);
+    this.deferred.delete(threadId);
+    /** Whether this run took the thread's place in `settleWorkstream`. */
+    let settling = false;
     try {
       const sdk = this.deps.sdk();
       const thread = await sdk.threads.get({ threadId });
@@ -430,8 +464,9 @@ export class Analyzer {
         return previous;
       // A run only to give an already-analyzed thread its first workstream
       // leaves the turn's goal and status as they were.
+      settling = this.settleWorkstream.delete(threadId);
       const workstreamOnly =
-        this.settleWorkstream.delete(threadId) &&
+        settling &&
         !force &&
         previous !== undefined &&
         previous.goal !== undefined &&
@@ -470,6 +505,7 @@ export class Analyzer {
                 (error: unknown) => ({
                   ok: false as const,
                   error: error instanceof Error ? error.message : String(error),
+                  refused: error instanceof SpendCapError ? error : null,
                 }),
               )
           : null;
@@ -566,6 +602,9 @@ export class Analyzer {
         }
       }
       const workstreamChoice = await placed;
+      // A refused choice is no failed one: the whole run waits for the lift.
+      if (workstreamChoice && !workstreamChoice.ok && workstreamChoice.refused)
+        throw workstreamChoice.refused;
       // A failed or invalid workstream is retried with backoff; a result carried
       // over keeps no older failure.
       const { workstreamError: _carried, ...current } = result;
@@ -655,6 +694,17 @@ export class Analyzer {
         this.deps.onResult?.(threadId, result);
       return result;
     } catch (error) {
+      if (error instanceof SpendCapError) {
+        // The run the lift queues is not forced, and would return a stored
+        // result that is current without asking. A forced run was asked to
+        // settle the thread now (its workstream was just handed back), so
+        // that run settles the workstream too.
+        if (settling || force) this.settleWorkstream.add(threadId);
+        if (!this.disposed && !this.forgotten.has(threadId))
+          this.deferred.add(threadId);
+        if (force) throw error;
+        return null;
+      }
       const previous = this.failures.get(threadId);
       this.failures.set(threadId, {
         revision,

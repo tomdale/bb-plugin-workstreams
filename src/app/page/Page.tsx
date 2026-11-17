@@ -2,12 +2,14 @@
  * The Workstreams page is the queue: one thing at a time that needs the
  * user (see `Queue`). Everything else waits behind the dim ⋯ in the corner:
  * Activity (the journal), Organize (organizing suggestions and every
- * workstream and group), and, with the debug UI on, the Gallery (a specimen
- * of every reply-block part) and the model traces. Each opens as a full view.
+ * workstream and group), Usage (what the plugin's model calls cost), and,
+ * with the debug UI on, the Gallery (a specimen of every reply-block part)
+ * and the model traces. Each opens as a full view.
  */
 import { useCallback, useEffect, useLayoutEffect, useState } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import type { PluginNavPanelProps } from "@get-bb/plugin-sdk/app";
+import type { PluginNavPanelProps, useRpc } from "@get-bb/plugin-sdk/app";
+import type { RpcContract } from "../../server/contract.ts";
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
 import { MENU_ITEM_HIGHLIGHT_TEXT_CLASS } from "../primitives/menu.ts";
@@ -22,6 +24,9 @@ import { Activity } from "./Activity.tsx";
 import { Gallery } from "./Gallery.tsx";
 import { OrganizeTab } from "./organize/OrganizeTab.tsx";
 import { Queue } from "./queue/Queue.tsx";
+import { Usage } from "./Usage.tsx";
+import { UsageMark } from "../usage/UsageMark.tsx";
+import { useUsageIndicator } from "../usage/useUsage.ts";
 import { BackButton, Overview } from "./overview/Overview.tsx";
 import { setOpenOverview } from "./overview/route.ts";
 
@@ -29,13 +34,14 @@ type View =
   | { kind: "queue" }
   | { kind: "organize" }
   | { kind: "gallery" }
+  | { kind: "usage" }
   | { kind: "overview"; id: string }
   | { kind: "activity"; focus: string | null; modelCalls: boolean };
 
 /**
  * `subPath` deep links open a view: `activity[/<entry>]`, `debug` (model
- * traces), `gallery`, `organize`, and `overview/<workstream>` (a sidebar
- * workstream's id, or `other` for Other).
+ * traces), `gallery`, `organize`, `usage`, and `overview/<workstream>` (a
+ * sidebar workstream's id, or `other` for Other).
  */
 function viewOf(subPath: string): View {
   const [head, ...rest] = subPath.split("/");
@@ -47,6 +53,7 @@ function viewOf(subPath: string): View {
       modelCalls: false,
     };
   if (head === "gallery") return { kind: "gallery" };
+  if (head === "usage") return { kind: "usage" };
   if (head === "overview" && rest.length)
     return { kind: "overview", id: decodeURIComponent(rest.join("/")) };
   if (head === "debug")
@@ -76,7 +83,7 @@ export function WorkstreamsPage({
     return (
       <div className="relative flex h-full min-h-0 flex-1 flex-col">
         <Queue ws={ws} onOrganize={() => setView({ kind: "organize" })} />
-        <PageMenu onOpen={setView} />
+        <PageMenu rpc={ws.rpc} onOpen={setView} />
       </div>
     );
   if (view.kind === "overview")
@@ -98,6 +105,8 @@ export function WorkstreamsPage({
           <OrganizeTab ws={ws} query="" />
         ) : view.kind === "gallery" ? (
           <Gallery />
+        ) : view.kind === "usage" ? (
+          <Usage rpc={ws.rpc} />
         ) : (
           <Activity
             rpc={ws.rpc}
@@ -116,13 +125,25 @@ const VIEW_TITLES: Record<View["kind"], string> = {
   queue: "",
   organize: "Organize",
   gallery: "Gallery",
+  usage: "Usage",
   overview: "Overview",
   activity: "Activity",
 };
 
-/** The dim ⋯ in the corner, for everything that isn't the queue. */
-function PageMenu({ onOpen }: { onOpen: (view: View) => void }) {
+/**
+ * The dim ⋯ in the corner, for everything that isn't the queue. Its Usage
+ * item carries a mark while model calls are paused, a warning is reached, or
+ * flags are raised.
+ */
+function PageMenu({
+  rpc,
+  onOpen,
+}: {
+  rpc: ReturnType<typeof useRpc<RpcContract>>;
+  onOpen: (view: View) => void;
+}) {
   const portalScope = usePortalScopeProps();
+  const usage = useUsageIndicator(rpc);
   const debug = useDebugMode("activity");
   const item = cn(menuItemClass, MENU_ITEM_HIGHLIGHT_TEXT_CLASS);
   return (
@@ -153,6 +174,13 @@ function PageMenu({ onOpen }: { onOpen: (view: View) => void }) {
             onSelect={() => onOpen({ kind: "organize" })}
           >
             Organize
+          </DropdownMenu.Item>
+          <DropdownMenu.Item
+            className={item}
+            onSelect={() => onOpen({ kind: "usage" })}
+          >
+            Usage
+            <UsageMark indicator={usage} />
           </DropdownMenu.Item>
           {debug ? (
             <>

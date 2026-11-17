@@ -71,14 +71,22 @@ import { workView } from "../domain/status.ts";
 import { SnoozeWaker } from "./snoozeWake.ts";
 import { loadPrefs, savePrefs, seedPrefs } from "./prefs.ts";
 import { gatewayModel, type ModelChoice } from "../domain/prefs.ts";
+import { costText, type Usage } from "../domain/trace.ts";
+import type { UsageStatus } from "../domain/usage.ts";
 import { runWorker as completeWithWorker } from "./inference/worker.ts";
 import { registerQueueLab } from "./queueLab.ts";
 import { registerStreamDeck, type StreamDeck } from "./streamDeck.ts";
 import { PresentationStore } from "./postTurn/store.ts";
 import { PostTurnPresenter, type Compose } from "./postTurn/presenter.ts";
-import { SpendGuard } from "./spendGuard.ts";
-import { UsageLedger, type UsageGate } from "./usage.ts";
+import { SpendCapError, SpendGuard } from "./spendGuard.ts";
+import {
+  UsageLedger,
+  promptHash,
+  threadTurnUsage,
+  type UsageGate,
+} from "./usage.ts";
 import { UsageMonitor } from "./usageMonitor.ts";
+import { buildUsageReport, type UsageReportDeps } from "./usageReport.ts";
 import {
   loadPresentationPrefs,
   savePresentationPrefs,
@@ -274,6 +282,7 @@ export default async function plugin(bb: BbPluginApi) {
     },
     traces,
     record: async () => currentPrefs().advanced.debugRecord,
+    usage: usageGate,
     log: (message) => bb.log.warn(message),
   });
   // Retention also applies while recording is off and nothing new arrives.
@@ -306,6 +315,24 @@ export default async function plugin(bb: BbPluginApi) {
     }
   };
   const workstreamStore = new WorkstreamStore(db);
+  /** What the `usage` RPC and `bb workstreams usage` build their report from. */
+  const usageReportDeps: UsageReportDeps = {
+    ledger: usageLedger,
+    guard: spendGuard,
+    monitor: usageMonitor,
+    workstreamOfThread: () => {
+      const workstreams = workstreamStore.list();
+      return (threadId) => {
+        const { workstreamId } = workstreamStore.assignment(threadId);
+        return workstreamId
+          ? {
+              key: workstreamId,
+              label: workstreamPath(workstreamId, workstreams),
+            }
+          : null;
+      };
+    },
+  };
   const workstreamColors = new WorkstreamColors(db);
   const treeWithColors = () => {
     const tree = workstreamStore.state();
@@ -503,6 +530,7 @@ export default async function plugin(bb: BbPluginApi) {
     db,
     prefs: () => loadRecapPrefs(db),
     since: () => recapToolSince(db),
+    usage: usageGate,
     onChange: (threadId) => {
       notify({ slices: ["recaps"], threadIds: [threadId] });
       // A reported or cleared recap can change whether the thread is done.
@@ -513,6 +541,8 @@ export default async function plugin(bb: BbPluginApi) {
   recapToolSince(db);
   recaps.register();
   bb.onDispose(() => recaps.dispose());
+  // Reminders a spend cap held back go out once calls resume.
+  bb.onDispose(spendGuard.onLift(() => recaps.sendDeferred()));
   waker = new SnoozeWaker({
     db,
     snoozes,
@@ -550,8 +580,15 @@ export default async function plugin(bb: BbPluginApi) {
   const questions = new QuestionStore(db, bb);
   registerQuestionTool(bb, questions);
   const presentations = new PresentationStore(db);
-  /** Runs the bounded presentation loop on the analysis machine. */
+  /**
+   * Runs the bounded presentation loop on the analysis machine. While a spend
+   * cap pauses calls the response gets no document and nothing is sent. A
+   * composition that reached a model leaves one usage row for all its
+   * requests; one the machine turned away first (no key, no Chrome) spent
+   * nothing and leaves none.
+   */
   const composePresentation: Compose = async ({
+    threadId,
     response,
     title,
     workstream,
@@ -564,21 +601,78 @@ export default async function plugin(bb: BbPluginApi) {
         kind: "failed",
         reason: "Enhanced responses need an AI Gateway model.",
       };
-    const result = await hostRpc.call(
-      "present",
-      { model, response, title, workstream, theme: "dark" },
-      {
-        hostId: await analysisHost(),
-        timeoutMs: PRESENTATION_HOST_TIMEOUT_MS,
-        signal,
-      },
-    );
-    bb.log.info(
-      `Enhanced response composition: ${result.kind}, ${result.previews} previews, ${result.modelCalls} model calls, $${result.usage.cost.toFixed(4)}`,
-    );
-    return result.kind === "document"
-      ? { kind: "document", document: result.document }
-      : { kind: result.kind, reason: result.reason ?? "No reason given." };
+    try {
+      usageGate.admit("presentation");
+    } catch (error) {
+      if (error instanceof SpendCapError)
+        return { kind: "failed", reason: error.message };
+      throw error;
+    }
+    const started = Date.now();
+    // Until the machine answers, nothing says what the composition used: it
+    // counts as one request with no reported tokens or cost.
+    let spent: {
+      status: UsageStatus;
+      calls: number;
+      usage: Usage | null;
+    } | null = { status: "failed", calls: 1, usage: null };
+    try {
+      const result = await hostRpc.call(
+        "present",
+        { model, response, title, workstream, theme: "dark" },
+        {
+          hostId: await analysisHost(),
+          timeoutMs: PRESENTATION_HOST_TIMEOUT_MS,
+          signal,
+        },
+      );
+      spent =
+        result.modelCalls === 0
+          ? null
+          : {
+              // An answer that arrives after the caller stopped waiting is
+              // not used, so its row is `aborted` and keeps what the machine
+              // reported. Otherwise, choosing to add no document is an
+              // answer, like a document.
+              status: signal.aborted
+                ? "aborted"
+                : result.kind !== "failed"
+                  ? "ok"
+                  : result.invalid
+                    ? "invalid"
+                    : "failed",
+              calls: result.modelCalls,
+              usage: result.usage,
+            };
+      bb.log.info(
+        `Enhanced response composition: ${result.kind}, ${result.previews} previews, ${result.modelCalls} model calls, ${costText(result.usage.cost)}`,
+      );
+      return result.kind === "document"
+        ? { kind: "document", document: result.document }
+        : { kind: result.kind, reason: result.reason ?? "No reason given." };
+    } catch (error) {
+      if (signal.aborted) spent = { status: "aborted", calls: 1, usage: null };
+      throw error;
+    } finally {
+      if (spent)
+        usageGate.record({
+          at: started,
+          source: "presentation",
+          path: "presentation",
+          model,
+          threadId,
+          traceId: null,
+          status: spent.status,
+          calls: spent.calls,
+          inputTokens: spent.usage?.input ?? null,
+          outputTokens: spent.usage?.output ?? null,
+          cost: spent.usage?.cost ?? null,
+          promptHash: promptHash(response),
+          promptChars: response.length,
+          durationMs: Date.now() - started,
+          replay: false,
+        });
+    }
   };
   const presenter = new PostTurnPresenter({
     sdk: () => bb.sdk,
@@ -648,8 +742,10 @@ export default async function plugin(bb: BbPluginApi) {
             })),
         }));
     },
-    classify: async (input, signal) =>
-      (
+    classify: async (input, signal) => {
+      // Asked first, so a paused call gathers no evidence.
+      usageGate.admit("categories");
+      return (
         await inference.run(
           "categories",
           await categoryEvidence(bb.sdk, input, signal, (id, basis) =>
@@ -665,11 +761,13 @@ export default async function plugin(bb: BbPluginApi) {
             })),
           },
         )
-      ).value,
+      ).value;
+    },
     // A cheap check before a whole rearrangement: whether threads that
     // arrived or changed fit the current categories.
-    fit: async (input, signal) =>
-      (
+    fit: async (input, signal) => {
+      usageGate.admit("category-fit");
+      return (
         await inference.run(
           "category-fit",
           await categoryEvidence(
@@ -689,7 +787,8 @@ export default async function plugin(bb: BbPluginApi) {
             })),
           },
         )
-      ).value,
+      ).value;
+    },
     changed: (workstreamId, reason) => {
       const label = workstreamStore.getById(workstreamId)
         ? workstreamPath(workstreamId, workstreamStore.list())
@@ -766,6 +865,17 @@ export default async function plugin(bb: BbPluginApi) {
     log: (message) => bb.log.warn(message),
   });
   bb.onDispose(() => suggestions.dispose());
+  // A spend pause ended: what it deferred is taken up again. Each of these
+  // asks only for what is still due, and the organizer's pass brings the
+  // category checks and arrangements with it.
+  bb.onDispose(
+    spendGuard.onLift(() => {
+      analyzer.runDeferred();
+      starts.runDeferred(service.threads());
+      suggestions.check();
+      triggerOrganizer(0);
+    }),
+  );
   // Suggestions stored before they kept their call get the one behind them, so
   // the debug UI works on what is already waiting.
   const linked = linkSuggestionTraces(db, traces);
@@ -1174,6 +1284,11 @@ export default async function plugin(bb: BbPluginApi) {
   const chooseAutomatically = async (input: {
     threadId: string;
   }): Promise<{ assignment: WorkstreamAssignment }> => {
+    // Settling it takes a model call, so a pause refuses the handover whole
+    // and the workstream stays the one you chose. A pause that begins after
+    // this check refuses the run below instead, which then settles the
+    // workstream when the pause lifts (see `Analyzer.run`).
+    usageGate.admit("turn-end");
     await service.reconcile();
     const rootId = workstreamStore.topThreadOf(input.threadId);
     const current = workstreamStore.assignment(rootId);
@@ -1766,37 +1881,32 @@ export default async function plugin(bb: BbPluginApi) {
     debugThread: ({ title, message }) =>
       userFacing(async () => {
         const projectId = await debugProject();
-        const thread = await bb.sdk.threads.spawn({
-          projectId,
-          environment: { type: "project-default" },
-          title,
-          prompt: message,
-        });
-        return { threadId: thread.id };
+        usageGate.admit("debug-thread");
+        const started = Date.now();
+        let threadId: string | null = null;
+        try {
+          const thread = await bb.sdk.threads.spawn({
+            projectId,
+            environment: { type: "project-default" },
+            title,
+            prompt: message,
+          });
+          threadId = thread.id;
+          return { threadId };
+        } finally {
+          usageGate.record(
+            threadTurnUsage({
+              at: started,
+              source: "debug-thread",
+              threadId,
+              status: threadId === null ? "failed" : "ok",
+              durationMs: Date.now() - started,
+            }),
+          );
+        }
       }),
-    usage: async ({ range }) => {
-      const now = Date.now();
-      const workstreams = workstreamStore.list();
-      const summary = usageLedger.summary(range, {
-        now,
-        groupOfThread: (threadId) => {
-          const { workstreamId } = workstreamStore.assignment(threadId);
-          return workstreamId
-            ? {
-                key: workstreamId,
-                label: workstreamPath(workstreamId, workstreams),
-              }
-            : null;
-        },
-      });
-      return {
-        ...summary,
-        now,
-        windows: usageLedger.totals(now),
-        state: spendGuard.status(),
-        flags: usageMonitor.flags(),
-      };
-    },
+    usage: async ({ range }) =>
+      buildUsageReport(usageReportDeps, range, Date.now()),
     usageStatus: async () => ({
       level: spendGuard.status().level,
       flags: usageMonitor.flags().length,
@@ -1849,5 +1959,6 @@ export default async function plugin(bb: BbPluginApi) {
     chooseAutomatically,
     suggestions,
     presenter,
+    usage: usageReportDeps,
   });
 }

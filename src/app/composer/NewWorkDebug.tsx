@@ -20,7 +20,7 @@ import type { Preview } from "../../server/preview.ts";
 import { Code, json, smallButton } from "../debug/Inspector.tsx";
 import { DebugThreadButton } from "../debug/DebugThreadButton.tsx";
 import { draftSubject } from "../debug/subjects.ts";
-import type { NewWork } from "./new-work.ts";
+import { previewFailure, type NewWork } from "./new-work.ts";
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 const clip = (text: string, max: number) =>
@@ -90,6 +90,7 @@ export function NewWorkDebug({ newWork }: { newWork: NewWork }) {
   const trace = loaded?.trace ?? null;
   const input = (trace?.input ?? null) as Partial<StartInput> | null;
   const notes = decision?.explanation?.notes ?? [];
+  const failure = previewFailure(state.events);
   const [copied, setCopied] = useState(false);
   const copy = async () => {
     const { events, ...dialog } = state;
@@ -109,7 +110,7 @@ export function NewWorkDebug({ newWork }: { newWork: NewWork }) {
         <Icon name="Bug" aria-hidden className="size-3.5 shrink-0" />
         <span className="font-medium">Debug</span>
         <span className="min-w-0 flex-1 truncate">
-          {decision ? decisionTarget(decision) : "No preview yet"}
+          {failure ?? (decision ? decisionTarget(decision) : "No preview yet")}
         </span>
         <span
           aria-hidden
@@ -119,6 +120,11 @@ export function NewWorkDebug({ newWork }: { newWork: NewWork }) {
         </span>
       </summary>
       <div className="max-h-[50vh] overflow-y-auto border-t border-dashed border-border px-3 pb-3 pt-2 text-xs">
+        {failure ? (
+          <p role="status" className="mb-3 text-destructive">
+            The latest preview gave no answer: {failure}
+          </p>
+        ) : null}
         {decision ? (
           <>
             <Heading>Result</Heading>

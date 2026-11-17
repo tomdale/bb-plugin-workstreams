@@ -12,6 +12,8 @@
  *   decides whether to start the call, and never throws.
  * - A failed call is retried twice, then left to the turn's end. A newer
  *   request (`cancel`), deletion, or disposal stops it.
+ * - A call a spend cap refused (`SpendCapError`) is not retried. Its thread
+ *   may be tried once more when the pause lifts (`runDeferred`).
  * - A thread is tried once per run. The title is applied only while the
  *   thread has no title of its own and its first turn is the evidence (the
  *   retitle policy re-checks at the write); the workstream only while nothing else
@@ -28,6 +30,7 @@ import type { Inference } from "./model.ts";
 import type { ChoiceQuestion, ChoiceThread } from "./workstreamChoice.ts";
 import { isUserRequest, openingRequest } from "./requests.ts";
 import { threadEvidence } from "./evidence.ts";
+import { SpendCapError } from "./spendGuard.ts";
 
 type Sdk = BbPluginApi["sdk"];
 
@@ -81,6 +84,8 @@ function delay(ms: number, signal: AbortSignal): Promise<void> {
 export class ThreadStart {
   /** Threads tried in this run, however it went: at most one start each. */
   private readonly tried = new Set<string>();
+  /** Tried threads whose call a spend cap refused; see `runDeferred`. */
+  private readonly deferred = new Set<string>();
   private readonly running = new Map<string, AbortController>();
   private sweeping = 0;
   private disposed = false;
@@ -143,6 +148,7 @@ export class ThreadStart {
   forget(threadId: string): void {
     this.cancel(threadId);
     this.tried.delete(threadId);
+    this.deferred.delete(threadId);
   }
 
   /**
@@ -221,6 +227,17 @@ export class ThreadStart {
           ),
         );
     }
+  }
+
+  /**
+   * A spend pause lifted: the threads it refused count as untried again, and
+   * those still running without a title are named. A workstream it left
+   * unchosen is settled by the turn's end.
+   */
+  runDeferred(threads: readonly InventoryThread[]): void {
+    for (const threadId of this.deferred) this.tried.delete(threadId);
+    this.deferred.clear();
+    this.sweep(threads);
   }
 
   /** Whether the thread may be started at all. Cheap: this runs often. */
@@ -326,6 +343,10 @@ export class ThreadStart {
           return;
         } catch (error) {
           if (controller.signal.aborted || this.disposed) return;
+          if (error instanceof SpendCapError) {
+            this.deferred.add(thread.id);
+            return;
+          }
           this.deps.log(`Starting ${thread.id} failed: ${String(error)}`);
           const wait = RETRY_DELAYS_MS[attempt];
           if (wait === undefined) return;

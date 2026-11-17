@@ -10,6 +10,7 @@
 import {
   TRACE_KIND_TITLE,
   TRACE_STATUS_TITLE,
+  costText,
   type Trace,
   type TraceLink,
 } from "./trace.ts";
@@ -81,7 +82,7 @@ function callSection(call: Trace): string[] {
   if (call.summary) lines.push(`- Model's answer: ${call.summary}`);
   if (call.usage)
     lines.push(
-      `- Usage: ${call.usage.input.toLocaleString()} in / ${call.usage.output.toLocaleString()} out · $${call.usage.cost.toFixed(4)}`,
+      `- Usage: ${call.usage.input.toLocaleString()} in / ${call.usage.output.toLocaleString()} out · ${costText(call.usage.cost)}`,
     );
   lines.push(
     `- Trace \`${call.id}\`; \`bb workstreams trace ${call.id}\` prints it again.`,

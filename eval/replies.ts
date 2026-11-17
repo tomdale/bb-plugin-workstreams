@@ -193,7 +193,7 @@ for (const task of cases) {
       const addUsage = (next: Completion) => {
         usage.input += next.usage.input;
         usage.output += next.usage.output;
-        usage.cost += next.usage.cost;
+        usage.cost += next.usage.cost ?? 0;
       };
       const problems: string[] = [];
       const selectionNotes: string[] = [];

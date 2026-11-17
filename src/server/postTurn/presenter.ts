@@ -8,6 +8,9 @@
  * A message gets at most one composition, so a repeated idle event, a reload,
  * or a second window never composes twice. A document composed after a newer
  * turn started still belongs to the message it was composed for.
+ *
+ * A composition a spend cap refused is skipped like any other the thread
+ * doesn't get, and is not made up once the pause lifts.
  */
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
 import {
@@ -23,10 +26,13 @@ import type {
 import type { PresentationPrefs } from "../../domain/postTurn/prefs.ts";
 import { findFinalMessage, type FinalMessage } from "./anchor.ts";
 import type { PresentationStore } from "./store.ts";
+import { SpendCapError } from "../spendGuard.ts";
 
 type Sdk = BbPluginApi["sdk"];
 
 export type ComposeRequest = {
+  /** The thread whose response is composed for; usage is counted against it. */
+  threadId: string;
   response: string;
   title: string;
   workstream: DocumentWorkstream | null;
@@ -157,6 +163,8 @@ export class PostTurnPresenter {
     } catch (error) {
       if (cancel.signal.aborted)
         return { kind: "skipped", reason: "The thread is gone." };
+      if (error instanceof SpendCapError)
+        return { kind: "skipped", reason: error.message };
       throw error;
     } finally {
       release();
@@ -183,6 +191,7 @@ export class PostTurnPresenter {
       injected !== undefined
         ? { kind: "document", document: injected }
         : await this.deps.compose({
+            threadId: message.threadId,
             response: message.text,
             title: this.deps
               .title(message.threadId)

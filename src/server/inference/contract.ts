@@ -50,6 +50,8 @@ export const hostContract = defineRpcContract({
       kind: z.enum(["document", "none", "failed"]),
       document: z.unknown().optional(),
       reason: z.string().max(2_000).nullable(),
+      /** A `failed` composition whose model answered with nothing usable. */
+      invalid: z.boolean().optional(),
       previews: z.number().int().min(0),
       modelCalls: z.number().int().min(0),
       usage: usageSchema,

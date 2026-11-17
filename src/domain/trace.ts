@@ -8,9 +8,15 @@ import { modelChoiceSchema } from "./prefs.ts";
 export const usageSchema = z.object({
   input: z.number(),
   output: z.number(),
-  cost: z.number(),
+  /** USD the provider reported; null when it reported none, which is not free. */
+  cost: z.number().nullable(),
 });
 export type Usage = z.infer<typeof usageSchema>;
+
+/** A call's reported cost as text; a call that reported none says so. */
+export function costText(cost: number | null): string {
+  return cost === null ? "no cost reported" : `$${cost.toFixed(4)}`;
+}
 
 export const TRACE_KINDS = [
   "start",

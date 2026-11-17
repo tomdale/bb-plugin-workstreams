@@ -1077,6 +1077,20 @@ export class WorkstreamStore {
     setMeta(this.db, "split_requests", JSON.stringify(requests));
   }
 
+  /**
+   * Puts back a request `consumeDivisionRequest` took for a split that was
+   * never asked. A request made meanwhile stands.
+   */
+  restoreDivisionRequest(
+    workstreamId: string,
+    scope: { name: string; description: string },
+  ): void {
+    const requests = this.divisionRequests();
+    if (requests[workstreamId]) return;
+    requests[workstreamId] = scope;
+    setMeta(this.db, "split_requests", JSON.stringify(requests));
+  }
+
   /** The basis the thread's automatic workstream was settled from, if any. */
   basis(threadId: string): string | null {
     const row = this.db

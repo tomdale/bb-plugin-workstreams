@@ -31,6 +31,11 @@ export const Hint = forwardRef<
     side?: "top" | "right" | "bottom" | "left";
     /** Point the hint at its control, for hints that explain a labeled button. */
     arrow?: boolean;
+    /**
+     * Milliseconds a hover waits before the hint opens. Adjacent marks that
+     * are read in one sweep, such as a chart's bars, pass a short one.
+     */
+    delay?: number;
     children: ReactElement;
   }
 >(function Hint(
@@ -38,6 +43,7 @@ export const Hint = forwardRef<
     label,
     side = "top",
     arrow = false,
+    delay = 500,
     children,
     onFocus,
     onBlur,
@@ -60,7 +66,7 @@ export const Hint = forwardRef<
     setQuiet(true);
   }, [menuOpen]);
   return (
-    <TooltipPrimitive.Provider delayDuration={500} skipDelayDuration={200}>
+    <TooltipPrimitive.Provider delayDuration={delay} skipDelayDuration={200}>
       <TooltipPrimitive.Root open={show} onOpenChange={setOpen}>
         <TooltipPrimitive.Trigger
           asChild

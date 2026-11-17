@@ -137,7 +137,7 @@ async function complete(
     disableThinking: flag === "disabled",
     ...(outputSchema ? { outputSchema } : {}),
   });
-  return { text, cost: usage.cost };
+  return { text, cost: usage.cost ?? 0 };
 }
 
 async function mapLimit<T, R>(

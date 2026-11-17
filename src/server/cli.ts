@@ -37,6 +37,7 @@ import { UserError, type WorkstreamService } from "./service.ts";
 import {
   TRACE_KINDS,
   TRACE_KIND_TITLE,
+  costText,
   type Trace,
   type TraceSummary,
 } from "../domain/trace.ts";
@@ -60,6 +61,19 @@ import {
   type ReplyIssue,
 } from "../domain/replyDiagnosis.ts";
 import { ACTION_LABEL, SOURCE_LABEL } from "../app/page/activityLabels.ts";
+import { formatCount, formatMoney, formatTokens } from "../app/usage/format.ts";
+import {
+  LIMIT_SUBJECT,
+  USAGE_RANGES,
+  type LimitState,
+  type SpendState,
+  type UsageGroup,
+  type UsageRange,
+  type UsageReport,
+  type UsageTotals,
+} from "../domain/usage.ts";
+import { pauseMessage } from "./spendGuard.ts";
+import { buildUsageReport, type UsageReportDeps } from "./usageReport.ts";
 
 const terminalLine = (text: string) =>
   text
@@ -231,7 +245,7 @@ function traceText(trace: Trace): string {
     `${TRACE_KIND_TITLE[trace.kind]}: ${trace.label}`,
     `${localMinute(trace.at)} · ${trace.model} · ${(trace.durationMs / 1000).toFixed(1)}s · ${trace.status}${
       trace.usage
-        ? ` · ${trace.usage.input} in / ${trace.usage.output} out · $${trace.usage.cost.toFixed(4)}`
+        ? ` · ${trace.usage.input} in / ${trace.usage.output} out · ${costText(trace.usage.cost)}`
         : ""
     }${trace.replayOf ? ` · replay of ${trace.replayOf}` : ""}`,
     "",
@@ -247,6 +261,114 @@ function traceText(trace: Trace): string {
       trace.links.map((l) => `${l.kind} ${l.ref}`).join("\n") || null,
     ),
     ...section("Replays", trace.replays.map(traceLine).join("\n") || null),
+  ].join("\n");
+}
+
+const USAGE_RANGE_TITLE: Record<UsageRange, string> = {
+  "1h": "Last hour",
+  "24h": "Last 24 hours",
+  "7d": "Last 7 days",
+  "30d": "Last 30 days",
+  "90d": "Last 90 days",
+};
+const USAGE_FLAGS_SHOWN = 20;
+const USAGE_GROUPS_SHOWN = 5;
+
+const requestCount = (calls: number) =>
+  `${formatCount(calls)} ${calls === 1 ? "request" : "requests"}`;
+
+/**
+ * Reported cost, or the words for none when every request went unreported: a
+ * total of $0.00 would claim those requests were free.
+ */
+const reportedCost = (totals: UsageTotals) =>
+  totals.calls > 0 && totals.unmetered === totals.calls
+    ? "no cost reported"
+    : formatMoney(totals.cost);
+
+function limitLevel(limit: LimitState): string {
+  if (limit.resumedUntil !== null)
+    return `cap reached, resumed until ${localMinute(limit.resumedUntil)}`;
+  if (limit.level === "warning") return "warning reached";
+  if (limit.level === "ok") return "under its thresholds";
+  // The rolling hour empties gradually, so it has no moment to name.
+  return limit.window === "hour"
+    ? "cap reached, paused"
+    : `cap reached, paused until ${localMinute(limit.resetsAt)}`;
+}
+
+function limitLine(limit: LimitState): string {
+  const amount = (value: number) =>
+    limit.metric === "spend" ? formatMoney(value) : formatCount(value);
+  const thresholds = [
+    limit.warn === null ? null : `warning at ${amount(limit.warn)}`,
+    limit.cap === null ? null : `cap ${amount(limit.cap)}`,
+  ].filter((part) => part !== null);
+  const subject = LIMIT_SUBJECT[limit.key];
+  return `  ${subject[0]!.toUpperCase()}${subject.slice(1)}: ${amount(limit.used)} (${thresholds.join(", ")}), ${limitLevel(limit)}`;
+}
+
+/** Whether calls are paused, then every limit that has a threshold. */
+function spendStateLines(state: SpendState): string[] {
+  return [
+    state.level === "capped"
+      ? `${pauseMessage(state)} From here, run \`bb workstreams usage resume\`.`
+      : "Model calls are running.",
+    "",
+    ...(state.limits.length
+      ? ["Limits", ...state.limits.map(limitLine)]
+      : ["No limits are set."]),
+  ];
+}
+
+function usageGroupLines(title: string, groups: UsageGroup[]): string[] {
+  if (groups.length === 0) return [];
+  return [
+    "",
+    title,
+    ...groups.slice(0, USAGE_GROUPS_SHOWN).map((group) => {
+      const unreported =
+        group.unmetered > 0 && group.unmetered < group.calls
+          ? `, ${formatCount(group.unmetered)} with no cost reported`
+          : "";
+      return `  ${clip(terminalLine(group.label))}: ${reportedCost(group)}, ${requestCount(group.calls)}${unreported}`;
+    }),
+  ];
+}
+
+/** A usage report as plain text: the pause, the limits, the range, the flags, who spent. */
+function usageText(report: UsageReport): string {
+  const { totals } = report;
+  return [
+    ...spendStateLines(report.state),
+    "",
+    USAGE_RANGE_TITLE[report.range],
+    ...(totals.calls === 0
+      ? ["  No requests."]
+      : [
+          `  Reported cost: ${reportedCost(totals)}`,
+          `  Requests: ${formatCount(totals.calls)}${totals.failed ? ` (${formatCount(totals.failed)} did not succeed)` : ""}`,
+          `  Tokens: ${formatTokens(totals.inputTokens)} in / ${formatTokens(totals.outputTokens)} out`,
+          `  Requests with no cost reported: ${formatCount(totals.unmetered)}`,
+        ]),
+    "",
+    ...(report.flags.length === 0
+      ? ["No flags."]
+      : [
+          "Flags",
+          ...report.flags
+            .slice(0, USAGE_FLAGS_SHOWN)
+            .flatMap((flag) => [
+              `  [${flag.severity}] ${terminalLine(flag.title)}`,
+              `      ${terminalLine(flag.detail)}`,
+            ]),
+          ...(report.flags.length > USAGE_FLAGS_SHOWN
+            ? [`  … and ${report.flags.length - USAGE_FLAGS_SHOWN} more`]
+            : []),
+        ]),
+    ...usageGroupLines("Top sources", report.bySource),
+    ...usageGroupLines("Top models", report.byModel),
+    ...usageGroupLines("Top workstreams", report.byWorkstream),
   ].join("\n");
 }
 
@@ -269,6 +391,7 @@ export function registerCli(
     suggestions,
     workstreamMigration,
     presenter,
+    usage,
   }: {
     /** The sidebar's stored order and focused workstreams. */
     arrangement: {
@@ -293,6 +416,8 @@ export function registerCli(
     suggestions?: Suggestions;
     /** Enhanced responses; `present` composes or stores one on demand. */
     presenter?: PostTurnPresenter;
+    /** The ledger, spend guard, flags, and workstream names behind `usage`. */
+    usage: UsageReportDeps;
     /** Renames the threads Workstreams titled in an earlier title form. */
   },
 ): void {
@@ -394,6 +519,20 @@ export function registerCli(
     if (error instanceof UserError)
       throw new PluginCliError(error.message, { code: "workstreams_error" });
     throw error;
+  };
+  /**
+   * Whatever the ledger or the spend guard raises becomes the command's
+   * message, so a damaged usage record reads as one line, not a stack.
+   */
+  const usageRead = <T>(read: () => T): T => {
+    try {
+      return read();
+    } catch (error) {
+      throw new PluginCliError(
+        error instanceof Error ? error.message : String(error),
+        { code: "usage_unavailable" },
+      );
+    }
   };
 
   bb.cli.register(
@@ -854,6 +993,42 @@ export function registerCli(
                 : list.length
                   ? list.map(traceLine).join("\n")
                   : noCalls,
+            };
+          },
+        }),
+        usage: cliCommand({
+          summary:
+            "Show what model calls spent, the limits, and what looks wrong",
+          options: {
+            range: {
+              type: "enum",
+              values: USAGE_RANGES,
+              default: "24h",
+              description: `The span to total: ${USAGE_RANGES.join(", ")}`,
+            },
+            json: { type: "boolean", description: "Print JSON" },
+          },
+          async run({ options }) {
+            const report = usageRead(() =>
+              buildUsageReport(usage, options.range, Date.now()),
+            );
+            return {
+              exitCode: 0,
+              stdout: options.json ? json(report) : usageText(report),
+            };
+          },
+        }),
+        "usage resume": cliCommand({
+          summary:
+            "Let model calls through past every cap reached now, until its window resets",
+          options: { json: { type: "boolean", description: "Print JSON" } },
+          async run({ options }) {
+            const state = usageRead(() => usage.guard.resume());
+            return {
+              exitCode: 0,
+              stdout: options.json
+                ? json({ state })
+                : spendStateLines(state).join("\n"),
             };
           },
         }),

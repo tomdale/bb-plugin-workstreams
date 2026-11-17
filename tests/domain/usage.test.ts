@@ -91,13 +91,13 @@ describe("evaluateLimits", () => {
     expect(state.limits[0]).toMatchObject({ metric: "calls", used: 500 });
   });
 
-  it("lets a resumed window's cap through but keeps the warning", () => {
+  it("lets a resumed limit's cap through but keeps the warning", () => {
     const set = limits({
       hourSpend: { warn: 2, cap: 4 },
       daySpend: { warn: null, cap: 20 },
     });
     const state = evaluateLimits(set, totals([5, 5], [25, 25]), NOON, {
-      hour: NOON + HOUR,
+      hourSpend: NOON + HOUR,
     });
     expect(state.limits.map((s) => [s.key, s.level])).toEqual([
       ["hourSpend", "warning"],
@@ -107,10 +107,40 @@ describe("evaluateLimits", () => {
     expect(state.level).toBe("capped");
   });
 
+  it("resumes one limit, not the other limit of its window", () => {
+    const set = limits({
+      hourSpend: { warn: null, cap: 4 },
+      hourCalls: { warn: null, cap: 500 },
+    });
+    const state = evaluateLimits(set, totals([5, 500]), NOON, {
+      hourSpend: NOON + HOUR,
+    });
+    expect(state.limits.map((s) => [s.key, s.level, s.resumedUntil])).toEqual([
+      ["hourSpend", "warning", NOON + HOUR],
+      ["hourCalls", "capped", null],
+    ]);
+    expect(state.level).toBe("capped");
+    // Resuming both lets calls through.
+    expect(
+      evaluateLimits(set, totals([5, 500]), NOON, {
+        hourSpend: NOON + HOUR,
+        hourCalls: NOON + HOUR,
+      }).level,
+    ).toBe("warning");
+  });
+
+  it("reports no resume for a limit under its cap", () => {
+    const set = limits({ hourSpend: { warn: null, cap: 4 } });
+    const state = evaluateLimits(set, totals([3, 5]), NOON, {
+      hourSpend: NOON + HOUR,
+    });
+    expect(state.limits[0]).toMatchObject({ level: "ok", resumedUntil: null });
+  });
+
   it("ignores a resume that has ended", () => {
     const set = limits({ hourSpend: { warn: null, cap: 4 } });
     expect(
-      evaluateLimits(set, totals([5, 5]), NOON, { hour: NOON - 1 }).level,
+      evaluateLimits(set, totals([5, 5]), NOON, { hourSpend: NOON - 1 }).level,
     ).toBe("capped");
   });
 });

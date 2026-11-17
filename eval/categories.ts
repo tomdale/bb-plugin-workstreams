@@ -97,7 +97,7 @@ for (const test of queue) {
         signal: AbortSignal.timeout(60_000),
       });
       response = completion.text;
-      cost = completion.usage.cost;
+      cost = completion.usage.cost ?? 0;
       spent += cost;
       const fit = parseCategoryFit(response, input);
       const next = applyCategoryFit(input, fit);
@@ -149,7 +149,7 @@ for (const test of queue) {
       signal: AbortSignal.timeout(60_000),
     });
     response = completion.text;
-    cost = completion.usage.cost;
+    cost = completion.usage.cost ?? 0;
     spent += cost;
     const decision = parseCategories(response, test.input);
     const actual = (

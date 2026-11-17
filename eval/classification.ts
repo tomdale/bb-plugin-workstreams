@@ -120,7 +120,7 @@ try {
                   : workstreamChoiceSchema(choice),
           });
           response = completion.text;
-          cost = completion.usage.cost;
+          cost = completion.usage.cost ?? undefined;
           const parsed =
             kind === "start"
               ? parseStart(response, start)

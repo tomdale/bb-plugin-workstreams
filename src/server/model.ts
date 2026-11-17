@@ -2,6 +2,9 @@
  * Every model call Workstreams makes, by kind: how the prompt is built from
  * the call's input and how the response is parsed. One definition serves the
  * live call, its debug trace, and a replay from the inspector.
+ *
+ * Every attempt asks the spend guard before it is sent and leaves one usage
+ * row after it ends, however it ends (see `UsageGate`).
  */
 import {
   categoryFitPrompt,
@@ -47,8 +50,8 @@ import {
   type TraceKind,
   type TraceLink,
   type TraceStatus,
-  type Usage,
 } from "../domain/trace.ts";
+import type { NewUsageEntry, UsageStatus } from "../domain/usage.ts";
 import {
   PROVIDER,
   SYSTEM_PROMPT,
@@ -62,6 +65,7 @@ import {
 } from "../domain/prefs.ts";
 import { UserError } from "./service.ts";
 import { boundedJson, type TraceStore } from "./trace.ts";
+import { promptHash, type UsageGate } from "./usage.ts";
 
 /** A recorded call without a workstream choice asks for none. */
 const withPlacement = (input: TurnEndInput): TurnEndInput => ({
@@ -258,6 +262,8 @@ export class Inference {
       traces: TraceStore;
       /** Whether calls are recorded; read before every call. */
       record: () => Promise<boolean>;
+      /** The spend guard and the usage ledger, which no call goes around. */
+      usage: UsageGate;
       log?: (message: string) => void;
       now?: () => number;
     },
@@ -270,7 +276,8 @@ export class Inference {
   /**
    * Builds the prompt for `kind` from `input`, calls the model, and parses
    * the response. With recording on, saves the call and returns its trace
-   * id.
+   * id. While a spend cap pauses calls it rejects with the guard's
+   * `SpendCapError`, having sent nothing.
    */
   async run<K extends TraceKind>(
     kind: K,
@@ -304,6 +311,7 @@ export class Inference {
       label: options.label ?? TRACE_KIND_TITLE[kind],
       links: options.links ?? [],
       replayOf: null,
+      replay: false,
       record: await this.deps.record(),
       signal: options.signal,
       timeoutMs: options.timeoutMs,
@@ -344,6 +352,7 @@ export class Inference {
           label: options.label ?? TRACE_KIND_TITLE[kind],
           links: options.links ?? [],
           replayOf: result.traceId,
+          replay: false,
           record: await this.deps.record(),
           signal: options.signal,
           timeoutMs: remaining,
@@ -385,8 +394,10 @@ export class Inference {
       outputSchema: original.outputSchema,
       maxTokens: spec.maxTokens,
       replayOf: original.id,
+      replay: true,
       record: true,
     });
+    if (!result.ok && result.refused) throw result.error;
     const trace = result.traceId ? this.deps.traces.get(result.traceId) : null;
     if (!trace) throw new Error("The replay could not be recorded.");
     return trace;
@@ -460,6 +471,8 @@ export class Inference {
       label: string;
       links: readonly TraceLink[];
       replayOf: string | null;
+      /** A replay from the inspector, as the usage row marks it. */
+      replay: boolean;
       record: boolean;
       signal?: AbortSignal;
       timeoutMs?: number;
@@ -468,8 +481,24 @@ export class Inference {
     },
   ): Promise<
     | { ok: true; value: unknown; traceId: string | null }
-    | { ok: false; error: unknown; traceId: string | null; invalid?: boolean }
+    | {
+        ok: false;
+        error: unknown;
+        traceId: string | null;
+        /** The model answered, but the answer didn't parse. */
+        invalid?: boolean;
+        /** The spend guard refused the call, so nothing was sent. */
+        refused?: boolean;
+      }
   > {
+    // An answer nobody is waiting for is not asked for: nothing is sent, so
+    // there is nothing to admit or to count.
+    if (request.signal?.aborted) throw request.signal.reason;
+    try {
+      this.deps.usage.admit(kind);
+    } catch (error) {
+      return { ok: false, error, traceId: null, refused: true };
+    }
     const started = this.now();
     const record = (
       status: TraceStatus,
@@ -525,7 +554,13 @@ export class Inference {
             ),
           )
         : null;
-    let completion: Awaited<ReturnType<Complete>>;
+    // What the usage row says. Each exit sets these before it leaves, and
+    // the `finally` writes the row whichever exit was taken. A request that
+    // failed or was aborted keeps null tokens and cost: the provider may have
+    // billed it, and nothing says how much.
+    let status: UsageStatus = "failed";
+    let usage: Completion["usage"] | null = null;
+    let traceId: string | null = null;
     // The timeout aborts the request itself, so the host closes it too.
     const timeout =
       request.timeoutMs === undefined ? null : new AbortController();
@@ -540,59 +575,87 @@ export class Inference {
         ? AbortSignal.any([request.signal, timeout.signal])
         : (timeout?.signal ?? request.signal);
     try {
-      completion = await this.deps.complete(
-        request.prompt,
-        request.model,
-        signal,
-        request.maxTokens,
-        {
-          ...(request.threadId ? { threadId: request.threadId } : {}),
-          ...(request.outputSchema
-            ? { outputSchema: request.outputSchema }
-            : {}),
-        },
-      );
-    } catch (error) {
-      if (request.signal?.aborted) throw request.signal.reason;
-      const failure = timeout?.signal.aborted
-        ? new Error(
-            `The model didn't answer within ${duration(request.timeoutMs!)}.`,
-          )
-        : error;
-      return {
-        ok: false,
-        error: failure,
-        traceId: record("failed", { error: failure }),
-      };
+      let completion: Awaited<ReturnType<Complete>>;
+      try {
+        completion = await this.deps.complete(
+          request.prompt,
+          request.model,
+          signal,
+          request.maxTokens,
+          {
+            ...(request.threadId ? { threadId: request.threadId } : {}),
+            ...(request.outputSchema
+              ? { outputSchema: request.outputSchema }
+              : {}),
+          },
+        );
+      } catch (error) {
+        if (request.signal?.aborted) {
+          status = "aborted";
+          throw request.signal.reason;
+        }
+        const failure = timeout?.signal.aborted
+          ? new Error(
+              `The model didn't answer within ${duration(request.timeoutMs!)}.`,
+            )
+          : error;
+        traceId = record("failed", { error: failure });
+        return { ok: false, error: failure, traceId };
+      } finally {
+        if (timer) clearTimeout(timer);
+      }
+      usage = completion.usage;
+      let value: unknown;
+      try {
+        value = request.parse(completion.text);
+      } catch (error) {
+        status = "invalid";
+        traceId = record("invalid", { completion, error });
+        return { ok: false, error, invalid: true, traceId };
+      }
+      const workstreamError = (value as { workstreamError?: string })
+        .workstreamError;
+      status = workstreamError ? "invalid" : "ok";
+      traceId = record(status, {
+        completion,
+        parsed: value,
+        ...(workstreamError ? { error: workstreamError } : {}),
+      });
+      return { ok: true, value, traceId };
     } finally {
-      if (timer) clearTimeout(timer);
+      this.count({
+        at: started,
+        source: kind,
+        path: gatewayModel(request.model) !== null ? "gateway" : "worker",
+        model: modelLabel(request.model),
+        threadId:
+          request.threadId ??
+          request.links.find((link) => link.kind === "thread")?.ref ??
+          null,
+        traceId,
+        status,
+        calls: 1,
+        inputTokens: usage?.input ?? null,
+        outputTokens: usage?.output ?? null,
+        cost: usage?.cost ?? null,
+        promptHash: promptHash(request.prompt),
+        promptChars: request.prompt.length,
+        durationMs: this.now() - started,
+        replay: request.replay,
+      });
     }
-    let value: unknown;
+  }
+
+  /**
+   * Writes a call's usage row. The gate promises not to throw; this holds it
+   * to that, because the row is written while the call's result or rejection
+   * is on its way out and must not replace it.
+   */
+  private count(entry: NewUsageEntry): void {
     try {
-      value = request.parse(completion.text);
+      this.deps.usage.record(entry);
     } catch (error) {
-      return {
-        ok: false,
-        error,
-        invalid: true,
-        traceId: record("invalid", { completion, error }),
-      };
+      this.deps.log?.(`Usage not recorded: ${message(error)}`);
     }
-    return {
-      ok: true,
-      value,
-      traceId: record(
-        (value as { workstreamError?: string }).workstreamError
-          ? "invalid"
-          : "ok",
-        {
-          completion,
-          parsed: value,
-          ...((value as { workstreamError?: string }).workstreamError
-            ? { error: (value as { workstreamError: string }).workstreamError }
-            : {}),
-        },
-      ),
-    };
   }
 }

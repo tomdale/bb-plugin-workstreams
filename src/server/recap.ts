@@ -18,6 +18,12 @@
  * reply is already visible when a reminder asks for the recap. Reminders
  * carry an epoch and a token that `message.dispatch` checks, so input that
  * arrives first cancels a stale reminder.
+ *
+ * A reminder or a waiting check starts a turn in the user's thread, which
+ * spends on that thread's model. Each asks the spend guard first and leaves a
+ * usage row after. While a cap pauses calls nothing is sent and nothing is
+ * reserved: the reminder budget and the waiting check stay as they were, and
+ * `sendDeferred` sends what was held back once calls resume.
  */
 import { randomUUID } from "node:crypto";
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
@@ -36,12 +42,14 @@ import {
   type Recap,
 } from "../domain/recap.ts";
 import type { RecapPrefs } from "../domain/recapPrefs.ts";
+import type { UsageStatus } from "../domain/usage.ts";
 import { replyInstructions } from "../domain/replyInstructions.ts";
 import { loadClientReport, saveClientReport } from "./clientReport.ts";
 import type { Database } from "./db.ts";
 import { UserError } from "./service.ts";
 import { ASK_USER_QUESTION_RENDERER_ID } from "./questions/contracts.ts";
 import { ToolLoopGuard } from "./toolLoopGuard.ts";
+import { threadTurnUsage, type UsageGate } from "./usage.ts";
 
 type Row = {
   thread_id: string;
@@ -108,6 +116,9 @@ export class AgentRecaps {
     ReturnType<typeof setTimeout>
   >();
   private readonly waitingChecks = new Set<Promise<void>>();
+  /** Threads whose reminder or waiting check a spend cap held back. */
+  private readonly heldReminders = new Set<string>();
+  private readonly heldWaiting = new Set<string>();
   /**
    * Whether each thread's turns are guarded against tool loops: recaps are
    * required and the thread is enrolled. The guard asks on every event batch
@@ -131,6 +142,8 @@ export class AgentRecaps {
       prefs: () => RecapPrefs;
       /** See `recapToolSince` in recapPrefs.ts. */
       since: () => number;
+      /** Asked before a reminder or waiting check is sent, and told after. */
+      usage: UsageGate;
       /** A thread's recap record changed. */
       onChange: (threadId: string) => void;
     },
@@ -356,6 +369,28 @@ export class AgentRecaps {
     this.loopGuard.forget(threadId);
     // A capped turn's notice shows only once the thread is idle.
     if (this.row(threadId).capped) this.deps.onChange(threadId);
+    return this.check(threadId);
+  }
+
+  /**
+   * Calls resumed after a spend cap: sends the reminders and waiting checks
+   * the cap held back, each still subject to every check it had to pass.
+   */
+  sendDeferred(): void {
+    if (this.controller.signal.aborted) return;
+    const reminders = [...this.heldReminders];
+    const waiting = [...this.heldWaiting];
+    this.heldReminders.clear();
+    this.heldWaiting.clear();
+    for (const threadId of reminders) void this.check(threadId);
+    for (const threadId of waiting) {
+      const recap = this.get(threadId)?.recap;
+      if (recap) this.scheduleWaiting(threadId, recap);
+    }
+  }
+
+  /** Runs the reminder check for a thread, one at a time per thread. */
+  private check(threadId: string): Promise<void> {
     const running = this.pending.get(threadId);
     if (running) {
       this.repeat.add(threadId);
@@ -394,6 +429,8 @@ export class AgentRecaps {
     this.cancelWaitingTimer(threadId);
     this.loopGuard.forget(threadId);
     this.guarded.delete(threadId);
+    this.heldReminders.delete(threadId);
+    this.heldWaiting.delete(threadId);
     this.deps.db
       .prepare("DELETE FROM ws_agent_recap WHERE thread_id = ?")
       .run(threadId);
@@ -644,6 +681,46 @@ export class AgentRecaps {
       .run(inputKey, threadId);
   }
 
+  /**
+   * Whether the spend guard lets a turn start in the thread now. A refusal
+   * holds the thread in `held` for `sendDeferred`.
+   */
+  private admitted(threadId: string, held: Set<string>): boolean {
+    try {
+      this.deps.usage.admit("recap-reminder");
+      return true;
+    } catch {
+      held.add(threadId);
+      return false;
+    }
+  }
+
+  /**
+   * Sends a message that starts a turn in the thread and counts it. A send
+   * that fails is counted too, since a turn may have started before it did.
+   */
+  private async startTurn(
+    threadId: string,
+    send: () => Promise<unknown>,
+  ): Promise<void> {
+    const started = Date.now();
+    let status: UsageStatus = "failed";
+    try {
+      await send();
+      status = "ok";
+    } finally {
+      this.deps.usage.record(
+        threadTurnUsage({
+          at: started,
+          source: "recap-reminder",
+          threadId,
+          status,
+          durationMs: Date.now() - started,
+        }),
+      );
+    }
+  }
+
   private cancelWaitingTimer(threadId: string) {
     const timer = this.waitingTimers.get(threadId);
     if (timer) clearTimeout(timer);
@@ -697,6 +774,8 @@ export class AgentRecaps {
       this.get(threadId)?.waitingCancelled
     )
       return;
+    // Asked before the reservation, so a paused check can still be sent later.
+    if (!this.admitted(threadId, this.heldWaiting)) return;
     // Reserve once durably before sending; a reload cannot duplicate the prompt.
     const reserved = this.deps.db
       .prepare(
@@ -706,22 +785,24 @@ export class AgentRecaps {
       )
       .run(threadId, recap.id).changes;
     if (!reserved) return;
-    await sdk.threads.send({
-      threadId,
-      mode: "start",
-      pluginSubmission: {
-        pluginId: this.deps.bb.pluginId,
-        data: { waitingRecapId: recap.id },
-      },
-      input: [
-        {
-          type: "text",
-          visibility: "agent-only",
-          mentions: [],
-          text: `[Workstreams waiting ${recap.id}]\nThe waiting timeout expired. Check the status of the async task you reported, continue authorized work if ready, and report a recap. If it is still running, report waiting with a realistic timeout.`,
+    await this.startTurn(threadId, () =>
+      sdk.threads.send({
+        threadId,
+        mode: "start",
+        pluginSubmission: {
+          pluginId: this.deps.bb.pluginId,
+          data: { waitingRecapId: recap.id },
         },
-      ],
-    });
+        input: [
+          {
+            type: "text",
+            visibility: "agent-only",
+            mentions: [],
+            text: `[Workstreams waiting ${recap.id}]\nThe waiting timeout expired. Check the status of the async task you reported, continue authorized work if ready, and report a recap. If it is still running, report waiting with a realistic timeout.`,
+          },
+        ],
+      }),
+    );
   }
 
   private async enforce(threadId: string) {
@@ -775,6 +856,14 @@ export class AgentRecaps {
       return;
     // A session constructed before the tool existed can't call it.
     if (!row.proven && (await this.sessionPredatesTool(thread, signal))) return;
+    // Asked before the reservation and only while a reminder is left to send:
+    // a paused reminder spends none of the budget, and a spent budget is
+    // still marked below.
+    if (
+      row.intercepts < reminders &&
+      !this.admitted(threadId, this.heldReminders)
+    )
+      return;
     const token = randomUUID();
     // Reserved before sending, so a reload or a repeated idle event can't
     // refund a reminder.
@@ -802,28 +891,30 @@ export class AgentRecaps {
       return;
     }
     this.deps.onChange(threadId);
-    await sdk.threads.send({
-      threadId,
-      mode: "start",
-      pluginSubmission: {
-        pluginId: this.deps.bb.pluginId,
-        data: {
-          recapReminder: {
-            epoch: row.epoch,
-            completedSeq: completed.seq,
-            token,
+    await this.startTurn(threadId, () =>
+      sdk.threads.send({
+        threadId,
+        mode: "start",
+        pluginSubmission: {
+          pluginId: this.deps.bb.pluginId,
+          data: {
+            recapReminder: {
+              epoch: row.epoch,
+              completedSeq: completed.seq,
+              token,
+            },
           },
         },
-      },
-      input: [
-        {
-          type: "text",
-          visibility: "agent-only",
-          text: `[Workstreams recap ${token} ${row.epoch} ${completed.seq}]\n${RECAP_REMINDER} Reminder ${row.intercepts + 1} of ${reminders}.`,
-          mentions: [],
-        },
-      ],
-    });
+        input: [
+          {
+            type: "text",
+            visibility: "agent-only",
+            text: `[Workstreams recap ${token} ${row.epoch} ${completed.seq}]\n${RECAP_REMINDER} Reminder ${row.intercepts + 1} of ${reminders}.`,
+            mentions: [],
+          },
+        ],
+      }),
+    );
   }
 }
 

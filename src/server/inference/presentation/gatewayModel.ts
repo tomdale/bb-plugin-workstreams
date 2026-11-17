@@ -5,6 +5,7 @@
  * tool to call.
  */
 import { z } from "zod";
+import { reportedCost } from "../gateway.ts";
 import type { AssistantBlock, ToolModel } from "./driver.ts";
 
 const GATEWAY_URL = "https://ai-gateway.vercel.sh/v1/messages";
@@ -55,7 +56,7 @@ export function gatewayToolModel(options: {
       usage: {
         input: body.usage?.input_tokens ?? 0,
         output: body.usage?.output_tokens ?? 0,
-        cost: Number(body.provider_metadata?.gateway?.cost ?? 0) || 0,
+        cost: reportedCost(body.provider_metadata?.gateway?.cost),
       },
     };
   };

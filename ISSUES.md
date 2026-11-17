@@ -14,8 +14,10 @@ released SDK 0.6.5 `ThreadSpawnArgs` / `ThreadOutputResponse` types.
 Non-Gateway models run in hidden BB threads. The spawn API has no output-schema
 or output-token-limit fields, and `threads.output` returns text only. Responses
 are parsed and validated, but generation cannot be constrained in the same way
-as a direct Gateway call. Usage, cost, and reasoning metadata are unavailable;
-worker traces use `usage: null`, not fabricated zero usage.
+as a direct Gateway call. Token usage, cost, and reasoning metadata are
+unavailable; worker traces use `usage: null`, not fabricated zero usage. The
+usage record counts each worker call as a request with no reported cost, so the
+requests-per-hour limit covers worker calls and the spend limits do not.
 
 **Workaround:** Use a Gateway model for constrained output and reported usage.
 The requested completion API is recorded in the BB SDK wishlist,

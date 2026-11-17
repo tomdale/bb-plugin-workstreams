@@ -149,8 +149,14 @@ export async function fakeWorld(
     prefs?: PrefsPatch;
     send?: (args: Record<string, unknown>) => Promise<void>;
     spawn?: (args: Record<string, unknown>) => Promise<Thread>;
-    /** The host's enhanced-response composition; absent: it fails. */
-    present?: (input: Record<string, unknown>) => unknown | Promise<unknown>;
+    /**
+     * The host's enhanced-response composition, given the host call's abort
+     * signal; absent: it fails.
+     */
+    present?: (
+      input: Record<string, unknown>,
+      signal?: AbortSignal,
+    ) => unknown | Promise<unknown>;
   } = {},
 ) {
   const threads = new Map<string, Thread>();
@@ -216,7 +222,10 @@ export async function fakeWorld(
       if (call.method === "present") {
         presents.push(call.input as Record<string, unknown>);
         return (
-          (await options.present?.(call.input as Record<string, unknown>)) ?? {
+          (await options.present?.(
+            call.input as Record<string, unknown>,
+            call.signal,
+          )) ?? {
             kind: "failed",
             reason: "No fake composition.",
             previews: 0,

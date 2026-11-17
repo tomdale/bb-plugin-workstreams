@@ -38,6 +38,16 @@ check live traces and costs, and evaluate prompt or model changes with `eval/`
 CDP counters and traces, frame capture, the real-scale fixture, and server pass
 and payload benchmarks.
 
+Every attempt that can spend provider money (a model call, an enhanced-response
+composition, a debug thread, a recap reminder or waiting check) calls
+`UsageGate.admit` before it is sent and `UsageGate.record` after it ends, so the
+usage ledger (`src/server/usage.ts`, `docs/usage.md`) holds every one. A new
+spending path joins the allowlist in
+`tests/server/usage-instrumentation.test.ts`. A cost the provider did not report
+is `null`, never `0`. A refused call (`SpendCapError`) changes no thread state
+and counts no retry attempt; work it deferred restarts through
+`SpendGuard.onLift`.
+
 An agent tool's input schema is a contract with threads already running: a
 thread keeps the tool list it started with, while BB validates each call against
 the plugin's current schema. Change a field's name by accepting the old and new

@@ -87,7 +87,15 @@ export type PresentationOutcome = PresentationStats &
   (
     | { kind: "document"; document: EnhancedDocument }
     | { kind: "none"; reason: string }
-    | { kind: "failed"; reason: string }
+    | {
+        kind: "failed";
+        reason: string;
+        /**
+         * The model answered, but with nothing usable; absent when the
+         * composition itself failed (a request error, a deadline, a cancel).
+         */
+        invalid?: true;
+      }
   );
 
 type Limits = Record<
@@ -137,7 +145,9 @@ export async function runPresentation(options: {
     options.signal,
     AbortSignal.timeout(limits.deadlineMs),
   ]);
-  const usage: Usage = { input: 0, output: 0, cost: 0 };
+  // The cost stays null until a call reports one: the sum covers only the
+  // calls that reported, and no report at all is not a free composition.
+  const usage: Usage = { input: 0, output: 0, cost: null };
   let previews = 0;
   let modelCalls = 0;
   /** The last candidate whose preview succeeded, canonical. */
@@ -146,6 +156,12 @@ export async function runPresentation(options: {
   const failed = (reason: string): PresentationOutcome => ({
     kind: "failed",
     reason,
+    ...stats(),
+  });
+  const unusable = (reason: string): PresentationOutcome => ({
+    kind: "failed",
+    reason,
+    invalid: true,
     ...stats(),
   });
   const messages: Message[] = [
@@ -274,7 +290,8 @@ export async function runPresentation(options: {
       );
       usage.input += reply.usage.input;
       usage.output += reply.usage.output;
-      usage.cost += reply.usage.cost;
+      if (reply.usage.cost !== null)
+        usage.cost = (usage.cost ?? 0) + reply.usage.cost;
       messages.push({ role: "assistant", content: reply.content });
       const calls = reply.content.filter(isToolUse);
       if (calls.length) {
@@ -284,9 +301,9 @@ export async function runPresentation(options: {
         continue;
       }
       if (reply.stopReason === "max_tokens")
-        return failed("The model's answer was cut off at its token limit.");
+        return unusable("The model's answer was cut off at its token limit.");
       const answer = parseAnswer(reply.content);
-      if (!answer.ok) return failed("The final answer was not JSON.");
+      if (!answer.ok) return unusable("The final answer was not JSON.");
       if (answer.value === null)
         return {
           kind: "none",
@@ -295,18 +312,18 @@ export async function runPresentation(options: {
         };
       const valid = validateDocument(answer.value);
       if (!valid.ok)
-        return failed(
+        return unusable(
           `The final document is invalid: ${summarizeIssues(valid.issues)}`,
         );
       if (previewed === null)
-        return failed("The final document was never previewed.");
+        return unusable("The final document was never previewed.");
       if (canonicalDocument(valid.document) !== previewed)
-        return failed(
+        return unusable(
           "The final document differs from the last one that previewed successfully.",
         );
       return { kind: "document", document: valid.document, ...stats() };
     }
-    return failed(
+    return unusable(
       `The model used all ${limits.modelCalls} calls without a final answer.`,
     );
   } catch (error) {

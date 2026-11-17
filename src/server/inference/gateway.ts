@@ -79,6 +79,21 @@ const chatResponse = z.object({
 });
 
 /**
+ * The cost a response reported, in USD: a number or a numeric string. Null
+ * when the field is absent or is not a finite number, because a missing cost
+ * is unknown spend, not a free call.
+ */
+export function reportedCost(value: unknown): number | null {
+  const cost =
+    typeof value === "number"
+      ? value
+      : typeof value === "string" && value.trim() !== ""
+        ? Number(value)
+        : NaN;
+  return Number.isFinite(cost) ? cost : null;
+}
+
+/**
  * The AI Gateway key Pi uses on this machine: Pi's stored API key first (it
  * wins over the environment in Pi too), then `AI_GATEWAY_API_KEY`.
  */
@@ -198,7 +213,7 @@ export async function gatewayComplete(request: {
       usage: {
         input: body.usage?.prompt_tokens ?? 0,
         output: body.usage?.completion_tokens ?? 0,
-        cost: Number(body.usage?.cost ?? 0) || 0,
+        cost: reportedCost(body.usage?.cost),
       },
     };
   }
@@ -218,7 +233,7 @@ export async function gatewayComplete(request: {
     usage: {
       input: body.usage?.input_tokens ?? 0,
       output: body.usage?.output_tokens ?? 0,
-      cost: Number(body.provider_metadata?.gateway?.cost ?? 0) || 0,
+      cost: reportedCost(body.provider_metadata?.gateway?.cost),
     },
     // Bounded under the host contract's limit.
     reasoning: reasoning ? reasoning.slice(0, 100_000) : null,

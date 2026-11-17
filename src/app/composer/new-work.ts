@@ -147,6 +147,20 @@ export function identityDisplay(
   };
 }
 
+/**
+ * Why the draft's newest preview gave no answer, when it failed: a pause on
+ * Workstreams' model calls reads here. Null while a preview runs or after one
+ * answered.
+ */
+export function previewFailure(events: NewWorkState["events"]): string | null {
+  for (let i = events.length - 1; i >= 0; i--) {
+    const event = events[i]!;
+    if (event.kind !== "classify" || event.status === "superseded") continue;
+    return event.status === "failed" ? event.error : null;
+  }
+  return null;
+}
+
 const messageOf = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
 

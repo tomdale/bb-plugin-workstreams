@@ -30,6 +30,9 @@ export default experimental_defineHostEntry({
         kind: outcome.kind,
         ...(outcome.kind === "document" ? { document: outcome.document } : {}),
         reason: outcome.kind === "document" ? null : outcome.reason,
+        ...(outcome.kind === "failed" && outcome.invalid
+          ? { invalid: true }
+          : {}),
         previews: outcome.previews,
         modelCalls: outcome.modelCalls,
         usage: outcome.usage,

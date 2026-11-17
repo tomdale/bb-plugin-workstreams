@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import {
   TRACE_KINDS,
   TRACE_KIND_TITLE,
+  costText,
   type TraceKind,
   type TraceSummary,
 } from "../../domain/trace.ts";
@@ -343,10 +344,13 @@ export function Activity({
                 )),
           )
         : NO_CALLS;
-    const callCost = shownCalls.reduce(
-      (sum, trace) => sum + (trace.usage?.cost ?? 0),
-      0,
-    );
+    // The sum of the costs that were reported. Calls that reported none add
+    // nothing, and when no shown call reported one there is no sum to show.
+    const costs = shownCalls.flatMap((trace) => trace.usage?.cost ?? []);
+    const callCost =
+      shownCalls.length && !costs.length
+        ? null
+        : costs.reduce((sum, cost) => sum + cost, 0);
     return { shownCalls, callCost };
   }, [
     calls,
@@ -502,7 +506,7 @@ export function Activity({
           </div>
           <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-2">
             <span className="tabular-nums">
-              {shownCalls.length} model traces shown · ${callCost.toFixed(4)}
+              {shownCalls.length} model traces shown · {costText(callCost)}
             </span>
             {confirmClear ? (
               <span className="flex items-center gap-1.5">

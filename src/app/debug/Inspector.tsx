@@ -16,6 +16,7 @@ import { relativeAge } from "../../domain/presentation.ts";
 import {
   TRACE_KIND_TITLE,
   TRACE_STATUS_TITLE,
+  costText,
   type Trace,
   type TraceStatus,
   type TraceSummary,
@@ -406,7 +407,7 @@ function TraceDetail({
         {" · "}
         {(trace.durationMs / 1000).toFixed(1)}s
         {usage
-          ? ` · ${usage.input.toLocaleString()} in / ${usage.output.toLocaleString()} out · $${usage.cost.toFixed(4)}`
+          ? ` · ${usage.input.toLocaleString()} in / ${usage.output.toLocaleString()} out · ${costText(usage.cost)}`
           : ""}
       </p>
       {threads.length ? (

@@ -1091,13 +1091,41 @@ The **⋯** menu in the corner opens:
   when you confirm; a preview expires after `30` minutes, leaves out threads you
   moved, and skips threads whose evidence changed. On Organize, `j`/`k` move
   between suggestions and `a`/`d`/`u` accept, decline, and undo.
+- **Usage:** What Workstreams' model calls cost, over **Last hour**, **Last 24
+  hours** (the default), **Last 7 days**, **Last 30 days**, or **Last 90 days**.
+  The page refreshes every `30` seconds and shows, in order:
+  - **Model calls are paused**, once usage reaches a pause threshold: the
+    threshold, when calls resume by themselves, and **Resume**. Usage that
+    reaches a warning gets one line.
+  - A bar chart of reported cost over the range. Hover or focus a bar for its
+    time, cost, and requests; the arrow keys move between bars. A stub on the
+    baseline marks a span whose requests reported no cost.
+  - The range's totals: reported cost, requests, and tokens in and out.
+  - **Limits:** the last hour, today, this month, and requests in the last hour,
+    each with what it has used and its warning and pause thresholds. A spend
+    window whose requests all reported no cost shows **No cost reported**.
+  - **Flags:** what the detectors found, critical flags first and the newest
+    first within a severity, with a link to the thread behind a flag when it has
+    one.
+  - Tables by workstream, call kind, model, thread (the `25` that spent most),
+    and path.
+
+  A total can understate spend. Calls that run in a worker thread or an agent
+  thread report no cost, and neither does a request that failed or was aborted
+  before it answered. The page labels every amount **reported** and counts
+  beside it the requests that amount leaves out. A group none of whose requests
+  reported a cost shows a dash and **No cost reported**, never `$0.00`. The menu
+  item reads **Paused**, **Warning**, or the number of flags while one applies.
+  See [docs/usage.md](docs/usage.md) for the rules behind the ledger, limits,
+  and flags.
+
 - **Model traces** (debug UI only): Activity filtered to the recorded model
   calls behind Workstreams' decisions.
 - **Gallery** (debug UI only): see [Development](#gallery-view).
 
 Each opens as its own view with **Back**. Deep links open them directly:
-`/plugins/workstreams/home/activity`, `/organize`, `/debug` (model traces),
-`/gallery`, and `/overview/<workstream>`.
+`/plugins/workstreams/home/activity`, `/organize`, `/usage`, `/debug` (model
+traces), `/gallery`, and `/overview/<workstream>`.
 
 #### Overview
 
@@ -1285,6 +1313,24 @@ Open **Settings → Workstreams** to configure:
 | **Models**            | **Suggest changes**                                                                                              | `On`, `anthropic/claude-sonnet-5.5` (`medium`)    | The switch on the row turns organizing suggestions on or off, and the picker chooses the model that writes them: splits and other changes to your workstreams and groups, for you to accept or decline. **Suggest now** works either way, and categories update on their own either way.                                                                           |
 | **Models**            | **Analysis machine**                                                                                             | `Only connected machine`                          | Machine whose Pi key is used for AI Gateway calls. Shown only while more than one machine is connected; the default uses any connected machine.                                                                                                                                                                                                                    |
 
+| Section   | Setting                                  | Default                          | Details                                                                                                                                                                                                                           |
+| --------- | ---------------------------------------- | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Usage** | **Last hour**, **Today**, **This month** | `$3` / `$10`, `$10` / `$30`, off | Spend thresholds as **Warn at** / **Pause at**, in dollars of reported cost: the last 60 minutes, since local midnight, and since the first of the month. A blank field is off, and a pause threshold can't be below its warning. |
+| **Usage** | **Requests per hour**                    | `150` / `500`                    | **Warn at** / **Pause at** for requests in the last 60 minutes, which also counts calls that report no cost.                                                                                                                      |
+| **Usage** | **Flag unusual usage**                   | `On`                             | Flags spikes, loops, and spend with no reported cost on the Usage page.                                                                                                                                                           |
+
+When a pause threshold is reached, Workstreams stops calling models: turn-end
+analysis, new-thread titles and workstream choices, the composer's preview,
+categories, suggestions, enhanced responses, debug threads, and recap reminders.
+Calls already running finish, and your agents keep working. Nothing moves or is
+marked failed, and an action you start says that Workstreams is paused. The
+composer makes no new workstream suggestion during a pause; with **Composer
+routing diagnostics** on, its **Debug** disclosure gives the reason. The pause
+ends when its window resets, when you choose **Resume** in **Settings →
+Workstreams → Usage** or on the Usage page, or when you raise the threshold;
+Workstreams then catches up on what it deferred, except enhanced responses for
+messages that arrived meanwhile.
+
 | Section      | Setting                          | Default          | Details                                                                                                                                                 |
 | ------------ | -------------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Advanced** | **Worker project**               | `First project`  | Where Workstreams' own background threads run when a model call runs as a BB thread. **First project** uses the first project BB lists.                 |
@@ -1310,8 +1356,10 @@ Open **Settings → Workstreams** to configure:
   seconds longer per call. The released SDK does not expose schema-constrained
   generation or output-token limits for spawned threads. Responses still pass
   the same parser, validation, and bounded repair rules, but generation itself
-  is unconstrained. Worker token usage, cost, and reasoning metadata are
-  unavailable (`null` in traces), not evidence that the call was free.
+  is unconstrained. Each worker call counts as a request in the usage record,
+  but its token usage, cost, and reasoning metadata are unavailable (`null` in
+  traces), not evidence that the call was free. While worker calls exist, the
+  reported cost is not total spend.
 
 ---
 
@@ -1353,6 +1401,11 @@ bb workstreams suggestions decline <id...|all> [--json]
 # Show recorded model traces (kinds: start, turn-end, workstream-choice, categories, category-fit, split, tidy)
 bb workstreams trace [<trace-id>] [--thread <id>] [--entry <id>] [--kind <kind>] [--limit 1..500] [--json]
 
+# Show whether model calls are paused, each limit, what a range spent, the flags, and the top sources, models, and workstreams
+bb workstreams usage [--range 1h|24h|7d|30d|90d] [--json]
+# Let model calls through past every cap reached now, until its window resets
+bb workstreams usage resume [--json]
+
 # Compose an enhanced response for a thread's latest finished response, or validate and store a given document (Enhanced responses must be on)
 bb workstreams present <thread-id> [--turn <turn-id>] [--document <json>] [--json]
 # --document needs the BB server started with WORKSTREAMS_PRESENT_DOCUMENTS=1, for testing the drawn view
@@ -1365,9 +1418,11 @@ bb workstreams reply <thread-id|@thread:id[#msg=seq]|url> [--message <seq>] [--j
 `shown`, and `hasMore`. `log` defaults to 50 entries (maximum 500), applies
 `--since` to the matching query window, and reports whether more matching
 entries remain. Its JSON adds `count`, `limit`, and `hasMore`. `trace` defaults
-to 20 records (maximum 500). These are bounded inspection commands, not full
-history exports. Text output prints status labels such as **Needs input**;
-`--json` prints their ids, such as `needs-input`.
+to 20 records (maximum 500). `usage` defaults to the last 24 hours and prints at
+most 20 flags and the top 5 of each grouping; its JSON is the whole report the
+Usage page reads. These are bounded inspection commands, not full history
+exports. Text output prints status labels such as **Needs input**; `--json`
+prints their ids, such as `needs-input`.
 
 ### Workstreams, groups, previews, and migration
 
@@ -1461,6 +1516,10 @@ What gets recorded:
   provider under that provider's policies. Model traces are retained for `7`
   days or `1,000` records and pruned automatically, and they keep arriving
   whether or not the debug UI is showing.
+- **Usage record:** Workstreams keeps usage separately from model traces, for
+  `90` days. **Delete model traces…** does not remove it, and turning trace
+  recording off does not stop it. It holds no prompt or response text. A
+  worker-thread call counts as a request but reports no cost.
 
 What the UI shows:
 

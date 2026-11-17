@@ -10,6 +10,10 @@
  * workstream, and remembers accepted and declined suggestions. Every accepted
  * edit passes the workstream store's two-level and leaf-only guards and records
  * a guarded snapshot for Undo.
+ *
+ * A call a spend cap refused (`SpendCapError`) was never asked: what its pass
+ * consumed or replaced beforehand is put back, nothing is recorded as failed,
+ * and `check` finds the same work due once the pause lifts.
  */
 import { randomUUID } from "node:crypto";
 import type { ModelChoice } from "../domain/prefs.ts";
@@ -41,6 +45,7 @@ import { getMeta, setMeta, type Database } from "./db.ts";
 import type { Journal } from "./journal.ts";
 import { UserError } from "./service.ts";
 import type { Inference } from "./model.ts";
+import { SpendCapError } from "./spendGuard.ts";
 import {
   snapshotWorkstreams,
   workstreamsFingerprint,
@@ -312,7 +317,8 @@ export class Suggestions {
     }
     this.retire();
     const before = this.pendingCount();
-    const hadError = this.error !== null;
+    const lastError = this.error;
+    const hadError = lastError !== null;
     const run = (async () => {
       try {
         this.error = null;
@@ -324,8 +330,12 @@ export class Suggestions {
           this.prefixes();
         }
       } catch (error) {
-        this.error = error instanceof Error ? error.message : String(error);
-        this.deps.log(`Organizing suggestions failed: ${this.error}`);
+        // A pause is told to whoever asked, and is not a pass, failed or not.
+        if (error instanceof SpendCapError) this.error = lastError;
+        else {
+          this.error = error instanceof Error ? error.message : String(error);
+          this.deps.log(`Organizing suggestions failed: ${this.error}`);
+        }
         if (options.manual) throw error;
       } finally {
         this.running = null;
@@ -440,23 +450,36 @@ export class Suggestions {
         ? await this.deps.splitThreads(workstream.id)
         : this.threads().filter((t) => t.workstreamId === workstream.id);
       if (this.declinedSplit(workstream.id, threads)) continue;
+      const request = requests[workstream.id];
       this.deps.workstreamStore.consumeDivisionRequest(workstream.id);
-      const { value, traceId } = await this.deps.inference.run(
-        "split",
-        {
-          workstreams,
-          held,
-          workstreamId: workstream.id,
-          proposedScope: requests[workstream.id],
-          threads,
-          decisions: this.decisions(),
-        },
-        {
-          model: await this.deps.model(),
-          label: workstreamPath(workstream.id, workstreams),
-          links: threads.map((t) => ({ kind: "thread" as const, ref: t.id })),
-        },
-      );
+      const { value, traceId } = await this.deps.inference
+        .run(
+          "split",
+          {
+            workstreams,
+            held,
+            workstreamId: workstream.id,
+            proposedScope: request,
+            threads,
+            decisions: this.decisions(),
+          },
+          {
+            model: await this.deps.model(),
+            label: workstreamPath(workstream.id, workstreams),
+            links: threads.map((t) => ({
+              kind: "thread" as const,
+              ref: t.id,
+            })),
+          },
+        )
+        .catch((error: unknown) => {
+          if (error instanceof SpendCapError && request)
+            this.deps.workstreamStore.restoreDivisionRequest(
+              workstream.id,
+              request,
+            );
+          throw error;
+        });
       if (value.split.workstreams.length > 0)
         this.propose(
           randomUUID(),
@@ -539,6 +562,8 @@ export class Suggestions {
     const workstreams = this.deps.workstreamStore.list();
     const threads = this.deps.threads();
     const fingerprint = this.fingerprint();
+    /** Waiting edits this pass replaced, put back if the pass is never asked. */
+    const replaced: string[] = [];
     if (!manual) {
       // Older installations have no fingerprint. Adopt the current snapshot
       // as the baseline instead of turning an upgrade into a model call.
@@ -571,8 +596,10 @@ export class Suggestions {
         .prepare(
           "SELECT id FROM ws_suggestion WHERE status = 'pending' AND kind = 'edit'",
         )
-        .all() as { id: string }[])
+        .all() as { id: string }[]) {
         this.settle(row.id, "stale", "A newer pass replaced it.");
+        replaced.push(row.id);
+      }
     setMeta(
       this.deps.db,
       TIDY_KEY,
@@ -597,7 +624,18 @@ export class Suggestions {
         label: `${threads.length} threads, ${workstreams.length} workstreams`,
       }));
     } catch (error) {
-      this.failedFingerprint = fingerprint;
+      if (error instanceof SpendCapError) {
+        // No pass ran: the waiting edits and the last pass's record stand.
+        this.deps.db.transaction(() => {
+          for (const id of replaced)
+            this.deps.db
+              .prepare(
+                "UPDATE ws_suggestion SET status = 'pending', decided_at = NULL, detail = NULL WHERE id = ? AND status = 'stale'",
+              )
+              .run(id);
+          setMeta(this.deps.db, TIDY_KEY, JSON.stringify(memo));
+        })();
+      } else this.failedFingerprint = fingerprint;
       throw error;
     }
     if (this.fingerprint() !== fingerprint) {

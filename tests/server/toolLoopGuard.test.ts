@@ -4,6 +4,7 @@ import { makeThreadResponse } from "@get-bb/plugin-sdk/testing";
 import { ToolLoopGuard } from "../../src/server/toolLoopGuard.ts";
 import { AgentRecaps } from "../../src/server/recap.ts";
 import { openDatabase } from "../../src/server/db.ts";
+import { fakeUsageGate } from "./fake-usage-gate.ts";
 import { parseRecapPrefs } from "../../src/domain/recapPrefs.ts";
 
 const cleanups: Array<() => Promise<void>> = [];
@@ -445,6 +446,7 @@ describe("guarded threads", () => {
       db,
       prefs,
       since: () => 0,
+      usage: fakeUsageGate(),
       onChange: () => {},
     });
     recaps.register();

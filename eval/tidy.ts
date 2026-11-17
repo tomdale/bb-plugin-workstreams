@@ -100,7 +100,7 @@ await Promise.all(
           outputSchema: tidySchema(),
         });
         text = completion.text;
-        cost = completion.usage.cost;
+        cost = completion.usage.cost ?? 0;
         // Production drops edits that would break a rule of the tree; the
         // report keeps them, since they show where the prompt misleads.
         const parsed = parseTidy(text, test.input);

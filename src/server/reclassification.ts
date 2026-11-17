@@ -6,6 +6,7 @@ import type { WorkstreamStore } from "./workstreams.ts";
 import { getMeta, setMeta, type Database } from "./db.ts";
 import { assignmentEvidence, threadEvidence } from "./evidence.ts";
 import { PATH_SEPARATOR, workstreamPath } from "../domain/workstream-path.ts";
+import { SpendCapError } from "./spendGuard.ts";
 const KEY = "repair_preview";
 const LIFETIME = 30 * 60_000;
 function missing(error: unknown): boolean {
@@ -66,6 +67,8 @@ export class Repair {
             : null;
         plan.rows.push({ ...row, to, error: null });
       } catch (error) {
+        // A pause would refuse every remaining thread the same way.
+        if (error instanceof SpendCapError) throw error;
         const title = await this.deps
           .sdk()
           .threads.get({ threadId })

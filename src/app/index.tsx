@@ -34,6 +34,7 @@ import {
 import { WorkstreamsThreadList } from "./sidebar/ThreadList.tsx";
 import { RecapSettings } from "./recap/RecapSettings.tsx";
 import { ColorSettings } from "./settings/ColorSettings.tsx";
+import { UsageSettings } from "./settings/UsageSettings.tsx";
 import { ColorTokenStyle } from "./theme/ColorTokenStyle.tsx";
 import {
   SnoozeHeaderAction,
@@ -246,6 +247,11 @@ export default definePluginApp((app) => {
     id: "models",
     title: "Models",
     component: ModelsSettings,
+  });
+  app.slots.settingsSection({
+    id: "usage",
+    title: "Usage",
+    component: UsageSettings,
   });
   app.slots.settingsSection({
     id: "advanced",

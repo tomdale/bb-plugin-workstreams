@@ -157,6 +157,7 @@ it("registers settings in feature order", async () => {
     ["snooze", "Snooze"],
     ["new-work", "New threads"],
     ["models", "Models"],
+    ["usage", "Usage"],
     ["advanced", "Advanced"],
   ]);
 });

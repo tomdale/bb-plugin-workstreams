@@ -14,7 +14,7 @@
  * `unmetered`, and call-count limits exist because those calls carry no cost.
  */
 import { z } from "zod";
-import { TRACE_KINDS } from "./trace.ts";
+import { TRACE_KINDS, TRACE_KIND_TITLE } from "./trace.ts";
 import type { Prefs } from "./prefs.ts";
 
 /**
@@ -46,6 +46,27 @@ export type UsagePath = (typeof USAGE_PATHS)[number];
 /** `invalid`: the answer didn't parse. `aborted`: its answer stopped mattering. */
 export const USAGE_STATUSES = ["ok", "invalid", "failed", "aborted"] as const;
 export type UsageStatus = (typeof USAGE_STATUSES)[number];
+
+/** How reports name each source; model call kinds read as traces name them. */
+export const USAGE_SOURCE_TITLE: Record<UsageSource, string> = {
+  ...TRACE_KIND_TITLE,
+  presentation: "Enhanced response",
+  "debug-thread": "Debug thread",
+  "recap-reminder": "Recap reminder",
+};
+
+export const USAGE_PATH_TITLE: Record<UsagePath, string> = {
+  gateway: "AI Gateway",
+  worker: "Worker thread",
+  presentation: "Enhanced response",
+  thread: "Agent thread",
+};
+
+/**
+ * The model a `thread` row names. A turn in a BB thread runs on whatever
+ * model that thread has, which the plugin is not told.
+ */
+export const THREAD_USAGE_MODEL = "BB thread";
 
 export const usageEntrySchema = z.object({
   id: z.string(),
@@ -148,6 +169,14 @@ export const LIMIT_METRIC: Record<LimitKey, "spend" | "calls"> = {
   hourCalls: "calls",
 };
 
+/** What a limit measures, as the subject of a sentence about it. */
+export const LIMIT_SUBJECT: Record<LimitKey, string> = {
+  hourSpend: "the last hour's spend",
+  daySpend: "today's spend",
+  monthSpend: "this month's spend",
+  hourCalls: "requests in the last hour",
+};
+
 /** A limit's thresholds; `null` turns that one off. */
 export type LimitThresholds = { warn: number | null; cap: number | null };
 export type UsageLimits = Record<LimitKey, LimitThresholds>;
@@ -200,15 +229,15 @@ export type SpendState = z.infer<typeof spendStateSchema>;
 
 /**
  * Each set limit's state. Reaching a threshold counts (`used >= cap`), so the
- * call that crosses a cap is the last one let through. A window listed in
- * `resumes` with a time after `now` lets calls through past its caps; its
- * warnings still show.
+ * call that crosses a cap is the last one let through. A limit listed in
+ * `resumes` with a time after `now` lets calls through past its own cap, and
+ * no other limit's; its warning still shows.
  */
 export function evaluateLimits(
   limits: UsageLimits,
   totals: UsageTotalsByWindow,
   now: number,
-  resumes: Partial<Record<UsageWindow, number>> = {},
+  resumes: Partial<Record<LimitKey, number>> = {},
 ): SpendState {
   const states: LimitState[] = [];
   for (const key of LIMIT_KEYS) {
@@ -218,7 +247,7 @@ export function evaluateLimits(
     const metric = LIMIT_METRIC[key];
     const used =
       metric === "spend" ? totals[window].cost : totals[window].calls;
-    const until = resumes[window];
+    const until = resumes[key];
     const resumedUntil = until !== undefined && until > now ? until : null;
     const overCap = cap !== null && used >= cap;
     const level: LimitLevel =
@@ -309,7 +338,11 @@ const RANGE_SPAN: Record<UsageRange, { spanMs: number; bucketMs: number }> = {
  */
 export function bucketStart(at: number, bucketMs: number): number {
   const offset = new Date(at).getTimezoneOffset() * MINUTE_MS;
-  return Math.floor((at - offset) / bucketMs) * bucketMs + offset;
+  const start = Math.floor((at - offset) / bucketMs) * bucketMs + offset;
+  // When the clocks changed between the bucket's start and `at`, the start
+  // is on the earlier offset: the day a change shortens still begins at its
+  // own midnight.
+  return start + new Date(start).getTimezoneOffset() * MINUTE_MS - offset;
 }
 
 /** The span a range covers at `now`: its first bucket's start, and the bucket width. */
@@ -327,7 +360,7 @@ const amountsShape = {
   unmetered: z.number(),
   inputTokens: z.number(),
   outputTokens: z.number(),
-  /** Requests whose status was `failed`, `aborted`, or `invalid`. */
+  /** Attempts (ledger rows) whose status was `failed`, `aborted`, or `invalid`. */
   failed: z.number(),
 };
 

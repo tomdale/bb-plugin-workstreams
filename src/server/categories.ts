@@ -16,6 +16,7 @@ import {
   type CategoryInput,
 } from "../domain/categories.ts";
 import { getMeta, setMeta, type Database } from "./db.ts";
+import { SpendCapError } from "./spendGuard.ts";
 
 const KEY = "workstream_categories";
 const recordSchema = z.object({
@@ -44,12 +45,18 @@ type Record = z.infer<typeof recordSchema>;
  * decision is a function of the collections and the stored records, which
  * only this class writes, so a reconcile whose collections equal those the
  * last drain settled has nothing to do.
+ *
+ * A call a spend cap refused (`SpendCapError`) is no failed attempt: the
+ * record stays `pending`, which the next reconcile takes up again, nothing is
+ * logged or rearranged, and the collections are not counted as settled.
  */
 export class Categories {
   private pending = false;
   /** The collections, serialized, that the last drain left nothing due for. */
   private settled: string | null = null;
   private running: Promise<void> | null = null;
+  /** A spend cap refused a call in the current round of `drain`. */
+  private refused = false;
   private controller = new AbortController();
   private requests = new Map<
     string,
@@ -294,6 +301,7 @@ export class Categories {
         collections.map((item) => [item.workstreamId, item]),
       );
       let assessed = false;
+      this.refused = false;
       for (const { workstreamId } of collections) {
         if (this.controller.signal.aborted) return;
         const collection = latest.get(workstreamId);
@@ -307,7 +315,7 @@ export class Categories {
       // A collection handled before a classification call may have changed
       // during it, so only a round without calls settles the collections.
       if (assessed) this.pending = true;
-      else this.settled = JSON.stringify(collections);
+      else this.settled = this.refused ? null : JSON.stringify(collections);
     }
   }
 
@@ -397,7 +405,12 @@ export class Categories {
         const fit = await this.deps
           .fit({ ...collection, current, changed }, this.controller.signal)
           .catch((error: unknown) => {
-            if (this.controller.signal.aborted) throw error;
+            // A refused check has not failed, so it rearranges nothing.
+            if (
+              this.controller.signal.aborted ||
+              error instanceof SpendCapError
+            )
+              throw error;
             this.deps.log(
               `Checking ${collection.label}'s categories failed: ${error instanceof Error ? error.message : String(error)}`,
             );
@@ -447,6 +460,10 @@ export class Categories {
       this.settle(collection.workstreamId, record, next, keys, answer.reason);
     } catch (error) {
       if (this.controller.signal.aborted) return null;
+      if (error instanceof SpendCapError) {
+        this.refused = true;
+        return null;
+      }
       const fresh = this.read();
       const message = error instanceof Error ? error.message : String(error);
       const latest = fresh.get(collection.workstreamId);
