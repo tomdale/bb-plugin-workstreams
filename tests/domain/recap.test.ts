@@ -622,7 +622,7 @@ it("strips inline Markdown to plain text", () => {
   );
 });
 
-it("splits thread mentions and commit hashes out of a line", () => {
+it("splits commit hashes out of a line and leaves thread mentions to Markdown", () => {
   expect(
     recapSegments(
       "Pushed cef4818 for @thread:thr_ab1, see `deadbee1` and [x](https://a.b/cef4818)",
@@ -630,9 +630,7 @@ it("splits thread mentions and commit hashes out of a line", () => {
   ).toEqual([
     { kind: "markdown", text: "Pushed " },
     { kind: "sha", sha: "cef4818" },
-    { kind: "markdown", text: " for " },
-    { kind: "thread", threadId: "thr_ab1" },
-    { kind: "markdown", text: ", see " },
+    { kind: "markdown", text: " for @thread:thr_ab1, see " },
     { kind: "sha", sha: "deadbee1" },
     { kind: "markdown", text: " and [x](https://a.b/cef4818)" },
   ]);

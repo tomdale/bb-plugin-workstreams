@@ -340,25 +340,6 @@ it("renders structured subrows for completed items", async () => {
   ).toBe("DIV");
 });
 
-it("renders a linked thread mention in the Waiting goal title", async () => {
-  const slot = await mount({
-    threads: [
-      sidebarThread("t1"),
-      sidebarThread("thr_tests", { title: "Test worker" }),
-    ],
-    recap: {
-      state: "waiting",
-      headline: "Running tests with @thread:thr_tests",
-      timeout: 60,
-      at: Date.now(),
-      latest: [],
-    },
-  });
-  const region = await slot.findByRole("region", { name: "Latest recap" });
-  expect(region.textContent).toContain("Running tests with Test worker");
-  expect(slot.getByLabelText("Status check countdown")).toBeTruthy();
-});
-
 it("shows the goal, latest results, and Dismiss under them", async () => {
   const slot = await mount();
   const region = await slot.findByRole("region", { name: "Latest recap" });
@@ -1470,16 +1451,15 @@ it.each([false, true])(
   },
 );
 
-it("renders commit hashes and thread mentions as chips", async () => {
+it("renders commit hashes as chips and leaves thread mentions to BB's Markdown", async () => {
   const slot = await mount({
     recap: { latest: ["Pushed cef48186269c for @thread:other"] },
   });
   await slot.findByRole("region", { name: "Latest recap" });
   const sha = slot.getByRole("button", { name: "Copy commit cef48186269c" });
   expect(sha.textContent).toBe("cef4818");
-  expect(slot.getByRole("link").getAttribute("href")).toBe(
-    "/projects/proj_1/threads/other",
-  );
+  expect(slot.queryByRole("link")).toBeNull();
+  expect(slot.getByText(/@thread:other/)).toBeTruthy();
 });
 
 it("colors hash digits and letters from settings", async () => {

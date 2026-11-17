@@ -206,9 +206,9 @@ function Sha({ sha }: { sha: string }) {
 }
 
 /**
- * One recap line through BB's markdown, so inline code, emphasis, and links
- * survive. BB's Markdown leaves thread mentions and commit hashes as text,
- * so those segments render here between inline Markdown runs. The
+ * One recap line through BB's markdown, so inline code, emphasis, links, and
+ * thread mentions survive. BB's Markdown leaves commit hashes as text, so
+ * those segments render here between inline Markdown runs. The
  * overrides keep BB's paragraph and code styles inside the recap's type
  * scale.
  */
@@ -236,15 +236,6 @@ export const RecapText = memo(function RecapText({
   return (
     <div className={`min-w-0 ${typeClass} ${className}`}>
       {segments.map((segment, index) => {
-        if (segment.kind === "thread")
-          return (
-            <span
-              key={index}
-              className="-my-[0.5em] inline-block max-w-[16rem] align-middle leading-none [&>a]:text-[0.85em]"
-            >
-              <ActivityThreadLink threadId={segment.threadId} />
-            </span>
-          );
         if (segment.kind === "sha")
           return <Sha key={index} sha={segment.sha} />;
         // Markdown trims its source, so edge spaces are kept outside it.

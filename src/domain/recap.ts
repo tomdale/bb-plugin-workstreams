@@ -653,23 +653,21 @@ export function fileTarget(
   return files.hostId ? { kind: "host", hostId: files.hostId, path } : null;
 }
 
-/** A piece of a recap line: Markdown, or a token the card renders itself. */
+/** A piece of a recap line: Markdown, or a commit hash the card renders itself. */
 type RecapSegment =
-  | { kind: "markdown"; text: string }
-  | { kind: "thread"; threadId: string }
-  | { kind: "sha"; sha: string };
+  { kind: "markdown"; text: string } | { kind: "sha"; sha: string };
 
 /**
- * `@thread:<id>` mentions, and commit hashes: 7–40 hex digits with at least
- * one digit and one letter, so plain numbers and hex-looking words stay text.
+ * Commit hashes: 7–40 hex digits with at least one digit and one letter, so
+ * plain numbers and hex-looking words stay text. BB's Markdown draws
+ * `@thread:<id>` mentions itself, but leaves hashes as text.
  */
 const TOKEN =
-  /@thread:([A-Za-z0-9_-]+)|(?<![\w/#.-])(?=[0-9a-f]*[0-9])(?=[0-9a-f]*[a-f])([0-9a-f]{7,40})(?![\w/-])/g;
+  /(?<![\w/#.-])(?=[0-9a-f]*[0-9])(?=[0-9a-f]*[a-f])([0-9a-f]{7,40})(?![\w/-])/g;
 
 /**
- * Splits a recap line around thread mentions and commit hashes, which BB's
- * Markdown renders as plain text. A code span holding only a hash counts as
- * a hash; other code spans and link syntax stay whole for Markdown.
+ * Splits a recap line around commit hashes. A code span holding only a hash
+ * counts as a hash; other code spans and link syntax stay whole for Markdown.
  */
 export function recapSegments(text: string): RecapSegment[] {
   text = normalizeRecapFileLinks(text);
@@ -682,11 +680,7 @@ export function recapSegments(text: string): RecapSegment[] {
       markdown += chunk.slice(at, match.index);
       if (markdown) segments.push({ kind: "markdown", text: markdown });
       markdown = "";
-      segments.push(
-        match[1]
-          ? { kind: "thread", threadId: match[1] }
-          : { kind: "sha", sha: match[2]! },
-      );
+      segments.push({ kind: "sha", sha: match[1]! });
       at = match.index + match[0].length;
     }
     markdown += chunk.slice(at);
