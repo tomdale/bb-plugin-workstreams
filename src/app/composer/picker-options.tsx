@@ -163,7 +163,7 @@ export function IdentityOptions({
   );
   const exact = index.hasExactName(needle);
   const isManual = state.identity?.provenance === "manual";
-  const isUnresolved =
+  const noWorkstreamChosen =
     isManual &&
     state.identity?.workstreamId === null &&
     state.identity?.proposal === null;
@@ -297,7 +297,7 @@ export function IdentityOptions({
           ) : null}
           <CommandItem
             value={NONE}
-            aria-current={isUnresolved ? "true" : undefined}
+            aria-current={noWorkstreamChosen ? "true" : undefined}
             onSelect={() => {
               newWork.selectIdentity(null);
               onDone();
@@ -314,7 +314,7 @@ export function IdentityOptions({
               name="Check"
               className={cn(
                 "ml-auto size-4",
-                isUnresolved ? "opacity-100" : "opacity-0",
+                noWorkstreamChosen ? "opacity-100" : "opacity-0",
               )}
               aria-hidden
             />

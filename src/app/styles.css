@@ -1294,7 +1294,7 @@ section[data-testid="plugin-interaction-shell"]:has(.ws-question-portaled) {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
-.ws-task-identity-unresolved {
+.ws-task-identity-none {
   font-style: italic;
 }
 .ws-task-identity-label {

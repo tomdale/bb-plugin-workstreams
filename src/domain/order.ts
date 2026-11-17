@@ -12,7 +12,7 @@ export type ManualOrder = {
   readonly workstreams: readonly string[];
   /**
    * Top-level thread ids, top to bottom, keyed by group id (section id or
-   * "unsorted").
+   * "other").
    */
   readonly threads: Readonly<Record<string, readonly string[]>>;
   /**

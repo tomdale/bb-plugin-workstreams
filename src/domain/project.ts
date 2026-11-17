@@ -42,7 +42,7 @@ export type Row<T extends WorkstreamThread> = {
 };
 
 export type Group<T extends WorkstreamThread> = {
-  /** Section id, or {@link UNSORTED_ID}. */
+  /** Section id, or {@link OTHER_ID}. */
   readonly id: string;
   readonly name: string;
   readonly rows: readonly Row<T>[];
@@ -95,8 +95,7 @@ export type Projection<T extends WorkstreamThread> = {
 
 /**
  * The virtual group of threads with no workstream, shown as
- * {@link UNFILED_NAME}. Its id keeps its original value because stored manual
- * order is keyed by it.
+ * {@link OTHER_NAME}. Stored manual order is keyed by its id.
  */
 export const OTHER_ID = "other";
 export const OTHER_NAME = "Other";

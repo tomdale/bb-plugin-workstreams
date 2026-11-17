@@ -261,7 +261,7 @@ export function OrganizeTab({ ws, query }: { ws: Workstreams; query: string }) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const unresolved = organizer?.noWorkstream ?? [];
+  const noWorkstream = organizer?.noWorkstream ?? [];
   const ledger = (
     title: string,
     note: string | null,
@@ -274,7 +274,7 @@ export function OrganizeTab({ ws, query }: { ws: Workstreams; query: string }) {
         <SectionHeading className="mb-1.5 flex items-baseline gap-2">
           {title}
           <span className="font-normal normal-case tracking-normal text-muted-foreground/70">
-            {open(list).length + (extra ? unresolved.length : 0)}
+            {open(list).length + (extra ? noWorkstream.length : 0)}
             {note ? ` · ${note}` : ""}
           </span>
         </SectionHeading>
@@ -334,9 +334,9 @@ export function OrganizeTab({ ws, query }: { ws: Workstreams; query: string }) {
         null,
         "Thread",
         threads,
-        unresolved.length ? (
+        noWorkstream.length ? (
           <>
-            {unresolved.map((task) => (
+            {noWorkstream.map((task) => (
               <div
                 key={task.id}
                 className={cn(
@@ -411,7 +411,7 @@ export function OrganizeTab({ ws, query }: { ws: Workstreams; query: string }) {
           ...(organizer?.groups ?? []).flatMap((g) =>
             g.threads.map((r) => r.id),
           ),
-          ...unresolved.map((r) => r.id),
+          ...noWorkstream.map((r) => r.id),
         ]}
         onApplied={() => void read()}
       />

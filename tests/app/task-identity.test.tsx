@@ -234,7 +234,7 @@ describe("Workstream control", () => {
     const button = await slot.findByRole("button", {
       name: "Workstream: No workstream (automatic)",
     });
-    expect(button.className).toContain("ws-task-identity-unresolved");
+    expect(button.className).toContain("ws-task-identity-none");
     fireEvent.click(button);
     const automatic = await screen.findByRole("button", { name: /^Automatic/ });
     expect(automatic.textContent).toBe("AutomaticNo workstream");

@@ -120,7 +120,7 @@ export function Overview({
   onBack,
 }: {
   ws: Workstreams;
-  /** A sidebar group's id, or `unsorted` for Other. */
+  /** A sidebar group's id, or `other` for Other. */
   id: string;
   onBack: () => void;
 }) {

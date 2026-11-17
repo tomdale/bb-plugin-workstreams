@@ -117,7 +117,7 @@ const organizerStateSchema = z.object({
 
 export type OrganizerState = z.infer<typeof organizerStateSchema>;
 export type OrganizerStateGroup = z.infer<typeof organizerStateGroupSchema>;
-export type OrganizerStateUnresolved = z.infer<
+export type OrganizerStateNoWorkstream = z.infer<
   typeof organizerStateNoWorkstreamSchema
 >;
 export type OrganizerStateCounts = z.infer<typeof organizerStateCountsSchema>;
@@ -805,7 +805,7 @@ export const rpcContract = defineRpcContract({
   /**
    * Stores the sidebar's arrangement: every workstream top to bottom, the
    * focused workstreams (a set), or one group's threads (a section
-   * id or "unsorted") top to bottom.
+   * id or "other") top to bottom.
    */
   reorder: {
     input: z.discriminatedUnion("kind", [

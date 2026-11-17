@@ -86,7 +86,7 @@ function WorkstreamButton({
       title={isLoading ? undefined : `Workstream: ${displayLabel} (${source})`}
       aria-busy={isLoading || undefined}
       className={`ws-task-identity ${
-        label ? "" : "ws-task-identity-unresolved"
+        label ? "" : "ws-task-identity-none"
       }${isLoading ? " invisible" : ""}`}
     >
       <Icon

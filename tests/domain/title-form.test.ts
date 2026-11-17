@@ -3,9 +3,14 @@ import {
   TITLE_MAX,
   composeTitle,
   dropListedPrefix,
-  descriptionPrompt,
+  type DescriptionInput,
 } from "../../src/domain/analysis.ts";
 import { parseStart, startPrompt } from "../../src/domain/start.ts";
+import { turnEndPrompt } from "../../src/domain/turnEnd.ts";
+
+/** The turn-end call with no workstream to choose: only its description. */
+const descriptionPrompt = (input: DescriptionInput) =>
+  turnEndPrompt({ ...input, choice: null });
 
 const listing = { workstream: "Streams Plugin › Recap Cards", parent: null };
 

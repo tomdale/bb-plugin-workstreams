@@ -305,16 +305,16 @@ exits nonzero when a production-reminder case fails.
 
 `node eval/run.ts [model ...]` runs every fixture in `eval/cases.json`,
 `eval/holdout.json`, `eval/delegation.json`, and `eval/state.json` through the
-production description prompt (status and title), the workstream choice with no
-listed workstreams (scoring the proposed workstream against the fixture's
-expected names), and, for `cases` and `state`, the start call on the opening
-request and the description prompt with no title. With no arguments it compares
-`google/gemini-3.1-flash-lite` and `openai/gpt-4.1-mini`; a `:disabled` suffix
-on a model ID turns thinking off. The console shows each model's scores: valid
-responses, workstream matches per fixture set, how many pairs of related threads
-share a proposed workstream and how many unrelated pairs were merged, status
-accuracy and Needs input recall, titles, latency, cost, and misses.
-`EVAL_OUTPUT` writes the full report with every result.
+production turn-end call (status and title). In the cold runs that call also
+chooses a workstream from an empty list, and the proposed workstream is scored
+against the fixture's expected names. For `cases` and `state` it also runs the
+start call on the opening request and the turn-end call with no title. With no
+arguments it compares `google/gemini-3.1-flash-lite` and `openai/gpt-4.1-mini`;
+a `:disabled` suffix on a model ID turns thinking off. The console shows each
+model's scores: valid responses, workstream matches per fixture set, how many
+pairs of related threads share a proposed workstream and how many unrelated
+pairs were merged, status accuracy and Needs input recall, titles, latency,
+cost, and misses. `EVAL_OUTPUT` writes the full report with every result.
 
 `EVAL_PRIVATE` adds a private fixture file. A private run requires
 `EVAL_PRIVATE_ROOT` and an `EVAL_OUTPUT` inside it, and the console omits

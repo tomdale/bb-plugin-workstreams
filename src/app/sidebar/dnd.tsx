@@ -34,7 +34,7 @@ import {
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-/** What each draggable or droppable is. `groupId` is a section id or "unsorted". */
+/** What each draggable or droppable is. `groupId` is a section id or "other". */
 type DragData =
   /** `pinned`: a focused workstream, which reorders only among its tier. */
   | { type: "group"; groupId: string; focused?: boolean }

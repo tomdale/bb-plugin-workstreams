@@ -22,7 +22,7 @@ import type {
   OrganizerState,
   OrganizerStateCounts,
   OrganizerStateGroup,
-  OrganizerStateUnresolved,
+  OrganizerStateNoWorkstream,
 } from "./contract.ts";
 
 type OrganizerDeps = {
@@ -702,7 +702,7 @@ export class Organizer {
       });
     }
 
-    const unresolvedTasks: OrganizerStateUnresolved[] = [];
+    const noWorkstreamThreads: OrganizerStateNoWorkstream[] = [];
     let activeCount = 0;
     let completedCount = 0;
 
@@ -720,7 +720,7 @@ export class Organizer {
         assignment.status === "none" ||
         !assignment.workstreamId
       ) {
-        unresolvedTasks.push({
+        noWorkstreamThreads.push({
           id: thread.id,
           title: thread.title,
           completed: isCompleted,
@@ -775,7 +775,7 @@ export class Organizer {
           reason,
         });
       } else {
-        unresolvedTasks.push({
+        noWorkstreamThreads.push({
           id: thread.id,
           title: thread.title,
           completed: isCompleted,
@@ -795,12 +795,12 @@ export class Organizer {
       error,
       lastUpdatedAt: this.now(),
       groups: finalGroups,
-      noWorkstream: unresolvedTasks,
+      noWorkstream: noWorkstreamThreads,
       counts: {
         activeThreads: activeCount,
         completedThreads: completedCount,
         totalThreads: roots.length,
-        noWorkstreamThreads: unresolvedTasks.length,
+        noWorkstreamThreads: noWorkstreamThreads.length,
         activeWorkstreams: finalGroups.length,
       },
     };

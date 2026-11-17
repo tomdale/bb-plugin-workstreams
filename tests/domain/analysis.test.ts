@@ -3,12 +3,25 @@ import {
   TITLE_MAX,
   RECAP_MAX,
   GOAL_MAX,
-  descriptionPrompt,
   descriptionSchema,
   isCurrent,
-  parseDescription,
   type DescriptionInput,
 } from "../../src/domain/analysis.ts";
+import { parseTurnEnd, turnEndPrompt } from "../../src/domain/turnEnd.ts";
+
+/** The turn-end call with no workstream to choose: only its description. */
+const descriptionPrompt = (input: DescriptionInput) =>
+  turnEndPrompt({ ...input, choice: null });
+/** Its description fields, without the workstream it wasn't asked for. */
+function parseDescription(text: string, input: DescriptionInput) {
+  const { workstream, workstreamError, ...description } = parseTurnEnd(text, {
+    ...input,
+    choice: null,
+  });
+  void workstream;
+  void workstreamError;
+  return description;
+}
 
 const workstreams = [
   {

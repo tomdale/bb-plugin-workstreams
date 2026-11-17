@@ -27,7 +27,7 @@ import { pathNames } from "./workstream-path.ts";
 
 /** A thread's workstream: its top-level workstream and the path to its own. */
 type FeedPlace = {
-  /** The top-level workstream's id, or {@link UNSORTED_ID} for Other. */
+  /** The top-level workstream's id, or {@link OTHER_ID} for Other. */
   readonly topId: string;
   /** Names from the top-level workstream down to the thread's own. */
   readonly path: readonly string[];

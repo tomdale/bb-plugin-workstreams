@@ -430,21 +430,9 @@ const TITLE_SECTION: Record<TitledBy, string> = {
   you: "The thread's title, which the user gave it:",
 };
 
-export function descriptionPrompt(input: DescriptionInput): string {
-  const { sections, keys, fields } = descriptionParts(input);
-  return `${HEADER}
-
-You describe one agent thread for someone who switches between dozens of them.
-
-${sections.join("\n\n")}
-
-Return {${keys.join(", ")}}:
-${fields.join("\n")}`;
-}
-
 /**
  * The prompt's evidence blocks, its `Return {…}` keys, and the rules for each
- * field, so a turn's end can ask for more than this call's fields.
+ * field, which the turn-end call builds its prompt from.
  */
 export function descriptionParts(input: DescriptionInput): {
   sections: string[];
@@ -562,18 +550,7 @@ export type DescriptionOutput = {
   title: string | null;
 };
 
-/** Strips an optional Markdown fence, then validates against what was asked. */
-export function parseDescription(
-  text: string,
-  input: Pick<
-    DescriptionInput,
-    "report" | "mode" | "titledBy" | "listing" | "preserveTitle"
-  >,
-): DescriptionOutput {
-  return parseDescriptionFields(JSON.parse(stripFence(text)), input);
-}
-
-/** Checks an already-decoded answer (see `parseFullAnalysis`). */
+/** Checks an already-decoded answer's description fields (see `parseTurnEnd`). */
 export function parseDescriptionFields(
   raw: unknown,
   input: Pick<

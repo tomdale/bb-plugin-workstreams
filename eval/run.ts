@@ -14,18 +14,15 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { performance } from "node:perf_hooks";
-import {
-  descriptionPrompt,
-  parseDescription,
-  type DescriptionInput,
-  type WorkState,
-} from "../src/domain/analysis.ts";
+import type { DescriptionInput, WorkState } from "../src/domain/analysis.ts";
 import { parseStart, startPrompt } from "../src/domain/start.ts";
 import {
-  parseWorkstreamChoice,
-  workstreamChoicePrompt,
-  type WorkstreamChoiceInput,
-} from "../src/domain/workstreamChoice.ts";
+  parseTurnEnd,
+  turnEndPrompt,
+  turnEndSchema,
+  type TurnEndInput,
+} from "../src/domain/turnEnd.ts";
+import type { WorkstreamChoiceInput } from "../src/domain/workstreamChoice.ts";
 import {
   gatewayComplete,
   gatewayKey,
@@ -127,13 +124,18 @@ if (!key)
 const apiKey: string = key;
 
 /** `<model>:disabled` sends `thinking: disabled` (see `gatewayComplete`). */
-async function complete(spec: string, prompt: string) {
+async function complete(
+  spec: string,
+  prompt: string,
+  outputSchema?: Record<string, unknown>,
+) {
   const [model, flag] = spec.split(":");
   const { text, usage } = await gatewayComplete({
     prompt,
     model: model!,
     apiKey,
     disableThinking: flag === "disabled",
+    ...(outputSchema ? { outputSchema } : {}),
   });
   return { text, cost: usage.cost };
 }
@@ -344,25 +346,27 @@ for (const model of models) {
         hints: [],
         current: null,
       };
-      const [full, placed] = await Promise.all([
-        complete(model, descriptionPrompt(job.input)),
-        job.mode === "cold"
-          ? complete(model, workstreamChoicePrompt(choice))
-          : Promise.resolve(null),
-      ]);
-      const parsed = parseDescription(full.text, job.input);
-      const workstream = placed
-        ? parseWorkstreamChoice(placed.text, choice)
-        : null;
+      // A cold case's turn also chooses the workstream, as a turn after a
+      // new request does in production.
+      const turnEnd: TurnEndInput = {
+        ...job.input,
+        choice: job.mode === "cold" ? choice : null,
+      };
+      const { text, cost } = await complete(
+        model,
+        turnEndPrompt(turnEnd),
+        turnEndSchema(turnEnd),
+      );
+      const parsed = parseTurnEnd(text, turnEnd);
       return {
         ...base,
         output: {
           state: parsed.status?.state ?? null,
           title: parsed.title,
-          subject: workstream?.proposed?.name ?? null,
+          subject: parsed.workstream?.proposed?.name ?? null,
         },
         seconds: (performance.now() - started) / 1000,
-        cost: full.cost + (placed?.cost ?? 0),
+        cost,
       };
     } catch (error) {
       return {
