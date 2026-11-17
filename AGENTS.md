@@ -38,6 +38,12 @@ check live traces and costs, and evaluate prompt or model changes with `eval/`
 CDP counters and traces, frame capture, the real-scale fixture, and server pass
 and payload benchmarks.
 
+An agent tool's input schema is a contract with threads already running: a
+thread keeps the tool list it started with, while BB validates each call against
+the plugin's current schema. Change a field's name by accepting the old and new
+names in the schema, with a test that calls the tool with each; a handler-side
+alias alone never runs, because BB rejects the call first.
+
 Before changing UI, agent tools or instructions, or the SDK dependency, read
 `.agents/skills/bb-plugin-guidelines/SKILL.md`, installed from
 tomdale/bb-plugins by the skills CLI (`skills-lock.json`; refresh with
