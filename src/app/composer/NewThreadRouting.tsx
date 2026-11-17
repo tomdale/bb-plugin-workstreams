@@ -23,7 +23,7 @@ import {
   workstreamProjectConflict,
 } from "../../domain/workstreamProject.ts";
 import {
-  carryPickedWorkstream,
+  carryAcrossProjectChange,
   preserveProjectChoice,
   takeProjectChoice,
 } from "./project-choice.ts";
@@ -86,7 +86,7 @@ export function NewThreadRouting() {
     setModel(nativeModel);
     return () => {
       if (releaseRoutingModel(draftKey, nativeModel))
-        carryPickedWorkstream(
+        carryAcrossProjectChange(
           draftKey,
           scope.projectId,
           nativeModel.snapshot(),
@@ -110,8 +110,13 @@ export function NewThreadRouting() {
     state.identity?.workstreamId ?? state.identity?.proposal?.parentId;
   const sectionId = state.identity?.sectionId;
   useEffect(() => {
-    // A project you chose after the workstream stays for this thread.
-    if (!model || (!workstreamId && !sectionId) || state.projectOverride)
+    // A project you chose after picking the workstream stays for this thread.
+    const automatic = state.identity?.provenance === "automatic";
+    if (
+      !model ||
+      (!workstreamId && !sectionId) ||
+      (state.projectOverride && !automatic)
+    )
       return;
     let live = true;
     void (async () => {
@@ -132,11 +137,13 @@ export function NewThreadRouting() {
         selection?.projectId ??
         (scope.kind === "new-thread" ? scope.projectId : null);
       if (current === projectId) return;
-      // The preview's workstream never moves a thread out of its project on a
-      // workstream with none; it leaves the thread in no workstream instead.
+      // The preview's workstream never moves a thread out of a project you
+      // chose, or out of its project onto No project; it leaves the thread in
+      // no workstream instead.
+      const { identity, projectOverride } = model.snapshot();
       if (
-        projectId === NO_PROJECT &&
-        model.snapshot().identity?.provenance === "automatic"
+        identity?.provenance === "automatic" &&
+        (projectOverride || projectId === NO_PROJECT)
       ) {
         model.selectIdentity(null, "automatic");
         return;

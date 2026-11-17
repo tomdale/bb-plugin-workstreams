@@ -8,11 +8,12 @@
  *   original provenance and preview so automatic choices still title and move
  *   the submitted thread. The project marker travels too, so the replacement
  *   does not report a supplied project as an independent choice.
- * - When you choose another project yourself, a workstream you picked travels to
- *   the next model for the same draft in another project, marked as a
- *   project for this thread only. An automatic workstream does not: the new
- *   project gets a fresh preview. The old model's release and the new one's
- *   creation happen in one render, so the transfer expires shortly after.
+ * - When you choose another project yourself, the next model for the same
+ *   draft in another project records that you chose it, so Quick analysis
+ *   never moves it. A workstream you picked travels too, with the project as
+ *   this thread's own. An automatic workstream does not: the new project gets
+ *   a fresh preview. The old model's release and the new one's creation
+ *   happen in one render, so the transfer expires shortly after.
  */
 import { isPicked, type NewWorkState } from "./new-work.ts";
 
@@ -27,7 +28,7 @@ let carried: {
   choice: Choice;
 } | null = null;
 
-/** How long a picked workstream waits for its replacement model. */
+/** How long a carried choice waits for its replacement model. */
 const CARRY_MS = 1000;
 
 export function preserveProjectChoice(
@@ -41,19 +42,22 @@ export function preserveProjectChoice(
   };
 }
 
-/** Keeps a picked workstream for the draft's next model, in case its project changed. */
-export function carryPickedWorkstream(
+/**
+ * Keeps the draft's choices for its next model, in case you changed its
+ * project: the project as yours, and a workstream you picked.
+ */
+export function carryAcrossProjectChange(
   draftKey: string,
   projectId: string | null,
   state: NewWorkState,
 ) {
-  if (!isPicked(state.identity)) return;
+  const picked = isPicked(state.identity);
   const transfer = {
     draftKey,
     projectId,
     choice: {
-      identity: state.identity,
-      decision: state.decision,
+      identity: picked ? state.identity : null,
+      decision: picked ? state.decision : null,
       suppliedProjectId: null,
       projectOverride: true,
     },

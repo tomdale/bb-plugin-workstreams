@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from "vitest";
 import {
-  carryPickedWorkstream,
+  carryAcrossProjectChange,
   preserveProjectChoice,
   takeProjectChoice,
 } from "../../src/app/composer/project-choice.ts";
@@ -58,7 +58,7 @@ const deps = { route: async () => choice.decision, cancelRoute: () => {} };
 it("carries a picked workstream to the draft's model in the project you chose", () => {
   const work = new NewWork(deps);
   work.selectIdentity({ workstreamId: "workstream", label: "Workstream" });
-  carryPickedWorkstream("draft", "project", work.snapshot());
+  carryAcrossProjectChange("draft", "project", work.snapshot());
   expect(takeProjectChoice("project", "other-draft")).toBeUndefined();
   const replacement = new NewWork(deps, takeProjectChoice("other", "draft"));
   expect(replacement.snapshot()).toMatchObject({
@@ -71,13 +71,26 @@ it("carries a picked workstream to the draft's model in the project you chose", 
   replacement.dispose();
 });
 
-it("does not carry a workstream into the same project or carry the start call's workstream", () => {
+it("does not carry a choice into the same project", () => {
   const work = new NewWork(deps);
   work.selectIdentity({ workstreamId: "workstream", label: "Workstream" });
-  carryPickedWorkstream("draft", "project", work.snapshot());
+  carryAcrossProjectChange("draft", "project", work.snapshot());
   expect(takeProjectChoice("project", "draft")).toBeUndefined();
-  carryPickedWorkstream("draft", "project", { ...work.snapshot(), ...choice });
-  expect(takeProjectChoice("other", "draft")).toBeUndefined();
+  work.dispose();
+});
+
+it("carries a project you chose, but not Quick analysis's workstream", () => {
+  const work = new NewWork(deps);
+  carryAcrossProjectChange("draft", "project", {
+    ...work.snapshot(),
+    ...choice,
+  });
+  expect(takeProjectChoice("other", "draft")).toEqual({
+    identity: null,
+    decision: null,
+    suppliedProjectId: null,
+    projectOverride: true,
+  });
   work.dispose();
 });
 
@@ -86,7 +99,7 @@ it("drops a carried workstream no replacement took", () => {
   try {
     const work = new NewWork(deps);
     work.selectIdentity({ workstreamId: "workstream", label: "Workstream" });
-    carryPickedWorkstream("draft", "project", work.snapshot());
+    carryAcrossProjectChange("draft", "project", work.snapshot());
     vi.advanceTimersByTime(1000);
     expect(takeProjectChoice("other", "draft")).toBeUndefined();
     work.dispose();
@@ -95,17 +108,22 @@ it("drops a carried workstream no replacement took", () => {
   }
 });
 
-it("marks a project you choose after picking a workstream, until the workstream changes", () => {
+it("marks a project you choose until you pick a workstream", () => {
   const work = new NewWork(deps);
   work.observeSelection({ projectId: "one" });
   work.observeSelection({ projectId: "two" });
-  expect(work.snapshot().projectOverride).toBeFalsy();
+  expect(work.viewSnapshot().projectOverride).toBe(true);
+  // Quick analysis's workstream, or Automatic, keeps your project.
+  work.selectIdentity(null, "automatic");
+  work.selectAutomaticIdentity();
+  expect(work.snapshot().projectOverride).toBe(true);
   work.selectIdentity({ workstreamId: "workstream", label: "Workstream" });
+  expect(work.snapshot().projectOverride).toBe(false);
   work.supplyProject("three");
   work.observeSelection({ projectId: "three" });
-  expect(work.snapshot().projectOverride).toBeFalsy();
+  expect(work.snapshot().projectOverride).toBe(false);
   work.observeSelection({ projectId: "four" });
-  expect(work.viewSnapshot().projectOverride).toBe(true);
+  expect(work.snapshot().projectOverride).toBe(true);
   work.selectIdentity({ workstreamId: "other", label: "Other" });
   expect(work.snapshot().projectOverride).toBe(false);
   work.dispose();

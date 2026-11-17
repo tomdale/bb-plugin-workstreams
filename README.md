@@ -163,9 +163,11 @@ rechecks the history and becomes your explicit choice.
 Choosing a workstream manually, automatically, or with the workstream's **＋**
 button updates the new-thread composer to use its project, or No project when it
 has none. A workstream in a group uses its group's project unless overridden or
-disabled. An automatic choice never moves a thread to No project: when its
-workstream has no project and you are in one, the control shows **No
-workstream** and the thread stays under **Other**.
+disabled. An automatic choice leaves the composer's project alone when its
+workstream has No project and you are in a project, and whenever you chose the
+project yourself. If that project differs from the workstream's, the control
+shows **No workstream** and the thread stays under **Other**. Choosing a
+workstream yourself still moves the composer to its project.
 
 If you choose a workstream, or start from a workstream's **＋**, and then choose
 a different project, the composer keeps the workstream and starts the thread in

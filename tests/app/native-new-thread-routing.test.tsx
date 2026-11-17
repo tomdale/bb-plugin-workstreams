@@ -602,6 +602,27 @@ it("ignores an associated project that is no longer available", async () => {
   expect(slot.inspection.composer.selections).toEqual([]);
 });
 
+it("never moves a project you chose to the start call's workstream's project", async () => {
+  const { slot, route } = mount(identityDecision, {
+    component: ComposerWithProjectPick,
+  });
+  await screen.findByRole("button", { name: "Workstream: Automatic" });
+  fireEvent.click(screen.getByRole("button", { name: "Pick Beta" }));
+  await waitFor(() =>
+    expect(slot.inspection.composer.selection?.projectId).toBe("project-beta"),
+  );
+  await typePrompt(slot, "Fix the parser in Alpha");
+  await waitFor(() => expect(route).toHaveBeenCalledTimes(1));
+  await screen.findByRole("button", { name: "Workstream: No workstream" });
+  expect(slot.inspection.composer.selection?.projectId).toBe("project-beta");
+  expect(slot.inspection.composer.selections).toEqual([
+    { projectId: "project-beta" },
+  ]);
+  expect(
+    screen.queryByRole("button", { name: "Save as default project" }),
+  ).toBeNull();
+});
+
 it("keeps a picked workstream in a project you choose for this thread only", async () => {
   const { slot, metadataUpdates } = mount(identityDecision, {
     component: ComposerWithProjectPick,

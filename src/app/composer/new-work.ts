@@ -44,9 +44,11 @@ export type NewWorkState = {
   selection: ComposerSelection | null;
   suppliedProjectId?: string | null;
   /**
-   * You chose the thread's project after picking its workstream. That project is
-   * for this thread only: Workstreams leaves it alone until the workstream changes,
-   * and offers to make it the workstream's project.
+   * You chose the composer's project yourself. Workstreams leaves it alone
+   * until you pick a workstream, which moves it to that workstream's project;
+   * Quick analysis's workstream never moves it. With a workstream you picked,
+   * the project is for this thread only, and the composer offers to save it as
+   * the workstream's default.
    */
   projectOverride?: boolean;
   /** The start call's latest preview of the draft. */
@@ -373,12 +375,11 @@ export class NewWork {
     if (selection === this.state.selection) return;
     const previous = this.state.selection?.projectId;
     const projectId = selection?.projectId;
-    // A project change Workstreams didn't make, after you picked the workstream.
+    // A project change Workstreams didn't make.
     const overridden =
       !!previous &&
       previous !== projectId &&
-      projectId !== this.state.suppliedProjectId &&
-      isPicked(this.state.identity);
+      projectId !== this.state.suppliedProjectId;
     this.set({
       selection,
       ...(this.state.suppliedProjectId &&
@@ -424,7 +425,8 @@ export class NewWork {
     })("ok");
     this.set({
       identity: nextChoice,
-      projectOverride: false,
+      // A workstream you pick brings its project; an automatic one doesn't.
+      ...(provenance === "manual" ? { projectOverride: false } : {}),
       error: null,
     });
   }
@@ -476,7 +478,6 @@ export class NewWork {
     }
     this.set({
       identity,
-      projectOverride: false,
       error: null,
     });
   }
