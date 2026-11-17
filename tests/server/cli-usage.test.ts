@@ -102,10 +102,10 @@ describe("bb workstreams usage", () => {
     expect(lines[0]).toBe("Model calls are running.");
     expect(lines).toContain("Limits");
     expect(lines).toContain(
-      "  The last hour's spend: $4.50 (warning at $3.00, cap $20.00), warning reached",
+      "  The last hour's spend: $4.50 (warning at $3.00, pause at $20.00), warning reached",
     );
     expect(lines).toContain(
-      "  Requests in the last hour: 43 (cap 500), under its thresholds",
+      "  Requests in the last hour: 43 (pause at 500), under its thresholds",
     );
     // A limit with no threshold is left out.
     expect(stdout).not.toContain("Today's spend");
@@ -190,14 +190,14 @@ describe("bb workstreams usage", () => {
     );
     expect(first).toContain("`bb workstreams usage resume`");
     expect(paused.stdout.split("\n")).toContain(
-      "  Requests in the last hour: 3 (cap 3), cap reached, paused",
+      "  Requests in the last hour: 3 (pause at 3), limit reached, paused",
     );
 
     const resumed = await run("resume");
     expect(resumed.exitCode).toBe(0);
     expect(resumed.stdout.split("\n")[0]).toBe("Model calls are running.");
     expect(resumed.stdout).toMatch(
-      /Requests in the last hour: 3 \(cap 3\), cap reached, resumed until \d{4}-\d\d-\d\d \d\d:\d\d/,
+      /Requests in the last hour: 3 \(pause at 3\), limit reached, resumed until \d{4}-\d\d-\d\d \d\d:\d\d/,
     );
     expect((await run()).stdout.split("\n")[0]).toBe(
       "Model calls are running.",

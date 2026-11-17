@@ -1403,7 +1403,7 @@ bb workstreams trace [<trace-id>] [--thread <id>] [--entry <id>] [--kind <kind>]
 
 # Show whether model calls are paused, each limit, what a range spent, the flags, and the top sources, models, and workstreams
 bb workstreams usage [--range 1h|24h|7d|30d|90d] [--json]
-# Let model calls through past every cap reached now, until its window resets
+# Let model calls through past every limit reached now, until its window resets
 bb workstreams usage resume [--json]
 
 # Compose an enhanced response for a thread's latest finished response, or validate and store a given document (Enhanced responses must be on)

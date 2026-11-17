@@ -288,13 +288,13 @@ const reportedCost = (totals: UsageTotals) =>
 
 function limitLevel(limit: LimitState): string {
   if (limit.resumedUntil !== null)
-    return `cap reached, resumed until ${localMinute(limit.resumedUntil)}`;
+    return `limit reached, resumed until ${localMinute(limit.resumedUntil)}`;
   if (limit.level === "warning") return "warning reached";
   if (limit.level === "ok") return "under its thresholds";
   // The rolling hour empties gradually, so it has no moment to name.
   return limit.window === "hour"
-    ? "cap reached, paused"
-    : `cap reached, paused until ${localMinute(limit.resetsAt)}`;
+    ? "limit reached, paused"
+    : `limit reached, paused until ${localMinute(limit.resetsAt)}`;
 }
 
 function limitLine(limit: LimitState): string {
@@ -302,7 +302,7 @@ function limitLine(limit: LimitState): string {
     limit.metric === "spend" ? formatMoney(value) : formatCount(value);
   const thresholds = [
     limit.warn === null ? null : `warning at ${amount(limit.warn)}`,
-    limit.cap === null ? null : `cap ${amount(limit.cap)}`,
+    limit.cap === null ? null : `pause at ${amount(limit.cap)}`,
   ].filter((part) => part !== null);
   const subject = LIMIT_SUBJECT[limit.key];
   return `  ${subject[0]!.toUpperCase()}${subject.slice(1)}: ${amount(limit.used)} (${thresholds.join(", ")}), ${limitLevel(limit)}`;
@@ -1020,7 +1020,7 @@ export function registerCli(
         }),
         "usage resume": cliCommand({
           summary:
-            "Let model calls through past every cap reached now, until its window resets",
+            "Let model calls through past every limit reached now, until its window resets",
           options: { json: { type: "boolean", description: "Print JSON" } },
           async run({ options }) {
             const state = usageRead(() => usage.guard.resume());

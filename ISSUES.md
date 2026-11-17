@@ -24,6 +24,25 @@ The requested completion API is recorded in the BB SDK wishlist,
 `docs/bb-sdk-wishlist.md` in tomdale/bb-plugins. Do not infer total spend from
 the sum of reported costs when worker calls exist.
 
+### Spend the usage ledger and pause thresholds do not see
+
+**Evidence:** `tests/server/usage-instrumentation.test.ts`, `eval/`,
+`src/server/index.ts` (`threadSend`), `src/server/questions/store.ts`, and
+`docs/usage.md`.
+
+The ledger counts the model calls, compositions, debug threads, and recap
+reminders that Workstreams sends. It does not count your own messages and
+question answers, which start turns in your threads; the eval runners, which
+call AI Gateway directly under their own `EVAL_BUDGET`; or a turn BB re-attempts
+itself after a failure, since the plugin sent that message once. Calls already
+in flight when a pause threshold is reached finish, so spend can pass the
+threshold by what they cost. Every other path to a provider goes through the
+gate, and the instrumentation test fails when a new one does not.
+
+**Workaround:** Give AI Gateway keys their own budget in Vercel for a hard stop
+that covers everything on a key, including the evals. Add up eval spend across
+runs when applying an overall limit.
+
 ### Enhanced responses have not run with a real model
 
 **Evidence:** `src/server/postTurn/`, `src/server/inference/presentation/`, and
