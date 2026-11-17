@@ -157,6 +157,11 @@ export async function fakeWorld(
       input: Record<string, unknown>,
       signal?: AbortSignal,
     ) => unknown | Promise<unknown>;
+    /** The host's pull request reads; absent: every URL fails as unavailable. */
+    readPullRequests?: (
+      input: { hostname: string; urls: string[] },
+      hostId: string,
+    ) => unknown[] | Promise<unknown[]>;
   } = {},
 ) {
   const threads = new Map<string, Thread>();
@@ -174,6 +179,16 @@ export async function fakeWorld(
   /** Inputs of the host's `present` calls. */
   const presents: Record<string, unknown>[] = [];
   const sent: Record<string, unknown>[] = [];
+  /** Host calls that read pull requests: the machine and what it was asked. */
+  const pullRequestReads: {
+    hostId: string;
+    hostname: string;
+    urls: string[];
+  }[] = [];
+  /** Each machine's status; absent: connected. */
+  const hostStatuses = new Map<string, string>();
+  /** The machine each environment runs on; absent: `host_1`. */
+  const environmentHosts = new Map<string, string>();
   const projects = ["proj_1", "proj_home", "proj_other", "proj_personal"].map(
     (id) => ({ id, name: "Zebracorn", sources: [] }),
   );
@@ -233,6 +248,20 @@ export async function fakeWorld(
             usage: { input: 0, output: 0, cost: 0 },
           }
         );
+      }
+      if (call.method === "readPullRequests") {
+        const input = call.input as { hostname: string; urls: string[] };
+        pullRequestReads.push({ hostId: call.hostId, ...input });
+        const results =
+          (await options.readPullRequests?.(input, call.hostId)) ??
+          input.urls.map((url) => ({
+            outcome: "failed",
+            url,
+            failure: "unavailable",
+            message: "No fake pull request reader.",
+            retryAfterMs: null,
+          }));
+        return { results };
       }
       const input = call.input as {
         prompt: string;
@@ -346,7 +375,7 @@ export async function fakeWorld(
         },
         get: async ({ environmentId }: { environmentId: string }) => ({
           id: environmentId,
-          hostId: "host_1",
+          hostId: environmentHosts.get(environmentId) ?? "host_1",
           projectId: "proj_1",
           status: "ready",
           hostLifecycle: "active",
@@ -354,6 +383,12 @@ export async function fakeWorld(
         }),
       },
       hosts: {
+        get: async ({ hostId }: { hostId: string }) =>
+          makeHostResponse({
+            id: hostId,
+            name: "Fixture machine",
+            status: (hostStatuses.get(hostId) ?? "connected") as never,
+          }),
         list: async () => [
           makeHostResponse({ id: "host_1", status: "connected" } as never),
         ],
@@ -613,5 +648,8 @@ export async function fakeWorld(
     sent,
     markedUnread,
     pullRequests,
+    pullRequestReads,
+    hostStatuses,
+    environmentHosts,
   };
 }

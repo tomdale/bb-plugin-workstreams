@@ -9,6 +9,7 @@ import { experimental_defineHostEntry } from "@get-bb/plugin-sdk";
 import { hostContract } from "./contract.ts";
 import { gatewayComplete, gatewayKey } from "./gateway.ts";
 import { presentOnHost } from "./presentation/host.ts";
+import { readPullRequestsOnHost } from "../pullRequests/host.ts";
 
 const NO_KEY =
   "Analysis failed: no AI Gateway key on this machine. Sign Pi in to Vercel AI Gateway. No fallback model was used.";
@@ -19,6 +20,9 @@ const TIMEOUT_MS = 90_000;
 export default experimental_defineHostEntry({
   contract: hostContract,
   handlers: {
+    readPullRequests: async ({ hostname, urls }, ctx) => ({
+      results: await readPullRequestsOnHost({ hostname, urls }, ctx.signal),
+    }),
     present: async ({ model, response, title, workstream, theme }, ctx) => {
       const outcome = await presentOnHost({
         input: { response, title, workstream },

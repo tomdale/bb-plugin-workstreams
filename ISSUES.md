@@ -6,6 +6,19 @@ open bug list. Paths below are relative to this package.
 
 ## Open limitations
 
+### Tracked pull requests and undo
+
+**Evidence:** `src/server/workstreams.ts`, `src/server/pullRequests/`, and
+`src/app/page/pullRequest/PullRequestView.tsx`.
+
+Undoing a workstream merge restores its workstreams and threads, but tracked
+pull requests stay in the target workstream. When both workstreams tracked the
+same URL, only the target row survives the merge. Track a PR again from a thread
+in its intended workstream to restore that link.
+
+PR descriptions display as plain text. Markdown links, images, and formatting
+appear literally. Check names and **Open on GitHub** provide the external links.
+
 ### Provider-worker generation controls and telemetry
 
 **Evidence:** `src/server/inference/worker.ts`, `src/server/index.ts`, and the

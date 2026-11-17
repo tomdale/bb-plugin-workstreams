@@ -15,7 +15,13 @@
       "experimental_icons": {
         "workstream": "./assets/workstream.svg",
         "tag": "./assets/tag.svg",
-        "sparkles": "./assets/sparkles.svg"
+        "sparkles": "./assets/sparkles.svg",
+        "pr-open": "./assets/pr-open.svg",
+        "pr-draft": "./assets/pr-draft.svg",
+        "pr-merged": "./assets/pr-merged.svg",
+        "pr-closed": "./assets/pr-closed.svg",
+        "check-passed": "./assets/check-passed.svg",
+        "check-failed": "./assets/check-failed.svg"
       }
     },
     "server": "./src/server/index.ts",

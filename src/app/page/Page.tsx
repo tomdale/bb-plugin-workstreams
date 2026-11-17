@@ -8,7 +8,11 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useState } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import type { PluginNavPanelProps, useRpc } from "@get-bb/plugin-sdk/app";
+import {
+  useBbNavigate,
+  type PluginNavPanelProps,
+  type useRpc,
+} from "@get-bb/plugin-sdk/app";
 import type { RpcContract } from "../../server/contract.ts";
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
@@ -29,6 +33,7 @@ import { UsageMark } from "../usage/UsageMark.tsx";
 import { useUsageIndicator } from "../usage/useUsage.ts";
 import { BackButton, Overview } from "./overview/Overview.tsx";
 import { setOpenOverview } from "./overview/route.ts";
+import { PullRequestView } from "./pullRequest/PullRequestView.tsx";
 
 type View =
   | { kind: "queue" }
@@ -36,12 +41,14 @@ type View =
   | { kind: "gallery" }
   | { kind: "usage" }
   | { kind: "overview"; id: string }
+  | { kind: "pull-request"; id: string }
   | { kind: "activity"; focus: string | null; modelCalls: boolean };
 
 /**
  * `subPath` deep links open a view: `activity[/<entry>]`, `debug` (model
- * traces), `gallery`, `organize`, `usage`, and `overview/<workstream>` (a
- * sidebar workstream's id, or `other` for Other).
+ * traces), `gallery`, `organize`, `usage`, `overview/<workstream>` (a
+ * sidebar workstream's id, or `other` for Other), and `pull-request/<id>` (a
+ * tracked pull request's id, percent-encoded).
  */
 function viewOf(subPath: string): View {
   const [head, ...rest] = subPath.split("/");
@@ -56,6 +63,8 @@ function viewOf(subPath: string): View {
   if (head === "usage") return { kind: "usage" };
   if (head === "overview" && rest.length)
     return { kind: "overview", id: decodeURIComponent(rest.join("/")) };
+  if (head === "pull-request" && rest.length)
+    return { kind: "pull-request", id: decodeURIComponent(rest.join("/")) };
   if (head === "debug")
     return { kind: "activity", focus: null, modelCalls: true };
   return { kind: "queue" };
@@ -65,6 +74,7 @@ export function WorkstreamsPage({
   subPath = "",
 }: Partial<PluginNavPanelProps>) {
   const ws = useWorkstreams();
+  const navigate = useBbNavigate();
   const [view, setView] = useState<View>(() => viewOf(subPath));
   useLayoutEffect(() => setView(viewOf(subPath)), [subPath]);
   const { projection } = ws;
@@ -92,6 +102,18 @@ export function WorkstreamsPage({
         ws={ws}
         id={view.id}
         onBack={() => setView({ kind: "queue" })}
+      />
+    );
+  if (view.kind === "pull-request")
+    return (
+      <PullRequestView
+        id={view.id}
+        // Back leaves the pull request's route too, so pressing its sidebar
+        // row again navigates to a route that differs from the current one.
+        onBack={() => {
+          setView({ kind: "queue" });
+          navigate.toPluginPanel("home");
+        }}
       />
     );
   return (
@@ -127,6 +149,7 @@ const VIEW_TITLES: Record<View["kind"], string> = {
   gallery: "Gallery",
   usage: "Usage",
   overview: "Overview",
+  "pull-request": "Pull request",
   activity: "Activity",
 };
 

@@ -8,6 +8,7 @@ import { renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { within } from "@testing-library/react";
 import { WorkstreamsThreadList } from "../../src/app/sidebar/ThreadList.tsx";
 import { ServerStateRealtime } from "../../src/app/serverState.ts";
+import { PullRequestsRealtime } from "../../src/app/pullRequests/store.ts";
 import type { CategoryGeneration } from "../../src/domain/categories.ts";
 import type { LayoutNode } from "../../src/domain/layout.ts";
 import type { SnoozePreset } from "../../src/domain/snooze.ts";
@@ -144,7 +145,12 @@ export async function mount(
         onRender={options.onRender ?? (() => undefined)}
       >
         <Component {...props} />
-        {options.realtime ? <ServerStateRealtime /> : null}
+        {options.realtime ? (
+          <>
+            <ServerStateRealtime />
+            <PullRequestsRealtime />
+          </>
+        ) : null}
       </Profiler>
     );
   }

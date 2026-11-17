@@ -201,6 +201,8 @@ export class WorkstreamMigration {
           reason: "Review this workstream's project before removing it.",
         });
     }
+    for (const blocker of this.pullRequestBlockers(removed, proposed))
+      blockers.push(blocker);
     const plan = {
       id: randomUUID(),
       fingerprint: this.fingerprint(),
@@ -212,6 +214,40 @@ export class WorkstreamMigration {
     };
     setMeta(this.deps.db, KEY, JSON.stringify(plan));
     return plan;
+  }
+
+  /**
+   * A tracked pull request stays in the workstream it was linked in, so a
+   * migration neither removes that workstream nor makes it a group. Nothing in
+   * a migration moves pull requests; untrack them first.
+   */
+  private pullRequestBlockers(
+    removed: readonly { id: string }[],
+    proposed: readonly { id: string; parentId: string | null }[],
+  ): WorkstreamMigrationPlan["blockers"] {
+    const tracked = this.deps.workstreamStore.pullRequestCounts();
+    if (tracked.size === 0) return [];
+    const blockers: WorkstreamMigrationPlan["blockers"] = [];
+    for (const workstream of removed)
+      if (tracked.has(workstream.id))
+        blockers.push({
+          threadId: null,
+          workstreamId: workstream.id,
+          reason:
+            "This workstream tracks pull requests. Untrack them (bb workstreams pr untrack) before removing it.",
+        });
+    for (const workstream of proposed)
+      if (
+        tracked.has(workstream.id) &&
+        proposed.some((child) => child.parentId === workstream.id)
+      )
+        blockers.push({
+          threadId: null,
+          workstreamId: workstream.id,
+          reason:
+            "This workstream tracks pull requests, so it can't become a group. Untrack them (bb workstreams pr untrack) first.",
+        });
+    return blockers;
   }
 
   apply(planId: string): { backupId: string; changed: number; reset: number } {
@@ -227,6 +263,11 @@ export class WorkstreamMigration {
       if (plan.blockers.length)
         throw new UserError(
           "Resolve every migration blocker before applying the plan.",
+        );
+      // Tracking a pull request does not change the fingerprint.
+      if (this.pullRequestBlockers(plan.removed, plan.workstreams).length)
+        throw new UserError(
+          "Tracked pull requests changed. Review a fresh migration preview.",
         );
       if (
         !plan.removed.length &&

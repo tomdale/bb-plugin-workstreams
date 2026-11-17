@@ -120,6 +120,14 @@ import { Hint } from "../Hint.tsx";
 import { usePrefs } from "../prefs.ts";
 import { RenderRow, ThreadNode, ThreadRow } from "./types.ts";
 import { SidebarThreadRow } from "./SidebarThreadRow.tsx";
+import type { PullRequestPlacement } from "./PullRequestList.tsx";
+import { placePullRequests } from "./pullRequestGroups.ts";
+import {
+  pullRequestSubPath,
+  workstreamIdsWithPullRequests,
+} from "../pullRequests/model.ts";
+import { usePullRequestSelector } from "../pullRequests/store.ts";
+import { shareJson } from "../structuralSharing.ts";
 import {
   Band,
   BandOptionsMenu,
@@ -187,12 +195,40 @@ export function WorkstreamsThreadList({
   const previousArrangement = useRef<
     GroupArrangement<PluginSidebarThread> | undefined
   >(undefined);
-  const arrangement = useMemo(() => {
+  const arrangedGroups = useMemo(() => {
     const next = arrangeGroups(projection, groupSort, ws.workstreams);
     const shared = shareArrangement(previousArrangement.current, next);
     previousArrangement.current = shared;
     return shared;
   }, [projection, groupSort, ws.workstreams]);
+  // A workstream holding a tracked pull request keeps its header while it has
+  // no thread. Only the set of such workstreams matters here: a poll that
+  // changes a pull request's status leaves this, and so the list, alone.
+  const pullRequestWorkstreams = usePullRequestSelector((state) =>
+    workstreamIdsWithPullRequests(state.items),
+  );
+  const placed = useMemo(
+    () =>
+      placePullRequests({
+        arrangement: arrangedGroups,
+        workstreamIds: ws.server.loaded ? pullRequestWorkstreams : [],
+        all: projection.all,
+        tree: ws.workstreams,
+        sort: groupSort,
+      }),
+    [
+      arrangedGroups,
+      pullRequestWorkstreams,
+      ws.server.loaded,
+      projection.all,
+      ws.workstreams,
+      groupSort,
+    ],
+  );
+  const arrangement = placed.arrangement;
+  const previousScopes = useRef(placed.scopes);
+  const pullRequestScopes = shareJson(previousScopes.current, placed.scopes);
+  previousScopes.current = pullRequestScopes;
   const {
     focused: focusedGroups,
     populated: populatedGroups,
@@ -568,6 +604,18 @@ export function WorkstreamsThreadList({
     },
     [navigate, onNavigate],
   );
+  /** Opens a tracked pull request's view on the Workstreams page. */
+  const openPullRequest = useCallback(
+    (id: string) => {
+      navigate.toPluginPanel("home", { subPath: pullRequestSubPath(id) });
+      onNavigate();
+    },
+    [navigate, onNavigate],
+  );
+  const pullRequests = useMemo<PullRequestPlacement>(
+    () => ({ scopes: pullRequestScopes, open: openPullRequest }),
+    [pullRequestScopes, openPullRequest],
+  );
   // Colors read only the workstream tree's section bindings and stored colors,
   // so moving a thread, which changes only threads' workstreams, leaves the
   // group renderers alone.
@@ -641,6 +689,7 @@ export function WorkstreamsThreadList({
       toggleGroup={toggleGroup}
       renderRow={renderRow}
       groupSlot={groupSlot}
+      pullRequests={pullRequests}
       choosingWorkstream={choosingWorkstream}
       colorOf={colorOf}
       newThreadIn={newThreadIn}
@@ -707,7 +756,7 @@ export function WorkstreamsThreadList({
       populatedGroups.length +
       dormantGroups.length +
       projection.other.total >
-    0;
+      0 || placed.otherHasPullRequests;
   /**
    * The heading over the workstreams, holding the organizing suggestions'
    * count, which opens them, and the workstreams' sort. Not a region: each
@@ -765,7 +814,7 @@ export function WorkstreamsThreadList({
         >
           {renderGroupList(populatedGroups, "populated")}
         </SortableContext>
-        {other.total > 0
+        {other.total > 0 || placed.otherHasPullRequests
           ? listedGroup(
               other,
               "other",

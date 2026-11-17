@@ -3,6 +3,9 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
+  CHECK_FAILED_ICON,
+  CHECK_PASSED_ICON,
+  PULL_REQUEST_ICON,
   SPARKLES_ICON,
   TAG_ICON,
   WORKSTREAM_ICON,
@@ -22,6 +25,12 @@ describe("the plugin's declared icons", () => {
     ["workstream", WORKSTREAM_ICON],
     ["tag", TAG_ICON],
     ["sparkles", SPARKLES_ICON],
+    ["pr-open", PULL_REQUEST_ICON.open],
+    ["pr-draft", PULL_REQUEST_ICON.draft],
+    ["pr-merged", PULL_REQUEST_ICON.merged],
+    ["pr-closed", PULL_REQUEST_ICON.closed],
+    ["check-passed", CHECK_PASSED_ICON],
+    ["check-failed", CHECK_FAILED_ICON],
   ])("declares %s under the name the UI uses", (key, name) => {
     expect(name).toBe(`workstreams/${key}`);
     expect(declared[key]).toBeTruthy();

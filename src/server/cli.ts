@@ -28,6 +28,10 @@ import { isSnoozed, type ThreadSnooze } from "../domain/snooze.ts";
 import type { Analyzer, StoredAnalysis } from "./analyzer.ts";
 import type { Organizer } from "./organizer.ts";
 import {
+  pullRequestCommands,
+  type PullRequestCommandDeps,
+} from "./pullRequests/commands.ts";
+import {
   listActiveThreads,
   listSections,
   type InventoryThread,
@@ -392,6 +396,7 @@ export function registerCli(
     workstreamMigration,
     presenter,
     usage,
+    pullRequests,
   }: {
     /** The sidebar's stored order and focused workstreams. */
     arrangement: {
@@ -418,6 +423,8 @@ export function registerCli(
     presenter?: PostTurnPresenter;
     /** The ledger, spend guard, flags, and workstream names behind `usage`. */
     usage: UsageReportDeps;
+    /** Pull request tracking behind `pr track`, `pr list`, and `pr untrack`. */
+    pullRequests?: PullRequestCommandDeps;
     /** Renames the threads Workstreams titled in an earlier title form. */
   },
 ): void {
@@ -1789,6 +1796,7 @@ export function registerCli(
             };
           },
         }),
+        ...(pullRequests ? pullRequestCommands(pullRequests) : {}),
       },
     }),
   );

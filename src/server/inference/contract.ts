@@ -2,6 +2,10 @@ import { defineRpcContract } from "@get-bb/plugin-sdk";
 import { z } from "zod";
 import { usageSchema } from "../../domain/trace.ts";
 import { PRESENTATION_LIMITS } from "../../domain/postTurn/limits.ts";
+import {
+  PULL_REQUEST_BATCH_SIZE,
+  pullRequestLookupSchema,
+} from "../../domain/pullRequests.ts";
 import { documentWorkstreamSchema } from "../../domain/postTurn/message.ts";
 
 /** RPC between the plugin server and its `bb.host` entry on the machine. */
@@ -26,6 +30,22 @@ export const hostContract = defineRpcContract({
       // Optional so a host bundle built before reasoning capture still answers.
       reasoning: z.string().max(200_000).nullable().optional(),
       stopReason: z.string().max(100).nullable().optional(),
+    }),
+  },
+  /**
+   * Reads pull requests from GitHub with this machine's `gh` login: one
+   * lookup per URL, in order, each a pull request or a failure that names its
+   * cause. Nothing is written to GitHub.
+   */
+  readPullRequests: {
+    input: z
+      .object({
+        hostname: z.string().min(3).max(255),
+        urls: z.array(z.string().max(2048)).min(1).max(PULL_REQUEST_BATCH_SIZE),
+      })
+      .strict(),
+    output: z.object({
+      results: z.array(pullRequestLookupSchema).max(PULL_REQUEST_BATCH_SIZE),
     }),
   },
   /**

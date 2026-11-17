@@ -218,6 +218,20 @@ export function restoreWorkstreams(
     const kept = new Set(
       workstreams.map((workstream) => workstream.id as string),
     );
+    // Undoing never deletes a workstream that tracks a pull request, or makes
+    // one a group; the person untracks first.
+    const tracking = new Set(
+      (
+        db
+          .prepare("SELECT DISTINCT workstream_id FROM ws_pull_request")
+          .all() as { workstream_id: string }[]
+      ).map((r) => r.workstream_id),
+    );
+    if (
+      [...tracking].some((id) => !kept.has(id)) ||
+      workstreams.some((w) => tracking.has(w.parent_id as string))
+    )
+      return false;
     const now = new Map(
       (
         db.prepare("SELECT id, parent_id FROM ws_workstream").all() as {
@@ -305,6 +319,12 @@ export function restoreWorkstreams(
 }
 
 export class WorkstreamStore {
+  /**
+   * Called after a change moved or removed tracked pull request rows (a merge),
+   * so whoever shows them can re-read. Set once by the server.
+   */
+  onPullRequestsMoved: (() => void) | null = null;
+
   constructor(private readonly db: Database) {}
 
   revision(): number {
@@ -376,9 +396,36 @@ export class WorkstreamStore {
   }
 
   /**
-   * Only a workstream holds threads, and only a group holds workstreams
-   * (docs/organization.md).
-   * Refuses to give `parentId` a workstream while it holds threads.
+   * Tracked pull requests, which a workstream holds beside its threads and a
+   * group never does.
+   */
+  heldPullRequests(workstreamId: string): number {
+    return (
+      this.db
+        .prepare(
+          "SELECT COUNT(*) AS n FROM ws_pull_request WHERE workstream_id = ?",
+        )
+        .get(workstreamId) as { n: number }
+    ).n;
+  }
+
+  /** How many tracked pull requests each workstream holds; absent means none. */
+  pullRequestCounts(): Map<string, number> {
+    return new Map(
+      (
+        this.db
+          .prepare(
+            "SELECT workstream_id, COUNT(*) AS n FROM ws_pull_request GROUP BY workstream_id",
+          )
+          .all() as { workstream_id: string; n: number }[]
+      ).map((row) => [row.workstream_id, row.n]),
+    );
+  }
+
+  /**
+   * Only a workstream holds threads and tracked pull requests, and only a
+   * group holds workstreams (docs/organization.md).
+   * Refuses to give `parentId` a workstream while it holds either.
    */
   private assertTakesWorkstreams(parentId: string | null): void {
     if (parentId === null) return;
@@ -386,6 +433,11 @@ export class WorkstreamStore {
     if (held > 0)
       throw new Error(
         `${this.pathOf(parentId)} holds ${held === 1 ? "a thread" : `${held} threads`}, and a workstream can't also hold workstreams. Move its threads first, or accept a suggestion that splits it.`,
+      );
+    const pullRequests = this.heldPullRequests(parentId);
+    if (pullRequests > 0)
+      throw new Error(
+        `${this.pathOf(parentId)} tracks ${pullRequests === 1 ? "a pull request" : `${pullRequests} pull requests`}, and a workstream can't also hold workstreams. Run \`bb workstreams pr untrack\` for each, then track them again from a thread in the workstream they belong to.`,
       );
   }
 
@@ -552,6 +604,11 @@ export class WorkstreamStore {
       const proposal = resolved.proposed;
       assertProposalLevels(proposal, this.list());
       let parent = proposal.parentId ?? null;
+      // A workstream that tracks pull requests cannot gain children, and a
+      // reviewed division would have to make it a group, so the thread stays
+      // in it and no division is requested.
+      if (parent !== null && this.heldPullRequests(parent) > 0)
+        return this.getById(parent)!;
       // Adding the first child needs a reviewed plan for the whole collection.
       if (parent !== null && this.heldThreads(parent) > 0) {
         const requests = this.divisionRequests();
@@ -999,6 +1056,12 @@ export class WorkstreamStore {
         throw new Error("Only a top-level workstream can be split.");
       if (workstreams.length === 0)
         throw new Error("A split needs at least one workstream.");
+      // A split makes the workstream a group, and a group holds no pull requests.
+      const tracked = this.heldPullRequests(workstreamId);
+      if (tracked > 0)
+        throw new Error(
+          `${this.pathOf(workstreamId)} tracks ${tracked === 1 ? "a pull request" : `${tracked} pull requests`}, and a workstream can't also hold workstreams. Run \`bb workstreams pr untrack\` for each, then track them again from a thread in the workstream they belong to.`,
+        );
       const held = (
         this.db
           .prepare(
@@ -1126,6 +1189,7 @@ export class WorkstreamStore {
                AND NOT EXISTS (SELECT 1 FROM ws_thread_workstream s WHERE s.workstream_id = e.id)
                AND NOT EXISTS (SELECT 1 FROM ws_workstream_section g WHERE g.workstream_id = e.id)
                AND NOT EXISTS (SELECT 1 FROM ws_workstream c WHERE c.parent_id = e.id)
+               AND NOT EXISTS (SELECT 1 FROM ws_pull_request p WHERE p.workstream_id = e.id)
              LIMIT 1`,
           )
           .get() as { id: string } | undefined;
@@ -1336,7 +1400,8 @@ export class WorkstreamStore {
       throw new Error("Cannot merge a workstream into itself");
     }
 
-    return this.db.transaction(() => {
+    let pullRequestRows = 0;
+    const merged = this.db.transaction(() => {
       const source = this.getById(sourceWorkstreamId);
       if (!source)
         throw new Error(`Unknown source workstream: ${sourceWorkstreamId}`);
@@ -1361,6 +1426,13 @@ export class WorkstreamStore {
       if (mergedWorkstreams > 0 && mergedThreads > 0)
         throw new Error(
           `Merging ${this.pathOf(source.id)} into ${this.pathOf(target.id)} would put threads beside workstreams, and a group holds workstreams, never threads.`,
+        );
+      if (
+        mergedWorkstreams > 0 &&
+        this.heldPullRequests(source.id) + this.heldPullRequests(target.id) > 0
+      )
+        throw new Error(
+          `Merging ${this.pathOf(source.id)} into ${this.pathOf(target.id)} would put tracked pull requests beside workstreams, and a group holds workstreams, never pull requests. Untrack them first.`,
         );
 
       const newTargetParentId = targetIsDescendantOfSource
@@ -1427,6 +1499,16 @@ export class WorkstreamStore {
             "UPDATE ws_thread_workstream SET workstream_id = ? WHERE workstream_id = ?",
           )
           .run(dst.id, src.id);
+        // Tracked pull requests follow; one the target already tracks stays
+        // as the target's.
+        pullRequestRows += this.db
+          .prepare(
+            "UPDATE OR IGNORE ws_pull_request SET workstream_id = ? WHERE workstream_id = ?",
+          )
+          .run(dst.id, src.id).changes;
+        pullRequestRows += this.db
+          .prepare("DELETE FROM ws_pull_request WHERE workstream_id = ?")
+          .run(src.id).changes;
 
         // 2. Handle group bindings
         const dstGroup = this.db
@@ -1537,6 +1619,8 @@ export class WorkstreamStore {
 
       return this.getById(target.id)!;
     })();
+    if (pullRequestRows > 0) this.onPullRequestsMoved?.();
+    return merged;
   }
 
   state(): WorkstreamState {

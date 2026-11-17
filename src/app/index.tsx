@@ -47,6 +47,7 @@ import {
   NextUpCommandBridge,
   openNextUpThread,
 } from "./upNext/NextUpCommand.tsx";
+import { PullRequestsRealtime } from "./pullRequests/store.ts";
 import { StreamDeckBridge } from "./upNext/StreamDeckBridge.tsx";
 import { DebugCommandBridge, toggleDebugUi } from "./debug/DebugCommand.tsx";
 import {
@@ -97,6 +98,10 @@ export default definePluginApp((app) => {
   app.slots.experimental_appOverlay({
     id: "server-state",
     component: ServerStateRealtime,
+  });
+  app.slots.experimental_appOverlay({
+    id: "pull-requests",
+    component: PullRequestsRealtime,
   });
   app.slots.experimental_appOverlay({
     id: "sticky-thread-goal",

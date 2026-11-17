@@ -780,6 +780,100 @@ body:has([data-ws-suggestions])
   color: var(--warning-text);
 }
 
+/* A tracked pull request in the sidebar follows GitHub's own list: branch
+   glyph, number, and title, then the repository and status word beneath.
+   Rows of one list share the number column, so titles start on one edge. The
+   glyph sits in the 14px status slot a thread row uses. The fill on hover and
+   for the open one is the thread row's (.ws-row). */
+.ws-pr-row {
+  --ws-pr-tone: var(--muted-foreground);
+  position: relative;
+  display: grid;
+  grid-template-columns:
+    14px calc((var(--ws-pr-digits, 2) + 1) * 0.62em)
+    minmax(0, 1fr);
+  column-gap: 6px;
+  width: 100%;
+  padding: 4px 8px 4px 5px;
+  border-radius: 6px;
+  font-size: 13px;
+  text-align: left;
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+.ws-pr-row > * {
+  position: relative;
+}
+.ws-pr-row:is(:hover, .ws-row-active, [data-attention]) {
+  color: var(--foreground);
+}
+.ws-pr-row:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+.ws-pr-row[data-status="ready"] {
+  --ws-pr-tone: var(--ws-complete-text);
+}
+.ws-pr-row[data-status="failing"] {
+  --ws-pr-tone: var(--ws-failed-text);
+}
+.ws-pr-row[data-status="running"] {
+  --ws-pr-tone: var(--warning-text);
+}
+.ws-pr-row[data-status="merged"] {
+  --ws-pr-tone: var(--ws-pr-merged);
+}
+.ws-pr-mark {
+  display: flex;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  color: var(--ws-pr-tone);
+}
+.ws-pr-number {
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--muted-foreground);
+}
+.ws-pr-title {
+  min-width: 0;
+  overflow: hidden;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ws-pr-meta {
+  grid-column: 2 / 4;
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 15px;
+  color: var(--muted-foreground);
+}
+.ws-pr-repository {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ws-pr-status {
+  flex: none;
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+.ws-pr-row:is(
+    [data-status="ready"],
+    [data-status="failing"],
+    [data-status="running"]
+  )
+  .ws-pr-status {
+  color: var(--ws-pr-tone);
+}
+.ws-pr-status[data-stale] {
+  color: var(--warning-text);
+}
+
 /* A zero-height anchor reserves the heading's space in the message column.
    The plate, fades, and text share a layer in BB's sliding app surface, so
    they stay together as the timeline scrolls or a phone's pane slides aside.

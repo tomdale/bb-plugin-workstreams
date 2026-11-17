@@ -765,6 +765,20 @@ const MIGRATIONS = [
   "CREATE INDEX ws_usage_at ON ws_usage(at)",
   "CREATE INDEX ws_usage_thread ON ws_usage(thread_id, at)",
   "CREATE INDEX ws_usage_prompt ON ws_usage(prompt_hash, at) WHERE prompt_hash IS NOT NULL",
+  // A pull request tracked in one workstream: the latest snapshot as the app
+  // reads it, plus the polling state the server keeps beside it.
+  `CREATE TABLE ws_pull_request (
+    id TEXT PRIMARY KEY,
+    workstream_id TEXT NOT NULL,
+    url TEXT NOT NULL,
+    host_id TEXT NOT NULL,
+    data TEXT NOT NULL,
+    next_poll_at INTEGER,
+    failures INTEGER NOT NULL DEFAULT 0,
+    expires_at INTEGER,
+    created_at INTEGER NOT NULL,
+    UNIQUE (workstream_id, url)
+  )`,
 ];
 
 export function openDatabase(bb: BbPluginApi): Database {

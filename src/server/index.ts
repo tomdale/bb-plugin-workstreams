@@ -4,7 +4,7 @@
  * made elsewhere.
  */
 import { randomUUID } from "node:crypto";
-import type { BbPluginApi } from "@get-bb/plugin-sdk";
+import { PluginCliError, type BbPluginApi } from "@get-bb/plugin-sdk";
 import { registerCli } from "./cli.ts";
 import type { ThreadListing } from "../domain/analysis.ts";
 import { workstreamPath } from "../domain/workstream-path.ts";
@@ -75,6 +75,11 @@ import { costText, type Usage } from "../domain/trace.ts";
 import type { UsageStatus } from "../domain/usage.ts";
 import { runWorker as completeWithWorker } from "./inference/worker.ts";
 import { registerQueueLab } from "./queueLab.ts";
+import { PullRequestStore } from "./pullRequests/store.ts";
+import {
+  PullRequestError,
+  PullRequestTracker,
+} from "./pullRequests/tracker.ts";
 import { registerStreamDeck, type StreamDeck } from "./streamDeck.ts";
 import { PresentationStore } from "./postTurn/store.ts";
 import { PostTurnPresenter, type Compose } from "./postTurn/presenter.ts";
@@ -1333,6 +1338,54 @@ export default async function plugin(bb: BbPluginApi) {
     suggestions: () => ({ pendingSuggestions: suggestions.pendingCount() }),
   } satisfies Record<StateSlice, () => object>;
 
+  const pullRequestStore = new PullRequestStore(db);
+  const pullRequests = new PullRequestTracker({
+    store: pullRequestStore,
+    now: Date.now,
+    // Reading a machine's `gh` must never start the machine: only a connected,
+    // active one is asked.
+    machine: async (hostId) => {
+      try {
+        const machine = await bb.sdk.hosts.get({ hostId });
+        return machine.status === "connected" &&
+          machine.lifecycle.phase === "active"
+          ? { ok: true, name: machine.name }
+          : {
+              ok: false,
+              message: `${machine.name} is not connected, so this was not refreshed.`,
+            };
+      } catch {
+        return {
+          ok: false,
+          message: "The machine that reads this pull request is not available.",
+        };
+      }
+    },
+    read: async (hostId, request, signal) =>
+      (
+        await hostRpc.call("readPullRequests", request, {
+          hostId,
+          timeoutMs: 90_000,
+          signal,
+        })
+      ).results,
+    canHold: (workstreamId) =>
+      workstreamStore.getById(workstreamId) !== null &&
+      workstreamStore.workstreams(workstreamId) === 0,
+    changed: () => bb.realtime.publish("pull-requests-changed", {}),
+    log: (message) => bb.log.warn(message),
+  });
+  workstreamStore.onPullRequestsMoved = () => pullRequests.rowsChanged();
+  bb.onDispose(() => pullRequests.dispose());
+  pullRequests.start();
+  const workstreamLabel = (workstreamId: string) => {
+    try {
+      return workstreamPath(workstreamId, workstreamStore.list());
+    } catch {
+      return workstreamId;
+    }
+  };
+
   bb.rpc.register(rpcContract, {
     preview: ({ prompt, pickedProjectId, draftKey }) =>
       userFacing(async () => {
@@ -1873,6 +1926,10 @@ export default async function plugin(bb: BbPluginApi) {
     traceReplay: ({ id }) =>
       userFacing(async () => ({ trace: await inference.replay(id) })),
     traceClear: async () => ({ removed: traces.clear() }),
+    trackedPullRequests: async () => ({ items: pullRequests.list() }),
+    refreshTrackedPullRequest: async ({ id }) => ({
+      item: await pullRequests.refresh(id),
+    }),
     /**
      * Starts the thread a debug brief was written for. It runs in Workstreams'
      * own project, where its agent can read the prompts and code the brief is
@@ -1941,6 +1998,54 @@ export default async function plugin(bb: BbPluginApi) {
   notify();
 
   registerCli(bb, {
+    pullRequests: {
+      tracker: pullRequests,
+      label: workstreamLabel,
+      workstreamOf: (threadId) =>
+        workstreamStore.assignment(threadId).workstreamId,
+      resolveWorkstream: (arg) => {
+        const list = workstreamStore.list();
+        const lowered = arg.trim().toLowerCase();
+        const found =
+          list.find((w) => w.id === arg) ??
+          list.find((w) => w.name.toLowerCase() === lowered) ??
+          list.find((w) => w.aliases.some((a) => a.toLowerCase() === lowered));
+        if (!found)
+          throw new PluginCliError(`Unknown workstream: "${arg}"`, {
+            code: "workstream_not_found",
+            hint: "Run `bb workstreams tree` to see workstream names.",
+          });
+        return found.id;
+      },
+      link: async (threadId) => {
+        const thread = await bb.sdk.threads.get({ threadId }).catch(() => null);
+        if (!thread)
+          throw new PullRequestError(
+            `Unknown thread: ${threadId}`,
+            "no_thread",
+          );
+        const { workstreamId } = workstreamStore.assignment(threadId);
+        // A group holds workstreams, never pull requests.
+        if (!workstreamId || workstreamStore.workstreams(workstreamId) > 0)
+          throw new PullRequestError(
+            "This thread has no workstream yet, so the pull request has nowhere to go.",
+            "no_workstream",
+            "Move it with `bb workstreams thread move <thread> <workstream>`, then track again.",
+          );
+        const environment = thread.environmentId
+          ? await bb.sdk.environments
+              .get({ environmentId: thread.environmentId })
+              .catch(() => null)
+          : null;
+        if (!environment)
+          throw new PullRequestError(
+            "This thread has no machine to read GitHub from.",
+            "no_machine",
+            "Run it from a thread with an environment, or pass --thread for one that has one.",
+          );
+        return { workstreamId, hostId: environment.hostId };
+      },
+    },
     workstreamMigration,
     arrangement: {
       load: () => loadOrder(db),

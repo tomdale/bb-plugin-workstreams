@@ -19,3 +19,19 @@ export const TAG_ICON = "workstreams/tag";
  * sparkles; declared in the manifest like the marks above.
  */
 export const SPARKLES_ICON = "workstreams/sparkles";
+
+/**
+ * GitHub's pull request shapes, drawn in the sidebar's rows and the pull
+ * request view: the branch glyph says open, draft, merged, or closed. BB's icon
+ * set has none, so they are declared in the manifest like the marks above.
+ */
+export const PULL_REQUEST_ICON = {
+  open: "workstreams/pr-open",
+  draft: "workstreams/pr-draft",
+  merged: "workstreams/pr-merged",
+  closed: "workstreams/pr-closed",
+} as const;
+
+/** A check's result in the pull request view: a filled circle with a tick or a cross. */
+export const CHECK_PASSED_ICON = "workstreams/check-passed";
+export const CHECK_FAILED_ICON = "workstreams/check-failed";

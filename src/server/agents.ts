@@ -45,6 +45,9 @@ export function registerAgentInstructions(
       skills: [],
       instructions: [
         questions.instructions,
+        !sideChat
+          ? "When working on a GitHub pull request, run `bb workstreams pr track <url>` to show it in this thread’s workstream. It reads GitHub through this thread’s machine; tracking it again updates that machine. Use `bb workstreams pr list --json` to inspect tracked PRs and `bb workstreams pr untrack <url>` to stop tracking."
+          : null,
         presenting ? RESPONSE_INSTRUCTIONS : mode.replyInstructions,
       ]
         .filter((text): text is string => text !== null)

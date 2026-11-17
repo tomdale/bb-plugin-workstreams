@@ -37,6 +37,7 @@ import {
   usageReportSchema,
 } from "../domain/usage.ts";
 import { entrySchema } from "./journal.ts";
+import { trackedPullRequestSchema } from "../domain/pullRequests.ts";
 import { changeStampSchema, stateSliceSchema } from "../domain/changes.ts";
 
 const analysisSchema = z.object({
@@ -1019,6 +1020,23 @@ export const rpcContract = defineRpcContract({
   usageResume: {
     input: z.null(),
     output: z.object({ state: spendStateSchema }),
+  },
+  /**
+   * Every tracked pull request, ordered ready, failing, running, waiting,
+   * draft, then merged and closed. The server publishes
+   * `pull-requests-changed` when the answer changes.
+   */
+  trackedPullRequests: {
+    input: z.object({}),
+    output: z.object({ items: z.array(trackedPullRequestSchema) }),
+  },
+  /**
+   * Reads one tracked pull request now and answers with its row, or null when
+   * it is not tracked (an ended one leaves an hour after it ended).
+   */
+  refreshTrackedPullRequest: {
+    input: z.object({ id: z.string() }),
+    output: z.object({ item: trackedPullRequestSchema.nullable() }),
   },
 });
 

@@ -27,6 +27,10 @@ import {
 } from "../../domain/workstreamColor.ts";
 import { GroupSnooze, RenderRow, ThreadNode, ThreadRow } from "./types.ts";
 import { WorkstreamGroup } from "./WorkstreamGroup.tsx";
+import {
+  PullRequestList,
+  type PullRequestPlacement,
+} from "./PullRequestList.tsx";
 
 /** The groups drawn inline under `group`, in order, theirs included. */
 export function inlineGroups(group: ThreadNode): ThreadNode[] {
@@ -162,6 +166,8 @@ export type GroupBodyProps = {
   collapsed: boolean;
   renderRow: RenderRow;
   groupSlot: number;
+  /** Which tracked pull requests each group draws, and how a row opens one. */
+  pullRequests: PullRequestPlacement;
   choosingWorkstream: boolean;
   colorOf: (group: ThreadNode) => WorkstreamColor;
   newThreadIn: (group: ThreadNode) => () => void;
@@ -288,12 +294,16 @@ export function NestedGroup(
   );
 }
 
-/** A group's own rows and nested groups, isolated from header and drag updates. */
+/**
+ * A group's pull requests, own rows, and nested groups, isolated from header
+ * and drag updates. The pull requests lead, above every thread.
+ */
 export const GroupBody = memo(
   function GroupBody(props: GroupBodyProps) {
     const { group } = props;
     return (
       <>
+        <PullRequestList groupId={group.id} placement={props.pullRequests} />
         <CategorizedTrees {...props} />
         {inlineGroups(group).map((sub) => (
           <CategorizedTrees
@@ -326,6 +336,7 @@ export const GroupBody = memo(
       before.group === after.group &&
       before.renderRow === after.renderRow &&
       before.groupSlot === after.groupSlot &&
+      before.pullRequests === after.pullRequests &&
       before.choosingWorkstream === after.choosingWorkstream &&
       before.colorOf === after.colorOf &&
       before.newThreadIn === after.newThreadIn &&

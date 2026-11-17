@@ -55,6 +55,7 @@ export const ListedWorkstream = memo(function ListedWorkstream({
   toggleGroup,
   renderRow,
   groupSlot,
+  pullRequests,
   choosingWorkstream,
   colorOf,
   newThreadIn,
@@ -114,6 +115,7 @@ export const ListedWorkstream = memo(function ListedWorkstream({
           collapsed={collapsed}
           renderRow={renderRow}
           groupSlot={groupSlot}
+          pullRequests={pullRequests}
           choosingWorkstream={choosingWorkstream}
           colorOf={colorOf}
           newThreadIn={newThreadIn}
@@ -140,6 +142,7 @@ export const ListedWorkstream = memo(function ListedWorkstream({
       style,
       renderRow,
       groupSlot,
+      pullRequests,
       choosingWorkstream,
       colorOf,
       newThreadIn,

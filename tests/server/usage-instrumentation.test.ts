@@ -89,8 +89,8 @@ const PRIMITIVES: { name: string; pattern: RegExp; sites: Sites }[] = [
     pattern: /hostRpc\.call\(|experimental_client\(/g,
     sites: {
       "src/server/index.ts": [
-        3,
-        "the client, `complete` inside Inference's `complete`, and `present` inside composePresentation",
+        4,
+        "the client, `complete` inside Inference's `complete`, `present` inside composePresentation, and `readPullRequests`, a GitHub status read that spends no provider money",
       ],
     },
   },

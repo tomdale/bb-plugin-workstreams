@@ -628,6 +628,59 @@ foreground text without changing title weight. Unread titles use medium weight.
   and its hover actions: **Focus / Stop focusing**, **New work**, and **Snooze
   \<N\> threads**. On touch screens, a long press opens either menu.
 
+#### Pull requests
+
+Track a pull request from an agent thread with `bb workstreams pr track <url>`.
+The command uses the thread’s workstream and machine; pass `--thread <id>` to
+choose another thread. The machine needs `gh` installed and logged in. Tracking
+the same URL again in the same workstream keeps one row and updates its thread
+and machine.
+
+The sidebar lists the pull requests a workstream tracks above its threads, in a
+nested workstream too. A row follows GitHub's own list: a branch glyph (open,
+draft, merged, or closed), the number and title, then the repository and a
+status word on the second line. The list sits a little apart from the threads,
+and a workstream with none adds no space.
+
+In the sidebar, rows sort by status: **Ready**, then failing (**2 failing**),
+**Running**, **Waiting**, **Draft**, and last the settled ones (**Merged 14m
+ago**, **Closed 41m ago**). Within a status the higher number comes first;
+settled rows put the most recent first. A pull request whose last read failed
+shows **Can't refresh** where the status was, and its view keeps the last status
+GitHub gave.
+
+A pull request belongs to the workstream it was tracked in. Moving the thread
+that linked it never moves the pull request, and a workstream that holds a pull
+request but no thread keeps its header, under its group when it is nested. A
+pull request whose workstream no longer exists lists under Other.
+
+Press a row to open its view on the Workstreams page. The view is read-only. It
+shows the title, repository, and number, the status and the reason for it, the
+description, the branch, and the size of the change. Every check appears with
+its result and duration, and a check's name links to its provider's page. The
+view also links to the thread that tracked the pull request and says when it was
+last checked. **Open on GitHub** opens the pull request in BB's browser. A
+merged or closed pull request says when it leaves the sidebar. When a read
+fails, a banner names the machine that reads the pull request and gives the
+reason.
+
+A connected, active machine reads running checks or unknown mergeability every
+30 seconds and other open pull requests every 5 minutes. Reads run only on the
+captured machine. **Ready** means GitHub reports `CLEAN`, after failing and
+running checks are ruled out; a repository with no checks can be ready.
+
+Merged and closed pull requests stop polling and leave the sidebar one hour
+after GitHub’s merge or close time. To notice a closed pull request reopened
+during that hour, open its view or track it again. Untrack a workstream’s pull
+requests before converting it to a group or applying a migration that removes
+it.
+
+```sh
+bb workstreams pr track <url> [--thread <id>] [--json]
+bb workstreams pr list [--workstream <name-or-id>] [--thread <id>] [--limit 1..100] [--json]
+bb workstreams pr untrack <url-or-id> [--workstream <name-or-id>] [--thread <id>] [--json]
+```
+
 ### Phone Home screen
 
 On compact viewports (when **Sidebar → Home screen → Up Next and workstreams on
@@ -1125,7 +1178,8 @@ The **⋯** menu in the corner opens:
 
 Each opens as its own view with **Back**. Deep links open them directly:
 `/plugins/workstreams/home/activity`, `/organize`, `/usage`, `/debug` (model
-traces), `/gallery`, and `/overview/<workstream>`.
+traces), `/gallery`, `/overview/<workstream>`, and `/pull-request/<id>` (a
+tracked pull request's id, percent-encoded).
 
 #### Overview
 

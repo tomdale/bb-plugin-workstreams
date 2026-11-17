@@ -444,6 +444,14 @@ export function useServerStateReader(): () => ServerState {
   return store.snapshot;
 }
 
+/**
+ * The one RPC client this plugin's surfaces share, so a store keyed on it
+ * (see `pullRequests/store.ts`) is the same one for every surface in the window.
+ */
+export function useSharedRpc(): Rpc {
+  return useStore().rpc;
+}
+
 export function useSharedServerActions() {
   const store = useStore();
   return {

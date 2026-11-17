@@ -112,6 +112,9 @@ describe("configure", () => {
     expect(task.instructions).not.toContain("task thread");
     expect(task.instructions).not.toContain("bb workstreams handoff");
     expect(task.instructions).not.toContain("wf task new");
+    expect(task.instructions).toContain("bb workstreams pr track <url>");
+    expect(task.instructions).toContain("bb workstreams pr list --json");
+    expect(task.instructions).toContain("bb workstreams pr untrack <url>");
     expect(task.tools.map((tool) => tool.name)).toEqual([
       "WorkstreamsRecap",
       "AskUserQuestion",
@@ -166,10 +169,11 @@ describe("configure", () => {
     );
     // Side chats can still ask questions, but get no role or recap.
     expect(delivered(side)).not.toContain("WorkstreamsRecap");
+    expect(delivered(side)).not.toContain("bb workstreams pr track");
     expect(side.tools.map((tool) => tool.name)).toEqual(["AskUserQuestion"]);
     // A thread with no role yet still ends its turns with a recap.
     const unknown = await resolve(w, { id: "hidden-helper" });
-    expect(delivered(unknown)).not.toContain("workstream");
+    expect(delivered(unknown)).toContain("bb workstreams pr track");
     expect(delivered(unknown)).toContain("WorkstreamsRecap");
     expect(delivered(unknown)).toContain(RECAP_INSTRUCTIONS);
   });
