@@ -61,8 +61,8 @@ async function mount(
 ) {
   let seededAlphaId = "";
   world = await fakeWorld({
-    // The composer's preview is the start call's answer for the text sent,
-    // so sending it moves and titles the thread with no second call.
+    // The start call answers both the composer's preview and the call after
+    // send.
     complete: ({ prompt }) =>
       JSON.stringify(
         prompt.includes("You name one new agent thread")
@@ -147,6 +147,8 @@ async function mount(
     const thread = w.addThread("composed", {
       createdAt: Date.now(),
       title: null,
+      // Its first turn is running when the start call answers.
+      status: "active",
       projectId: slot.inspection.composer.selection?.projectId,
     });
     const context = makeMessageDispatchHookContext({
@@ -228,10 +230,10 @@ it.each([true, false])(
       workstreamId: alphaWorkstream.id,
       provenance: "automatic",
     });
-    expect(w.threads.get("composed")).toMatchObject({
-      projectId: "proj_other",
-      title: "Fixing parser tabs",
-    });
+    expect(w.threads.get("composed")?.projectId).toBe("proj_other");
+    await waitFor(() =>
+      expect(w.threads.get("composed")?.title).toBe("Fixing parser tabs"),
+    );
     expect(screen.queryByRole("alert")).toBeNull();
   },
 );
@@ -300,7 +302,8 @@ it("applies an automatic workstream and title when native dispatch has no submit
   await waitFor(() =>
     expect(w.threads.get("composed")?.title).toBe("Fixing parser tabs"),
   );
-  expect(w.completions).toHaveLength(calls);
+  // The start call answers again on the new-thread model after send.
+  expect(w.completions).toHaveLength(calls + 1);
 });
 
 it("applies a manually proposed workstream without submit metadata", async () => {
@@ -378,7 +381,7 @@ it("submits classified automatic identity through host metadata and assigns on s
     status: "assigned",
     provenance: "automatic",
   });
-  // The composer's preview titles the thread, with no second call.
+  // The start call titles the thread after send.
   await waitFor(() =>
     expect(w.threads.get("composed")?.title).toBe("Fixing parser tabs"),
   );

@@ -386,7 +386,7 @@ export function NewWorkSettings() {
       <SectionRows>
         <SettingRow
           label="Name and organize as you write"
-          description="Show a new thread's title and workstream in the composer as you write. Sending the text they answer for starts the thread with both."
+          description="Show a guess at a new thread's title and workstream in the composer as you write. The guessed workstream holds the thread after you send until its start call answers."
           control={
             <SettingSwitch
               label="Name and organize as you write"
@@ -440,8 +440,14 @@ export function ModelsSettings() {
       <SettingsSaveError error={error} />
       <SectionRows>
         <ModelField
+          label="Name and organize as you write"
+          description="Guesses a new thread's title and workstream in the composer while you type, so it needs a model that answers in about a second. The thread's start settles both after you send."
+          choice={prefs.analysis.composerModel}
+          onChange={(composerModel) => update({ analysis: { composerModel } })}
+        />
+        <ModelField
           label="Name and organize new threads"
-          description="Titles a new thread and chooses its workstream, in the composer as you write and when its first request is sent. Also chooses the workstream for a thread you move into a group, and checks whether threads fit their workstream's categories."
+          description="Titles a new thread and chooses its workstream when its first request is sent. Also chooses the workstream for a thread you move into a group, and checks whether threads fit their workstream's categories."
           choice={prefs.analysis.newThreadModel}
           onChange={(newThreadModel) =>
             update({ analysis: { newThreadModel } })

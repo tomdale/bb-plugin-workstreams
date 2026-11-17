@@ -5,7 +5,6 @@ import {
 } from "../../src/server/inference/gateway.ts";
 import { fakeWorld } from "./fake-bb.ts";
 import { savePrefs } from "../../src/server/prefs.ts";
-import { DEFAULT_MODELS } from "../../src/domain/prefs.ts";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -219,8 +218,4 @@ it("sends a gateway choice's service tier with its call", async () => {
   } finally {
     await world.harness.lifecycle.dispose();
   }
-});
-
-it("asks new-thread calls on the fast tier by default", () => {
-  expect(DEFAULT_MODELS.newThread).toMatchObject({ serviceTier: "fast" });
 });

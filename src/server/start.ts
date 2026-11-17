@@ -54,16 +54,6 @@ export type OpeningThread = ChoiceThread & {
   readonly updatedAt: number;
 };
 
-/**
- * What the composer's preview already answered for the text sent: its title
- * (null when the request says nothing), and its workstream unless the workstream must
- * still be asked. An omitted title is asked too.
- */
-export type StartPreset = {
-  readonly title?: string | null;
-  readonly workstream?: WorkstreamChoiceOutput;
-};
-
 /** The part of BB's `message.dispatch` context that tells a first message. */
 type OpeningDispatch = {
   readonly thread: OpeningThread;
@@ -158,38 +148,19 @@ export class ThreadStart {
   /**
    * A thread's first message was admitted and the thread's workstream is chosen
    * from where it started, so the call reads its inherited workstream and
-   * hints. What the composer's preview answered for this text (`preset`) is
-   * applied as is, and only the rest is asked. Never rejects.
+   * hints. The start call titles the thread and chooses its workstream; a
+   * workstream the composer showed holds the thread until it answers. Never
+   * rejects.
    */
-  async onFirstRequest(
-    ctx: OpeningDispatch,
-    preset: StartPreset = {},
-  ): Promise<void> {
+  async onFirstRequest(ctx: OpeningDispatch): Promise<void> {
     try {
       if (ctx.attempt !== "start-turn" || ctx.origin === null) return;
       const thread = ctx.thread;
       if (!this.available(thread) || this.tried.has(thread.id)) return;
       this.tried.add(thread.id);
-      const request = ctx.input.text.trim();
-      if (preset.title && this.deps.titles())
-        void this.deps
-          .title(thread.id, preset.title, revisionOf(thread), null)
-          .catch((error: unknown) =>
-            this.deps.log(`Titling ${thread.id} failed: ${String(error)}`),
-          );
-      if (
-        preset.workstream &&
-        !thread.parentThreadId &&
-        this.deps.unsettled(thread.id)
-      ) {
-        // The basis records which requests settled the workstream.
-        const question = await this.deps.question(thread, request);
-        if (question && this.deps.unsettled(thread.id))
-          this.deps.file(thread.id, preset.workstream, question.basis, null);
-      }
-      await this.start(thread, request, {
-        title: preset.title === undefined,
-        workstream: preset.workstream === undefined,
+      await this.start(thread, ctx.input.text.trim(), {
+        title: true,
+        workstream: true,
       });
     } catch (error) {
       this.deps.log(`Starting ${ctx.thread.id} failed: ${String(error)}`);

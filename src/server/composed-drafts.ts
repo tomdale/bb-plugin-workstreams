@@ -16,16 +16,13 @@ import type { ProjectChoice } from "../domain/projectChoice.ts";
 /**
  * The workstream a composer showed: one you picked (`manual`), the workstream of the
  * workstream whose ＋ opened it (`inherited`, by `sectionId`), or the start
- * call's preview (`automatic`), with the title it gives the thread. An
- * `answered` preview was computed for exactly the text sent.
+ * call's preview (`automatic`).
  */
 export type ComposedIdentity = {
   workstreamId?: string | null;
   proposal?: DraftWorkstreamProposal | null;
   provenance?: "manual" | "automatic" | "inherited";
   sectionId?: string | null;
-  title?: string | null;
-  answered?: boolean;
 } | null;
 
 type Draft = {

@@ -57,16 +57,23 @@ export function gatewayModel(choice: ModelChoice): string | null {
 /** Eval-tested defaults (see eval/). */
 export const DEFAULT_MODELS = {
   /**
-   * Names a new thread and chooses its workstream from a draft or its first
-   * request, while you wait, and answers every other closed workstream choice.
+   * Names a new thread and chooses its workstream from its first request,
+   * and answers every other closed workstream choice.
    */
   newThread: {
     kind: "gateway",
     model: "openai/gpt-6.1-sol",
     reasoningLevel: "none",
-    // The composer asks this call as you type. The fast tier answers about 40%
-    // sooner with the same model and prompt.
-    serviceTier: "fast",
+  },
+  /**
+   * Guesses a draft's title and workstream in the composer as you type, so
+   * it must answer in about a second and cost little per call. The start
+   * call settles both after send on the new-thread model.
+   */
+  composer: {
+    kind: "gateway",
+    model: "google/gemini-3.1-flash-lite",
+    reasoningLevel: "none",
   },
   /** Settles a thread's title, goal, status, and workstream when a turn ends. */
   turnEnd: {
@@ -181,11 +188,13 @@ const GROUPS = {
   },
   analysis: {
     /**
-     * Names new threads and chooses their workstreams: the composer's preview,
-     * a thread's first request, a move into a multi-workstream group,
-     * workstream repair, and the categories fit check.
+     * Names new threads and chooses their workstreams: a thread's first
+     * request, a move into a multi-workstream group, workstream repair, and
+     * the categories fit check.
      */
     newThreadModel: [modelChoiceSchema, DEFAULT_MODELS.newThread],
+    /** Guesses a draft's title and workstream in the composer as you type. */
+    composerModel: [modelChoiceSchema, DEFAULT_MODELS.composer],
     /** Updates a thread's title, goal, status, and workstream when a turn ends. */
     turnEndModel: [modelChoiceSchema, DEFAULT_MODELS.turnEnd],
   },

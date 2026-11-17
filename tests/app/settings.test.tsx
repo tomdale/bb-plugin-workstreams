@@ -32,6 +32,10 @@ const SURFACES = [
 
 /** The model pickers the Models section holds, in order, with their defaults. */
 const MODELS = [
+  [
+    "Name and organize as you write",
+    "vercel-ai-gateway/google/gemini-3.1-flash-lite",
+  ],
   ["Name and organize new threads", "vercel-ai-gateway/openai/gpt-6.1-sol"],
   ["Update threads after each turn", "vercel-ai-gateway/openai/gpt-6.1-sol"],
   ["Arrange categories", "vercel-ai-gateway/anthropic/claude-sonnet-5.5"],
@@ -533,7 +537,7 @@ it("saves New threads preferences", async () => {
   await slot.findByRole("switch", { name: "Name and organize as you write" });
   expect(
     slot.getByText(
-      "Show a new thread's title and workstream in the composer as you write. Sending the text they answer for starts the thread with both.",
+      "Show a guess at a new thread's title and workstream in the composer as you write. The guessed workstream holds the thread after you send until its start call answers.",
     ),
   ).toBeTruthy();
   fireEvent.click(
@@ -605,6 +609,7 @@ it("saves each model to its own preference", async () => {
   const slot = await mount("models");
   await slot.findAllByTestId("bb-provider-model-picker");
   const keys = [
+    { analysis: "composerModel" },
     { analysis: "newThreadModel" },
     { analysis: "turnEndModel" },
     { organize: "categoryModel" },

@@ -123,10 +123,11 @@ categories as **Categories updated**.
 
 A thread started from another thread inherits its workstream. A thread started
 from a workstream's ＋ inherits that workstream. A group supplies a hint for
-choosing among its workstreams rather than an inherited workstream. A composer
-preview of exactly the text sent is the thread's start, settled with `automatic`
-provenance; a preview of earlier text supplies its workstream with `composer`
-provenance. Choosing a workstream in the composer yourself is manual.
+choosing among its workstreams rather than an inherited workstream. The
+composer's preview, asked of a fast model as you type, supplies its workstream
+with `composer` provenance until the thread's start call settles it with
+`automatic` provenance. Choosing a workstream in the composer yourself is
+manual.
 
 A thread's workstream is a closed-set choice made in two calls that also do
 other work: a thread's start (`src/domain/start.ts`), which titles it from its
@@ -261,4 +262,4 @@ Organize page lists organizing suggestions, the threads in No workstream, and
 every workstream and group. With **Record model traces** on, `categories` and
 `category-fit` traces keep the redacted input, validated output, usage, and
 latency. Activity records automatic and observed changes. The composer preview
-is a thread's start, not a repair preview.
+asks the start call's prompt of a faster model; it is not a repair preview.

@@ -285,26 +285,15 @@ describe("NewWork canonical identity reports", () => {
     ]);
   });
 
-  it("sends a preview's title only with the text it answered", () => {
+  it("sends a preview's workstream without its title", () => {
     const identity = {
       workstreamId: null,
       proposal: automaticProposal,
       label: "Export",
       provenance: "automatic" as const,
     };
-    const decision = { ...preview, answered: "Export billing data" };
-    expect(
-      submittedIdentity({ identity, decision, text: " Export billing data " }),
-    ).toEqual({
-      workstreamId: null,
-      proposal: automaticProposal,
-      provenance: "automatic",
-      title: "Export billing data",
-      answered: true,
-    });
-    expect(
-      submittedIdentity({ identity, decision, text: "Export billing data!" }),
-    ).toEqual({
+    // The start call titles the thread after send on the new-thread model.
+    expect(submittedIdentity({ identity })).toEqual({
       workstreamId: null,
       proposal: automaticProposal,
       provenance: "automatic",

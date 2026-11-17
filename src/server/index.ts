@@ -42,7 +42,7 @@ import { hostContract } from "./inference/contract.ts";
 import { openDatabase } from "./db.ts";
 import { Journal } from "./journal.ts";
 import { Inference } from "./model.ts";
-import { ThreadStart, type OpeningThread, type StartPreset } from "./start.ts";
+import { ThreadStart, type OpeningThread } from "./start.ts";
 import { agentReport, reportedStatus } from "../domain/recap.ts";
 import { loadOrder, saveOrder } from "./order.ts";
 import { loadSpinner, saveSpinner } from "./spinner.ts";
@@ -769,7 +769,7 @@ export default async function plugin(bb: BbPluginApi) {
     workstreamStore,
     workstreamChoice,
     inference,
-    model: async () => currentPrefs().analysis.newThreadModel,
+    model: async () => currentPrefs().analysis.composerModel,
   });
   // The workstream the New thread composer showed, for threads a plain Enter
   // creates without the composer's submit data.
@@ -777,16 +777,15 @@ export default async function plugin(bb: BbPluginApi) {
   const journaledStarts = new Set<string>();
   /**
    * Gives a composed thread the workstream its composer showed: one you picked,
-   * or the workstream of the workstream whose ＋ opened it. Returns what the
-   * composer's preview already answered for the thread's start: a preview of
-   * exactly the text sent is its start, title and workstream both; a preview of
-   * earlier text chooses the thread's workstream until the start call settles
-   * it.
+   * or the workstream of the workstream whose ＋ opened it. A workstream the
+   * composer's preview guessed holds the thread until the start call, on the
+   * new-thread model, settles it: the preview runs on a faster model that
+   * answers while you type.
    */
   const fileComposedIdentity = (
     thread: OpeningThread,
     identity: ComposedIdentity,
-  ): StartPreset | undefined => {
+  ): void => {
     if (!identity) return;
     const threadId = thread.id;
     // The composer's workstream holds the thread in whatever project it
@@ -834,15 +833,6 @@ export default async function plugin(bb: BbPluginApi) {
       return;
     }
     if (identity.provenance !== "automatic") return;
-    if (identity.answered)
-      return {
-        title: identity.title ?? null,
-        workstream: {
-          workstreamId: identity.workstreamId ?? null,
-          proposed: identity.proposal ?? null,
-          scopeShift: false,
-        },
-      };
     if (identity.workstreamId || identity.proposal)
       applyWorkstream(
         threadId,
@@ -960,7 +950,6 @@ export default async function plugin(bb: BbPluginApi) {
             rationale: "Started from New thread",
           });
         else service.seeThread(ctx.thread.id, null, ctx.parentThreadId ?? null);
-        let preset: StartPreset | undefined;
         // Hidden threads (workflow and subagent workers) are never listed,
         // so they get no workstream and cost no model call.
         if (!ctx.parentThreadId && ctx.thread.visibility !== "hidden") {
@@ -971,9 +960,9 @@ export default async function plugin(bb: BbPluginApi) {
             if (source)
               workstreamChoice.hintStart(ctx.thread.id, source, "thread");
           }
-          if (identity) preset = fileComposedIdentity(ctx.thread, identity);
+          if (identity) fileComposedIdentity(ctx.thread, identity);
         }
-        void starts.onFirstRequest(ctx, preset);
+        void starts.onFirstRequest(ctx);
         triggerOrganizer(10);
       } catch (error: unknown) {
         bb.log.warn(`Filing a new thread failed: ${String(error)}`);

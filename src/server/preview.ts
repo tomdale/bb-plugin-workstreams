@@ -3,7 +3,8 @@
  * thread's start would give it (see `domain/start.ts`), or the workstream of a
  * workstream the draft mentions. It changes nothing, and it never sends the
  * draft anywhere: the composer creates the thread, and the workstream decides its
- * workstream. Sending the text a preview answered reuses that answer.
+ * workstream. It runs on its own fast model so it can answer while you type;
+ * the thread's start call asks the new-thread model again after send.
  */
 import { randomUUID } from "node:crypto";
 import type { BbPluginApi } from "@get-bb/plugin-sdk";
@@ -28,12 +29,6 @@ export type Preview = {
   proposal?: DraftWorkstreamProposal | null;
   /** The title the thread would start with. */
   title?: string | null;
-  /**
-   * The draft text this answer is for, trimmed. A model answer for exactly
-   * the text that is sent is that thread's start; a mentioned workstream has
-   * none.
-   */
-  answered?: string | null;
   /** The debug trace of the model call behind it, if any. */
   traceId: string | null;
   /**
@@ -50,7 +45,7 @@ export class ComposerPreview {
       workstreamStore: WorkstreamStore;
       workstreamChoice: Pick<WorkstreamChoice, "draft">;
       inference: Inference;
-      /** The model that names new threads and chooses their workstreams. */
+      /** The model that guesses a draft's title and workstream as you write. */
       model: () => Promise<ModelChoice>;
     },
   ) {}
@@ -108,7 +103,6 @@ export class ComposerPreview {
       workstreamId: workstream?.workstreamId ?? null,
       proposal: workstream?.proposed ?? null,
       title: value.title,
-      answered: text,
       traceId,
     };
   }

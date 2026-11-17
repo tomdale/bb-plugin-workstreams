@@ -1,3 +1,4 @@
+import { DEFAULT_MODELS } from "../../src/domain/prefs.ts";
 /**
  * How a new thread gets its first workstream and title: the workstream you
  * picked in the composer, the workstream whose ＋ opened it, the
@@ -173,38 +174,7 @@ describe("a new thread's first workstream", () => {
     expect(w.threads.get("t1")?.title).toBe("Tab handling");
   });
 
-  it("is the composer's preview of exactly the text sent, with no second call", async () => {
-    const {
-      w,
-      workstreamStore: workstreamStore,
-      docs,
-      dispatch,
-      settle,
-    } = await setup();
-    await w.harness.behavior.callRpc("draftIdentity", {
-      draftKey: "d1",
-      text: "Write the docs",
-      identity: {
-        workstreamId: docs.id,
-        proposal: null,
-        provenance: "automatic",
-        title: "Docs for tabs",
-        answered: true,
-      },
-    });
-    await dispatch("t1", "Write the docs");
-    await settle();
-    expect(startCalls(w)).toHaveLength(0);
-    // The preview was the thread's start, so its workstream is settled.
-    expect(workstreamStore.assignment("t1")).toMatchObject({
-      workstreamId: docs.id,
-      provenance: "automatic",
-    });
-    expect(workstreamStore.basis("t1")).toBeTruthy();
-    expect(w.threads.get("t1")?.title).toBe("Docs for tabs");
-  });
-
-  it("chooses the workstream by a preview of earlier text until the start call answers the text sent", async () => {
+  it("chooses the workstream by the composer's preview until the start call answers", async () => {
     const {
       w,
       workstreamStore: workstreamStore,
@@ -281,41 +251,36 @@ describe("a new thread's first workstream", () => {
     });
   });
 
-  it.each([true, false])(
-    "keeps an automatic preview across projects (answered: %s)",
-    async (answered) => {
-      const {
-        w,
-        workstreamStore: workstreamStore,
-        docs,
-        dispatch,
-        settle,
-      } = await setup();
-      workstreamStore.edit(docs.id, {
-        projectId: "proj_elsewhere",
-        projectSource: "manual",
-      });
-      await w.harness.behavior.callRpc("draftIdentity", {
-        draftKey: "d1",
-        text: "Make the parser handle tabs",
-        identity: {
-          workstreamId: docs.id,
-          proposal: null,
-          provenance: "automatic",
-          ...(answered ? { answered: true, title: "Writing tab docs" } : {}),
-        },
-      });
-      await dispatch("t1", "Make the parser handle tabs");
-      await settle();
-      expect(workstreamStore.assignment("t1")).toMatchObject({
+  it("keeps an automatic preview across projects", async () => {
+    const {
+      w,
+      workstreamStore: workstreamStore,
+      docs,
+      dispatch,
+      settle,
+    } = await setup();
+    workstreamStore.edit(docs.id, {
+      projectId: "proj_elsewhere",
+      projectSource: "manual",
+    });
+    await w.harness.behavior.callRpc("draftIdentity", {
+      draftKey: "d1",
+      text: "Make the parser handle tabs",
+      identity: {
         workstreamId: docs.id,
-        provenance: answered ? "automatic" : "composer",
-      });
-      expect(w.threads.get("t1")?.projectId).toBe("proj_1");
-      expect(startCalls(w)).toHaveLength(answered ? 0 : 1);
-      if (answered) expect(w.threads.get("t1")?.title).toBe("Writing tab docs");
-    },
-  );
+        proposal: null,
+        provenance: "automatic",
+      },
+    });
+    await dispatch("t1", "Make the parser handle tabs");
+    await settle();
+    expect(workstreamStore.assignment("t1")).toMatchObject({
+      workstreamId: docs.id,
+      provenance: "composer",
+    });
+    expect(w.threads.get("t1")?.projectId).toBe("proj_1");
+    expect(startCalls(w)).toHaveLength(1);
+  });
 
   it("is the workstream whose ＋ opened the composer", async () => {
     const {
@@ -438,5 +403,9 @@ describe("the composer's preview", () => {
       proposal: { name: "Reservations" },
     });
     expect(workstreamStore.list()).toEqual([]);
+    // The preview answers on the fast composer model, not the new-thread one.
+    expect(world.completions.at(-1)).toMatchObject({
+      model: DEFAULT_MODELS.composer.model,
+    });
   });
 });

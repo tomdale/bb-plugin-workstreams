@@ -76,23 +76,15 @@ export function isPicked(identity: IdentityChoice): boolean {
 
 /** What the server moves the thread by: the workstream the field shows. */
 export function submittedIdentity(
-  state: Pick<NewWorkState, "identity" | "decision" | "text">,
+  state: Pick<NewWorkState, "identity">,
 ): ComposedIdentity {
   const identity = state.identity;
   if (!identity) return null;
-  // A preview of exactly this text is the thread's start: its title travels
-  // with its workstream, so the server doesn't ask again. A preview of earlier
-  // text still shows its workstream, and the server asks after send.
-  const answered =
-    identity.provenance === "automatic" &&
-    !!state.decision?.answered &&
-    state.decision.answered === state.text.trim();
   return {
     workstreamId: identity.workstreamId,
     proposal: identity.proposal,
     provenance: identity.provenance,
     ...(identity.sectionId ? { sectionId: identity.sectionId } : {}),
-    ...(answered ? { title: state.decision?.title ?? null, answered } : {}),
   };
 }
 
@@ -182,8 +174,6 @@ function reportsEqual(
     (identityA.workstreamId ?? null) === (identityB.workstreamId ?? null) &&
     identityA.provenance === identityB.provenance &&
     (identityA.sectionId ?? null) === (identityB.sectionId ?? null) &&
-    (identityA.title ?? null) === (identityB.title ?? null) &&
-    !!identityA.answered === !!identityB.answered &&
     proposalsEqual(identityA.proposal, identityB.proposal)
   );
 }

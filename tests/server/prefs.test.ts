@@ -273,7 +273,7 @@ describe("Workstreams prefs", () => {
     );
   });
 
-  it("starts the new-thread and turn-end models at their defaults", () => {
+  it("starts the analysis models at their defaults", () => {
     expect(
       parsePrefs({
         analysis: {
@@ -283,6 +283,7 @@ describe("Workstreams prefs", () => {
       }).analysis,
     ).toEqual({
       newThreadModel: DEFAULT_MODELS.newThread,
+      composerModel: DEFAULT_MODELS.composer,
       turnEndModel: DEFAULT_MODELS.turnEnd,
     });
   });

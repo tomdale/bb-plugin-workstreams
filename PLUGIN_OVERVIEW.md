@@ -16,8 +16,9 @@ optional Stream Deck plugin.
   stores state in the plugin database (`db.ts`), and applies every change to BB
   sections through one serial queue (`service.ts`).
   - A thread's start (`start.ts`) is one call that titles a new thread and
-    chooses its workstream. The composer asks it about a draft as you type and
-    reuses the answer when you send that text.
+    chooses its workstream. The composer asks the same prompt of a faster model
+    about a draft as you type; its workstream holds the thread until the start
+    call answers after send.
   - A turn's end (`analyzer.ts`) is one call that settles the title, goal, and
     context digest, supplies the status when the agent didn't report one, and,
     after a new request, decides whether the workstream changes. The agent's

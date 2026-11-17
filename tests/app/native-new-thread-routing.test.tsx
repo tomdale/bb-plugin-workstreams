@@ -217,11 +217,7 @@ function mount(
   } = {},
 ) {
   const Component = options.component ?? RootComposer;
-  // A model answer is for the text it was asked about, as the server's is.
-  const route = vi.fn(async (input: unknown) => ({
-    ...decision,
-    answered: (input as { prompt: string }).prompt.trim(),
-  }));
+  const route = vi.fn(async () => decision);
   const routeCancel = vi.fn(async () => ({ canceled: true }));
   const draftIdentity = vi.fn(async () => ({ filed: false }));
   const metadataUpdates = vi.fn(async (input: unknown) => ({
@@ -346,8 +342,6 @@ it("fills the field with the classified identity and submits it through host sub
         workstreamId: "ent_alpha",
         proposal: null,
         provenance: "automatic",
-        title: "Alpha parser",
-        answered: true,
       },
     },
   });
@@ -435,8 +429,6 @@ it("submits proposal identity when proposing a new feature", async () => {
         workstreamId: null,
         proposal: { name: "Billing", description: "Invoices" },
         provenance: "automatic",
-        title: null,
-        answered: true,
       },
     },
   });
@@ -470,8 +462,6 @@ it("reports the draft's identity so a plain Enter gets its workstream", async ()
         workstreamId: "ent_alpha",
         proposal: null,
         provenance: "automatic",
-        title: "Alpha parser",
-        answered: true,
       },
     }),
   );
@@ -699,7 +689,6 @@ it.each([
         identity: {
           workstreamId: "ent_alpha",
           provenance: "automatic",
-          answered: true,
         },
       },
     });

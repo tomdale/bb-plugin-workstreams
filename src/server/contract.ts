@@ -165,18 +165,15 @@ export type RepairPreview = z.infer<typeof repairPreviewSchema>;
 
 /**
  * The workstream the New thread composer shows for a draft. `automatic` is the
- * start call's preview, with the title it would give the thread; `answered`
- * marks a preview of exactly the text sent, which is then that thread's
- * start. `inherited` is the workstream of the workstream whose ＋ opened the
- * composer.
+ * composer preview's guess, which holds the thread until its start call
+ * settles it. `inherited` is the workstream of the workstream whose ＋ opened
+ * the composer.
  */
 const taskIdentitySubmissionSchema = z.object({
   workstreamId: z.string().min(1).nullable().optional(),
   proposal: draftWorkstreamProposalSchema.nullable().optional(),
   provenance: z.enum(["manual", "automatic", "inherited"]).optional(),
   sectionId: z.string().min(1).nullable().optional(),
-  title: z.string().max(200).nullable().optional(),
-  answered: z.boolean().optional(),
 });
 
 export const projectChoiceSchema = z.object({
@@ -354,8 +351,6 @@ const previewSchema = z.object({
   proposal: draftWorkstreamProposalSchema.nullable().optional(),
   /** The title the new thread would start with. */
   title: z.string().nullable().optional(),
-  /** The trimmed draft text a model answer is for. */
-  answered: z.string().nullable().optional(),
   traceId: z.string().nullable(),
   explanation: z
     .object({ notes: z.array(z.string()), durationMs: z.number() })
