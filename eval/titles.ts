@@ -1,10 +1,5 @@
 import { writeFile } from "node:fs/promises";
-import {
-  descriptionPrompt,
-  descriptionSchema,
-  parseDescription,
-  type DescriptionInput,
-} from "../src/domain/analysis.ts";
+import type { DescriptionInput } from "../src/domain/analysis.ts";
 import {
   gatewayComplete,
   gatewayKey,
@@ -30,13 +25,12 @@ import { pathNames } from "../src/domain/workstream-path.ts";
  * prompts, schemas, and parsers; it never applies results to the plugin.
  *
  * - `EVAL_KIND=start` (default): a thread's start names it from its opening
- *   request and, for a root, files it; a root's listed group becomes its
- *   topic tree.
+ *   request and, for a thread with no parent, chooses its workstream; the
+ *   case's listed workstream becomes its tree.
  * - `EVAL_KIND=turn-end`: the turn-end call names it after its first turn,
- *   with that topic already chosen; `full` asks Full analysis alone.
+ *   with that workstream already chosen.
  * - `EVAL_KIND=turn-end-follow`: the turn-end call sees a title Workstreams
- *   wrote and a later request, and keeps the title or renames it; `follow`
- *   asks Full analysis alone.
+ *   wrote and a later request, and keeps the title or renames it.
  *
  * A new title passes when it starts with an -ing verb that says what kind of
  * work it is, names its case's subject, repeats nothing the sidebar already
@@ -47,14 +41,10 @@ import { pathNames } from "../src/domain/workstream-path.ts";
 const apiKey = await gatewayKey();
 if (!apiKey) throw new Error("AI Gateway authentication required");
 const kind = process.env.EVAL_KIND ?? "start";
-const KINDS = ["full", "follow", "start", "turn-end", "turn-end-follow"];
+const KINDS = ["start", "turn-end", "turn-end-follow"];
 if (!KINDS.includes(kind))
   throw new Error(`EVAL_KIND must be one of ${KINDS.join(", ")}`);
-const model =
-  process.env.EVAL_MODEL ??
-  (kind === "full" || kind === "follow"
-    ? "openai/gpt-6-sol-fast"
-    : "openai/gpt-6.1-sol");
+const model = process.env.EVAL_MODEL ?? "openai/gpt-6.1-sol";
 const reasoningLevel = process.env.EVAL_REASONING_LEVEL ?? "none";
 const repetitions = Number(process.env.EVAL_REPETITIONS ?? 3);
 if (!Number.isInteger(repetitions) || repetitions < 1 || repetitions > 20)
@@ -92,10 +82,10 @@ function newTitleProblems(
 }
 
 /**
- * A topic tree holding a case's listed group ("Atlas › Billing" is a product
- * and its capability), with the leaf as the topic to choose.
+ * A tree holding a case's listed workstream ("Atlas › Billing" is a product
+ * and its capability), with the last name as the workstream to choose.
  */
-function placementFor(
+function choiceFor(
   group: string | null,
 ): Omit<WorkstreamChoiceInput, "requests" | "title"> {
   const names = pathNames(group ?? "");
@@ -116,7 +106,7 @@ function placementFor(
 }
 
 const jobs: Job[] = [];
-if (kind === "follow" || kind === "turn-end-follow")
+if (kind === "turn-end-follow")
   for (const test of followUpCases) {
     const input: DescriptionInput = {
       title: test.title,
@@ -128,21 +118,13 @@ if (kind === "follow" || kind === "turn-end-follow")
     };
     const turnEnd: TurnEndInput = {
       ...input,
-      choice: { ...placementFor(null), title: null, requests: [] },
+      choice: { ...choiceFor(null), title: null, requests: [] },
     };
     jobs.push({
       id: test.id,
-      ...(kind === "follow"
-        ? {
-            prompt: descriptionPrompt(input),
-            schema: descriptionSchema(input),
-            parse: (text: string) => parseDescription(text, input).title,
-          }
-        : {
-            prompt: turnEndPrompt(turnEnd),
-            schema: turnEndSchema(turnEnd),
-            parse: (text: string) => parseTurnEnd(text, turnEnd).title,
-          }),
+      prompt: turnEndPrompt(turnEnd),
+      schema: turnEndSchema(turnEnd),
+      parse: (text: string) => parseTurnEnd(text, turnEnd).title,
       check: (title) =>
         test.expect === "keep"
           ? title && title !== test.title
@@ -159,8 +141,9 @@ else
       workstream: test.group ?? null,
       parent: test.parent ?? null,
     };
-    // A child thread is only named; a root chooses its listed group.
-    const choice = test.parent ? null : placementFor(test.group ?? null);
+    // A child thread is only named; a thread with no parent chooses its
+    // listed workstream.
+    const choice = test.parent ? null : choiceFor(test.group ?? null);
     if (kind === "start") {
       const input: StartInput = {
         request: test.request,
@@ -175,7 +158,7 @@ else
         parse: (text) => parseStart(text, input).title,
         check: (title) => newTitleProblems(title, test),
       });
-    } else if (kind === "turn-end") {
+    } else {
       const input: TurnEndInput = {
         title: test.request.slice(0, 60),
         titledBy: "none",
@@ -194,22 +177,6 @@ else
         prompt: turnEndPrompt(input),
         schema: turnEndSchema(input),
         parse: (text) => parseTurnEnd(text, input).title,
-        check: (title) => newTitleProblems(title, test),
-      });
-    } else {
-      const input: DescriptionInput = {
-        title: test.request.slice(0, 60),
-        titledBy: "none",
-        requests: [{ text: test.request, initial: true }],
-        lastAssistantText: null,
-        mode: "full",
-        listing,
-      };
-      jobs.push({
-        id: test.id,
-        prompt: descriptionPrompt(input),
-        schema: descriptionSchema(input),
-        parse: (text) => parseDescription(text, input).title,
         check: (title) => newTitleProblems(title, test),
       });
     }

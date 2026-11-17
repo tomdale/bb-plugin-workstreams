@@ -1,10 +1,5 @@
 import { writeFile } from "node:fs/promises";
-import {
-  descriptionPrompt,
-  descriptionSchema,
-  parseDescription,
-  type DescriptionInput,
-} from "../src/domain/analysis.ts";
+import type { DescriptionInput } from "../src/domain/analysis.ts";
 import {
   parseTurnEnd,
   turnEndPrompt,
@@ -93,13 +88,6 @@ const cases: {
 const apiKey = await gatewayKey();
 if (!apiKey) throw new Error("AI Gateway authentication required");
 const model = process.env.EVAL_MODEL ?? "openai/gpt-6.1-sol";
-/**
- * `turn-end` (default) asks the turn-end call, which also chooses the
- * thread's topic from a small tree; `full` asks Full analysis alone.
- */
-const kind = process.env.EVAL_KIND ?? "turn-end";
-if (kind !== "full" && kind !== "turn-end")
-  throw new Error("EVAL_KIND must be full or turn-end");
 const reasoningLevel = process.env.EVAL_REASONING_LEVEL ?? "none";
 const repetitions = Number(process.env.EVAL_REPETITIONS ?? 3);
 if (!Number.isInteger(repetitions) || repetitions < 1 || repetitions > 20)
@@ -171,17 +159,12 @@ await Promise.all(
           apiKey,
           model,
           reasoningLevel,
-          prompt:
-            kind === "full" ? descriptionPrompt(input) : turnEndPrompt(turnEnd),
-          outputSchema:
-            kind === "full" ? descriptionSchema(input) : turnEndSchema(turnEnd),
+          prompt: turnEndPrompt(turnEnd),
+          outputSchema: turnEndSchema(turnEnd),
         });
         response = completion.text;
         usage = completion.usage;
-        const output =
-          kind === "full"
-            ? parseDescription(response, input)
-            : parseTurnEnd(response, turnEnd);
+        const output = parseTurnEnd(response, turnEnd);
         goal = output.goal ?? test.current ?? null;
         if (!goal) problems.push("no outcome");
         if (test.keep && goal !== test.current)

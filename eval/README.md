@@ -108,16 +108,12 @@ thread also under its parent thread. `EVAL_KIND` selects the call:
 - `turn-end-follow`: the turn-end call sees a title Workstreams wrote and a
   later request. A request that only takes the work to its next step must keep
   the title, and one that changes the goal must rename it.
-- `full` and `follow`: the same checks as `turn-end` and `turn-end-follow`,
-  asked of the description prompt in `src/domain/analysis.ts` alone, without the
-  workstream choice.
 
 A new title passes when it starts with an -ing verb that says what kind of work
 it is, includes its case's subject, repeats nothing its listing shows, and fits
 a sidebar row (`EVAL_VISIBLE`, default `34` characters).
 
-- `EVAL_MODEL`: default `openai/gpt-6.1-sol`, or `openai/gpt-6-sol-fast` for
-  `full` and `follow`
+- `EVAL_MODEL`: default `openai/gpt-6.1-sol`
 - `EVAL_REASONING_LEVEL`: default `none`
 - `EVAL_REPETITIONS`: 1–20; default `3`
 - `EVAL_OUTPUT`: default `/tmp/title-eval.json`
@@ -126,14 +122,12 @@ a sidebar row (`EVAL_VISIBLE`, default `34` characters).
 
 `node eval/goals.ts` evaluates the production turn-end prompt, schema, and
 parser, which also chooses a workstream from a small list, on synthetic
-implementation, refactoring, design, and audit requests. `EVAL_KIND=full` asks
-the description prompt alone instead. Cases include misleading recap headlines,
-housekeeping and testing follow-ups, a real change of purpose, and a title the
-user wrote. Goals must keep the settled outcome through intermediate steps and
-follow changes in what the user wants.
+implementation, refactoring, design, and audit requests. Cases include
+misleading recap headlines, housekeeping and testing follow-ups, a real change
+of purpose, and a title the user wrote. Goals must keep the settled outcome
+through intermediate steps and follow changes in what the user wants.
 
 - `EVAL_MODEL`: default `openai/gpt-6.1-sol`
-- `EVAL_KIND`: `turn-end` (default) or `full`
 - `EVAL_REASONING_LEVEL`: default `none`
 - `EVAL_REPETITIONS`: 1–20; default `3`
 - `EVAL_OUTPUT`: default `/tmp/goal-eval.json`
