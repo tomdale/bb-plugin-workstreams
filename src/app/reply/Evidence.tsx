@@ -1,4 +1,4 @@
-import { memo, useMemo, type ComponentProps } from "react";
+import { Fragment, memo, useMemo, type ComponentProps } from "react";
 import {
   Markdown,
   UrlLink,
@@ -9,7 +9,8 @@ import {
   evidenceFilePath,
   type ReplyEvidence,
 } from "../../domain/replyComponents.ts";
-import { normalizeReplyMarkdown } from "./markdown.ts";
+import { mentionBlocks, normalizeReplyMarkdown } from "./markdown.ts";
+import type { MentionSegment } from "../../domain/threadMentions.ts";
 import { BODY_CLASS } from "./type.ts";
 import { ActivityThreadLink } from "../page/ActivityThreadLink.tsx";
 
@@ -29,10 +30,80 @@ export const PlainMarkdown = memo(function PlainMarkdown({
     () => (content ? normalizeReplyMarkdown(content) : content),
     [content],
   );
-  return normalized ? (
-    <Markdown content={normalized} experimental_document={document} />
-  ) : null;
+  const blocks = useMemo(
+    () => (normalized ? mentionBlocks(normalized) : null),
+    [normalized],
+  );
+  if (!normalized) return null;
+  if (blocks?.length === 1 && blocks[0]!.kind === "markdown")
+    return <Markdown content={normalized} experimental_document={document} />;
+  return (
+    <>
+      {blocks?.map((block, index) =>
+        block.kind === "markdown" ? (
+          <Markdown
+            key={index}
+            content={block.text}
+            experimental_document={document}
+          />
+        ) : (
+          <MentionParagraph
+            key={index}
+            segments={block.segments}
+            document={document}
+          />
+        ),
+      )}
+    </>
+  );
 });
+
+/**
+ * A paragraph holding thread mentions. BB's Markdown draws `@thread:<id>` as
+ * text once it has a document, so the mentions render here as the same chips
+ * the recap card uses, between inline runs of Markdown.
+ */
+function MentionParagraph({
+  segments,
+  document,
+}: {
+  segments: MentionSegment[];
+  document: ReplyDocument;
+}) {
+  return (
+    <div className="my-[0.75em] min-w-0 first:mt-0 last:mb-0">
+      {segments.map((segment, index) => {
+        if (segment.kind === "thread")
+          return (
+            <span
+              key={index}
+              className="-my-[0.5em] inline-block max-w-[16rem] align-middle leading-none [&>a]:text-[0.85em]"
+            >
+              <ActivityThreadLink
+                threadId={segment.threadId}
+                fallback={segment.threadId}
+              />
+            </span>
+          );
+        // Markdown trims its source, so edge spaces are kept outside it.
+        const body = segment.text.trim();
+        return (
+          <Fragment key={index}>
+            {/^\s/.test(segment.text) ? " " : null}
+            {body ? (
+              <Markdown
+                content={body}
+                experimental_document={document}
+                className="!inline !text-[length:inherit] !leading-[inherit] [&_p]:!m-0 [&_p]:!inline"
+              />
+            ) : null}
+            {/\s$/.test(segment.text) && body ? " " : null}
+          </Fragment>
+        );
+      })}
+    </div>
+  );
+}
 
 /**
  * Where a row's claim was checked: a link into the workspace or the web, or a

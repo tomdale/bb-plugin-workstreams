@@ -841,6 +841,9 @@ which adds a message-block slot, you also get **Structured replies**:
   `::inline-vis{source="thread-storage" file="report.html"}` render through BB's
   installed directive plugins in body order, including after card sections or
   Details. Missing or disabled directive plugins leave the source readable.
+- A `@thread:<id>` mention in a top-level paragraph of the body renders as a
+  clickable thread chip, as in the recap card. A mention inside a list, table,
+  or quote stays text.
 - The body renders through BB's renderer. Prose stays plain Markdown, and a part
   is drawn by its shape: a part whose data is a list of parallel rows — checks,
   a delivery, a sequence, a comparison, a change, a supporting group — sits in a
