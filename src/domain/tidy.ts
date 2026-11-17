@@ -353,7 +353,7 @@ export type TidyInput = {
 
 const TIDY_RULES = `You maintain the workstreams and groups that organize someone's agent threads in a sidebar. A workstream holds threads; a group holds workstreams. Propose at most ${TIDY_EDITS_MAX} edits that make them a clean, stable map of their work, or none when they are already clean. Each edit is shown to the user with your reason, so make each one worth a click.
 
-Good organization: top-level entries are contexts (an employer, a personal toolbox, personal life) once there is evidence for at least two; below them, products or areas; below those, capabilities. Names are areas, never tasks, questions, pull requests, or bugs. One workstream per area: merge duplicates and near-duplicates. A workstream that belongs to a larger product goes into it. Workstreams side by side that are parts of one larger product or area get a new group: create it, listing them as its children. Move threads that sit under the wrong product. A repository or workspace used to route or coordinate work is not a product. Name workstreams and groups in Title Case, keeping product names' own spelling.
+Good organization: a group holds either a product's features or a category's products (a category is an employer, a personal toolbox, or personal life); create one once there is evidence for at least two workstreams in it. A workstream needs no group. Groups don't nest, so a capability of a product that is itself a workstream sits beside that product in its group, never below it. Names are areas, never tasks, questions, pull requests, or bugs. One workstream per area: merge duplicates and near-duplicates. A workstream that belongs to a larger product goes into it. Workstreams side by side that are parts of one larger product or area get a new group: create it, listing them as its children. Move threads that sit under the wrong product. A repository or workspace used to route or coordinate work is not a product. Name workstreams and groups in Title Case, keeping product names' own spelling.
 
 Prefer concise, meaningful names in context: avoid repeating information already conveyed by the group an entry is in. Preserve established names of products and tools even when they repeat context, and retain distinctions between workstreams. Suggest renames when they improve clarity without changing an entry's scope or group.
 
@@ -361,9 +361,9 @@ A workstream holds threads and a group holds workstreams, never both: never move
 
 Edits:
 - merge {from, into}: move every thread and workstream of \`from\` into \`into\` and delete \`from\`
-- move-workstream {workstream, parent, name}: move a workstream or group into another; parent null makes it top-level. name is its new name, or null to keep it. When its name repeats the new parent's, drop redundant words without changing an established product or tool name: "Beacon Code Review" in "Beacon" becomes "Code Review".
+- move-workstream {workstream, parent, name}: move a workstream into a group, or a workstream or group to the top level with parent null. name is its new name, or null to keep it. When its name repeats the new parent's, drop redundant words without changing an established product or tool name: "Beacon Code Review" in "Beacon" becomes "Code Review".
 - rename {workstream, name}
-- group {name, description, parent, children}: a new group, adopting existing workstreams as its children
+- group {name, description, parent, children}: a new top-level group (parent null, since groups don't nest), adopting existing workstreams as its children
 - move-thread {thread, workstream}: move one thread into a workstream
 Refer to workstreams, groups, and threads by the IDs inside the square brackets, without the brackets: [settings] is "settings" and [r12] is "r12". A group created earlier in the same list can be referenced as "new:<name>".`;
 

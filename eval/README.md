@@ -144,12 +144,14 @@ synthetic set is not a production accuracy or reader-comprehension estimate.
 `tidy` call, shown as Suggested changes in model traces) on synthetic
 workstreams and groups, and drops edits the structure's rules refuse, as
 production does. Each case in `eval/tidy-cases.ts` lists edits that must appear
-(moving a workstream into the product it is part of, renames that remove a
-repeated parent name, one home for a near-duplicate) and edits that must not
-(moving a personal tool into a work product whose capability has a similar
-name). The report lists each reason that doesn't mention a workstream or thread
-from its own edit (`offWorkstream`); a case that expects a rename passes only
-when the move or rename gives the expected name.
+(moving a workstream into the product it is part of, a capability joining its
+product's group rather than a third level, renames that remove a repeated parent
+name, one home for a near-duplicate) and edits that must not (moving a personal
+tool into a work product whose capability has a similar name). Every case is a
+valid two-level tree. The report lists each reason that doesn't mention a
+workstream or thread from its own edit (`offWorkstream`) and each edit
+production would refuse, with the rule it breaks (`refused`); a case that
+expects a rename passes only when the move or rename gives the expected name.
 
 - `EVAL_MODEL`: model ID; default `anthropic/claude-sonnet-5.5`
 - `EVAL_REASONING_LEVEL`: default `medium`

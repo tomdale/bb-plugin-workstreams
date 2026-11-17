@@ -90,41 +90,28 @@ export const cases: TidyCase[] = [
   {
     id: "prefix-sibling",
     about:
-      "This case expects a group named for part of another product to move under it",
+      "A top-level workstream named for part of a product moves into that product's group",
     input: input(
       [
         ...BACKDROP,
         ["beacon", "Beacon", null, "Investigation assistant product at work"],
         [
-          "auto",
-          "Automations",
-          "beacon",
-          "Scheduled and triggered assistant runs",
-        ],
-        [
           "auto-alerts",
           "Alert Investigations",
-          "auto",
+          "beacon",
           "Automations that investigate alerts",
         ],
-        ["auto-design", "Design", "auto", "Designing the automations product"],
+        [
+          "auto-design",
+          "Automations Design",
+          "beacon",
+          "Designing the automations product",
+        ],
         [
           "review",
           "Beacon Code Review",
           null,
           "Beacon's pull request review feature",
-        ],
-        [
-          "review-approvals",
-          "PR Approvals",
-          "review",
-          "Approving pull requests automatically",
-        ],
-        [
-          "review-ship",
-          "Feature Shipping",
-          "review",
-          "Shipping review features",
         ],
       ],
       [
@@ -133,16 +120,16 @@ export const cases: TidyCase[] = [
         "auto-alerts: Verify alert investigation in staging",
         "auto-design: Design automations MVP",
         "auto-design: Plan automations CLI commands",
-        "review-approvals: Gate auto-approval behind a flag",
-        "review-approvals: Align approval billing",
-        "review-ship: Ship inline review summaries",
-        "review-ship: Roll out review comments to all repos",
+        "review: Gate auto-approval behind a flag",
+        "review: Align approval billing",
+        "review: Ship inline review summaries",
+        "review: Roll out review comments to all repos",
       ],
     ),
     expect: [{ op: "move-workstream", workstream: "review", parent: "beacon" }],
     forbid: [
       { op: "merge", from: "review", into: "beacon" },
-      { op: "merge", from: "review", into: "auto" },
+      { op: "merge", from: "review", into: "auto-alerts" },
     ],
     names: { review: "Code Review" },
   },
@@ -286,10 +273,7 @@ export const cases: TidyCase[] = [
       ],
     ),
     expect: [
-      [
-        { op: "merge", from: "streams2", into: "streams" },
-        { op: "move-workstream", workstream: "streams2", parent: "streams" },
-      ],
+      { op: "move-workstream", workstream: "streams2", parent: "streams" },
     ],
     forbid: [{ op: "merge", from: "streams", into: "streams2" }],
   },
@@ -302,18 +286,17 @@ export const cases: TidyCase[] = [
         ...BACKDROP,
         ["beacon", "Beacon", null, "Investigation assistant product at work"],
         [
-          "auto",
-          "Automations",
-          "beacon",
-          "Scheduled and triggered assistant runs",
-        ],
-        [
           "auto-alerts",
           "Alert Investigations",
-          "auto",
+          "beacon",
           "Automations that investigate alerts",
         ],
-        ["auto-design", "Design", "auto", "Designing the automations product"],
+        [
+          "auto-design",
+          "Automations Design",
+          "beacon",
+          "Designing the automations product",
+        ],
         [
           "cron",
           "Cron Automation",
@@ -333,10 +316,39 @@ export const cases: TidyCase[] = [
     ),
     expect: [],
     forbid: [
-      { op: "move-workstream", workstream: "cron", parent: "auto" },
       { op: "move-workstream", workstream: "cron", parent: "beacon" },
-      { op: "merge", from: "cron", into: "auto" },
+      { op: "merge", from: "cron", into: "auto-alerts" },
+      { op: "merge", from: "cron", into: "auto-design" },
     ],
+  },
+  {
+    id: "capability-in-category",
+    about:
+      "A product's capability joins the product's category group, not a third level under the product",
+    input: input(
+      [
+        ...BACKDROP,
+        ["acme", "Acme", null, "Work at Acme"],
+        ["beacon", "Beacon", "acme", "Acme's investigation assistant product"],
+        ["ledger", "Ledger", "acme", "Acme's billing product"],
+        ["search", "Beacon Web Search", null, "Beacon's web search tool"],
+      ],
+      [
+        ...BACKDROP_THREADS,
+        "beacon: Fix investigation timeline ordering",
+        "beacon: Add Slack summaries to investigations",
+        "ledger: Retry failed invoice exports",
+        "search: Add source citations to Beacon web search",
+        "search: Cap web search latency",
+      ],
+    ),
+    expect: [
+      [
+        { op: "move-workstream", workstream: "search", parent: "acme" },
+        { op: "merge", from: "search", into: "beacon" },
+      ],
+    ],
+    forbid: [{ op: "move-workstream", workstream: "search", parent: "ledger" }],
   },
   {
     id: "clean",

@@ -86,6 +86,7 @@ await Promise.all(
       const prompt = tidyPrompt(test.input);
       const begun = Date.now();
       let edits: ProposedEdit[] = [];
+      let refused: { edit: ProposedEdit; why: string }[] = [];
       let error: string | null = null;
       let text = "";
       let cost = 0;
@@ -100,10 +101,14 @@ await Promise.all(
         });
         text = completion.text;
         cost = completion.usage.cost;
-        // Production drops edits that would break a rule of the tree.
-        edits = parseTidy(text, test.input).filter(
-          (e) => !refusal(e.edit, tree(test.input)),
-        );
+        // Production drops edits that would break a rule of the tree; the
+        // report keeps them, since they show where the prompt misleads.
+        const parsed = parseTidy(text, test.input);
+        refused = parsed.flatMap((e) => {
+          const why = refusal(e.edit, tree(test.input));
+          return why ? [{ edit: e, why }] : [];
+        });
+        edits = parsed.filter((e) => !refused.some((r) => r.edit === e));
       } catch (e) {
         error = String(e);
       }
@@ -148,6 +153,9 @@ await Promise.all(
           ([workstream, name]) => `${workstream} as ${name}`,
         ),
         edits: edits.map((e) => `${describe(e.edit)} — ${e.reason}`),
+        refused: refused.map(
+          (r) => `${describe(r.edit.edit)} — ${r.why} — ${r.edit.reason}`,
+        ),
         latencyMs: Date.now() - begun,
         cost,
         response: text,
@@ -167,10 +175,14 @@ const lines = cases
       (n, r) => n + (r.offWorkstream as string[]).length,
       0,
     );
+    const refused = runs.reduce(
+      (n, r) => n + (r.refused as string[]).length,
+      0,
+    );
     const named = c.names
       ? ` named ${runs.filter((r) => !(r.misnamed as string[]).length).length}/${runs.length}`
       : "";
-    return `${pass}/${runs.length} ${c.id}: ${edits} edits, ${off} unrelated reasons${named}`;
+    return `${pass}/${runs.length} ${c.id}: ${edits} edits, ${refused} refused, ${off} unrelated reasons${named}`;
   });
 const passed = results.filter((r) => r.passed).length;
 const latencies = results
