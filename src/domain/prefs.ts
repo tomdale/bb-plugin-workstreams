@@ -138,7 +138,7 @@ const GROUPS = {
   sidebar: {
     /** The Up Next section: threads awaiting the user. */
     showUpNext: [z.boolean(), true],
-    /** The Recent band: the most recently active threads. */
+    /** The Recents section: the most recently active threads. */
     showRecent: [z.boolean(), true],
     /** The Snoozed fold: threads temporarily put aside. */
     showSnoozed: [z.boolean(), true],
@@ -148,7 +148,7 @@ const GROUPS = {
     phoneHome: [z.boolean(), true],
     /** How workstream groups are ordered in the sidebar. */
     groupSort: [z.enum(["alphabetical", "activity", "manual"]), "alphabetical"],
-    /** How many threads the Recent band shows. */
+    /** How many threads the Recents section shows. */
     recentLimit: [recentLimit, RECENT_LIMIT.fallback],
     /** Thread ages on rows: always, on hover or focus, or never. */
     timestamps: [z.enum(["show", "hover", "hide"]), "show"],

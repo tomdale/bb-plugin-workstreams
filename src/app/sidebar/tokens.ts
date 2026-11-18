@@ -25,6 +25,8 @@ export const SIDEBAR_GEOMETRY = {
   },
   gaps: {
     item: 9,
+    /** Between two sidebar sections, above the later heading's own margin. */
+    betweenSections: 12,
     inlineBoundary: 22,
     collapsedInlineBoundary: 4,
     sameParentCollapsed: 0,

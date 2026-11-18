@@ -174,11 +174,11 @@ it("holds a result marked read on selection until another thread opens", async (
       "Other 5",
     ]);
   });
-  expect(slot.queryByRole("region", { name: "Recent" })).toBeNull();
+  expect(slot.queryByRole("region", { name: "Recents" })).toBeNull();
 
   slot.selectThread("o1");
   expect(groupRows(slot, "Up Next")).not.toContain("Updated result");
-  expect(groupRows(slot, "Recent")).toEqual(["Updated result"]);
+  expect(groupRows(slot, "Recents")).toEqual(["Updated result"]);
   // Opening it again doesn't bring it back.
   slot.selectThread("result");
   expect(groupRows(slot, "Up Next")).not.toContain("Updated result");

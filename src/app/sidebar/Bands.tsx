@@ -1,6 +1,6 @@
 import { SIDEBAR_GEOMETRY } from "./tokens.ts";
 import { CountPill } from "../primitives/CountPill.tsx";
-import { useRef, type CSSProperties, type ReactNode } from "react";
+import { useRef, type CSSProperties, type ReactNode, type Ref } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
@@ -12,6 +12,7 @@ import {
 } from "../primitives/menu.ts";
 
 import {
+  BAND_LABELS,
   type BandId,
   type BandOptions,
   type BandSortOption,
@@ -25,7 +26,7 @@ import { Hint } from "../Hint.tsx";
 import { needYouLabel } from "../../domain/presentation.ts";
 
 /**
- * One workstream's threads in Recent, Snoozed, or Archived when the band
+ * One workstream's threads in Recents, Snoozed, or Archived when the band
  * groups by workstream: a compact header that folds the group and carries its
  * name and count. `label` is the band's name, for the region's accessible
  * name.
@@ -73,22 +74,32 @@ export function BandGroup({
 }
 
 /**
- * The heading over one of the sidebar's sections, Workstreams or Recent: an
- * uppercase label on the sidebar itself, with the section's controls after
- * it. A card's title, by contrast, sits inside its card in title case.
+ * The heading over one of the sidebar's sections (Recents, Workstreams,
+ * Dormant, Snoozed, Archived): an uppercase label on the sidebar itself. The
+ * label folds the section, with the chevron after it as on a workstream's
+ * header, and a folded section shows its count at the far end. The section's
+ * controls follow. A card's title, by contrast, sits inside its card in title
+ * case.
  */
 export function SectionHeading({
   title,
+  collapsed,
+  toggle,
+  count,
   children,
 }: {
   title: string;
-  /** Controls drawn after the title, at the heading's far end. */
+  collapsed: boolean;
+  toggle: () => void;
+  /** What the section holds, shown only while it is folded. */
+  count?: number;
+  /** Controls drawn at the heading's far end. */
   children?: ReactNode;
 }) {
   const { sectionHeading } = SIDEBAR_GEOMETRY;
   return (
     <div
-      className="flex items-center gap-3 outline-none"
+      className="flex items-center gap-3"
       style={{
         height: sectionHeading.height,
         marginTop: sectionHeading.topMargin,
@@ -96,17 +107,86 @@ export function SectionHeading({
         paddingLeft: sectionHeading.leftInset,
       }}
     >
-      <h2 className="ws-text-section flex min-w-0 items-center text-muted-foreground">
-        {title}
+      <h2 className="flex min-w-0 flex-1 items-center">
+        {/* The label style sits on the button: buttons reset the text
+            transform and font they would otherwise inherit. */}
+        <button
+          type="button"
+          aria-expanded={!collapsed}
+          onClick={toggle}
+          className="ws-text-section flex min-w-0 flex-1 cursor-pointer items-center gap-1 rounded-sm text-left text-muted-foreground hover:text-foreground focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        >
+          {title}
+          <FoldChevron open={!collapsed} />
+          {count !== undefined && collapsed ? (
+            // The rows' right padding, so a count ends where their ages do.
+            <span className="ml-auto pr-2 font-normal tabular-nums">
+              {count}
+            </span>
+          ) : null}
+        </button>
       </h2>
-      <div className="flex-1" />
       {children}
     </div>
   );
 }
 
 /**
- * An overlay band. A plain band collapses from its header. A boxed band is an
+ * A sidebar section: its heading, then contents that open and close with the
+ * heading's fold. A section with a `label` is a region by that name; the
+ * Workstreams section is not one, since each workstream inside it is.
+ */
+export function Section({
+  label,
+  heading,
+  open,
+  list = true,
+  flipKey,
+  style,
+  children,
+}: {
+  label?: string;
+  heading: ReactNode;
+  open: boolean;
+  /** Contents are list items; otherwise they stack in a plain column. */
+  list?: boolean;
+  /** Glides the section when a focus change moves it (see `useFlip`). */
+  flipKey?: string;
+  style?: CSSProperties;
+  children: ReactNode;
+}) {
+  const fold = useFold(open);
+  const root = useRef<HTMLElement | null>(null);
+  const bodyRef = useRef<HTMLElement | null>(null);
+  useFoldFocusRestore({
+    open,
+    root: () => root.current,
+    contents: () => bodyRef.current,
+  });
+  const Root = label ? "section" : "div";
+  return (
+    <Root
+      ref={root as Ref<HTMLElement & HTMLDivElement>}
+      aria-label={label}
+      data-flip-key={flipKey}
+      style={style}
+    >
+      {heading}
+      <FoldBody
+        fold={fold}
+        listRef={bodyRef}
+        list={list}
+        listClassName={list ? undefined : "flex flex-col"}
+      >
+        {children}
+      </FoldBody>
+    </Root>
+  );
+}
+
+/**
+ * A band of the list. A plain band is a folding sidebar section (see
+ * `Section`). A boxed band is an
  * always-open block spanning the column, with its header inside: `attention`
  * is the Up Next card (`.ws-needs`), and `pinned` the quiet Pinned card
  * (`.ws-pinned`). Each sets its rows apart from the workstream list. A card's
@@ -137,7 +217,7 @@ export function Band({
   children,
 }: {
   title: string;
-  /** Row total, shown only while the band is collapsed. */
+  /** A plain band's total, shown only while it is folded. */
   count?: number;
   box?: "attention" | "pinned";
   /** A small mark after the title. */
@@ -155,33 +235,6 @@ export function Band({
   style?: CSSProperties;
   children: ReactNode;
 }) {
-  const open = collapsed === undefined || !collapsed;
-  const fold = useFold(open);
-  const section = useRef<HTMLElement>(null);
-  const bodyRef = useRef<HTMLUListElement | null>(null);
-  useFoldFocusRestore({
-    open,
-    root: () => section.current,
-    contents: () => bodyRef.current,
-  });
-  const heading = (
-    <>
-      <span className="flex min-w-0 flex-1 items-center gap-1.5 text-left">
-        {title}
-        {badge}
-      </span>
-      {count !== undefined && collapsed ? (
-        <span
-          className={cn(
-            "tabular-nums",
-            box === "attention" && "ws-needs-count",
-          )}
-        >
-          {count}
-        </span>
-      ) : null}
-    </>
-  );
   if (box) {
     const styles = BOX_STYLES[box];
     return (
@@ -199,7 +252,10 @@ export function Band({
               markless ? "pl-3.5" : "pl-1.5",
             )}
           >
-            {heading}
+            <span className="flex min-w-0 flex-1 items-center gap-1.5 text-left">
+              {title}
+              {badge}
+            </span>
           </h2>
           {menu}
         </div>
@@ -207,30 +263,26 @@ export function Band({
       </section>
     );
   }
+  const open = !collapsed;
   return (
-    <section
-      ref={section}
-      aria-label={title}
-      data-flip-key={flipKey}
+    <Section
+      label={title}
+      open={open}
+      flipKey={flipKey}
       style={style}
-      className="px-1"
-    >
-      <div className="flex items-center gap-1">
-        <button
-          type="button"
-          aria-expanded={!collapsed}
-          onClick={toggle}
-          className="flex min-w-0 flex-1 cursor-pointer items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground hover:bg-sidebar-accent/60" // slop-ok: 1 the product's section-label style
+      heading={
+        <SectionHeading
+          title={title}
+          collapsed={!open}
+          toggle={toggle ?? (() => {})}
+          count={count}
         >
-          <FoldChevron open={open} />
-          {heading}
-        </button>
-        {menu}
-      </div>
-      <FoldBody fold={fold} listRef={bodyRef}>
-        {children}
-      </FoldBody>
-    </section>
+          {menu}
+        </SectionHeading>
+      }
+    >
+      {children}
+    </Section>
   );
 }
 
@@ -300,7 +352,7 @@ export function BandOptionsMenu({
   options: BandOptions[BandId];
   onChange: (change: Partial<BandOptions[BandId]>) => void;
 }) {
-  const label = section[0]!.toUpperCase() + section.slice(1);
+  const label = BAND_LABELS[section];
   const sortOptions: readonly BandSortOption[] =
     section === "recent"
       ? [

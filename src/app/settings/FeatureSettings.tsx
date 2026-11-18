@@ -91,7 +91,7 @@ export function SidebarSettings() {
             update({ sidebar: { showUpNext } }),
           )}
           {row(
-            "Recent",
+            "Recents",
             prefs.sidebar.showRecent,
             (showRecent) => update({ sidebar: { showRecent } }),
             prefs.sidebar.showRecent ? (

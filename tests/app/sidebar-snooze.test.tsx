@@ -61,7 +61,7 @@ describe("snoozing", () => {
       expect(slot.getByRole("button", { name: /^Snoozed\d*$/ })).toBeTruthy(),
     );
     expect(groupRows(slot, "Up Next")).toEqual(["Other task"]);
-    expect(slot.queryByRole("region", { name: "Recent" })).toBeNull();
+    expect(slot.queryByRole("region", { name: "Recents" })).toBeNull();
     // Nothing visible is left in it, so its header goes with them.
     expect(slot.queryByRole("region", { name: "Alpha" })).toBeNull();
     const fold = slot.getByRole("button", { name: /^Snoozed\d*$/ });

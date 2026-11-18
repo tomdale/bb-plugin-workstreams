@@ -119,7 +119,7 @@ it("renders compact working styles and accessible colored swatches", async () =>
 
 it("renders four compact sidebar toggles and saves their preferences", async () => {
   const slot = await mount("sidebar");
-  for (const label of ["Up Next", "Recent", "Snoozed", "Archived"]) {
+  for (const label of ["Up Next", "Recents", "Snoozed", "Archived"]) {
     expect(await slot.findByRole("switch", { name: label })).toBeTruthy();
   }
   const sections = slot.getByRole("region", { name: "Sections" });
@@ -225,7 +225,7 @@ it.each([
 
 it("clamps the Recent stepper to 1–20 and hides it when Recent is off", async () => {
   const slot = await mount("sidebar");
-  const recent = await slot.findByRole("switch", { name: "Recent" });
+  const recent = await slot.findByRole("switch", { name: "Recents" });
   const plus = slot.getByRole("button", {
     name: "Increase recent threads shown",
   });

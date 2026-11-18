@@ -74,22 +74,29 @@ export function FoldBody({
   fold,
   listRef,
   listClassName = "mt-0.5",
+  list = true,
   children,
 }: {
   fold: FoldState & { readonly ref: (element: HTMLElement | null) => void };
-  listRef?: Ref<HTMLUListElement>;
+  listRef?: Ref<HTMLElement>;
   listClassName?: string;
+  /** Contents are list items; otherwise they sit in a plain block. */
+  list?: boolean;
   children: ReactNode;
 }) {
   const enclosing = useFoldPhase();
   if (!fold.render) return null;
+  const Body = list ? "ul" : "div";
   return (
     <div className="ws-fold" ref={fold.ref} {...presenceProps(fold.phase)}>
-      <ul ref={listRef} className={listClassName}>
+      <Body
+        ref={listRef as Ref<HTMLUListElement & HTMLDivElement>}
+        className={listClassName}
+      >
         <FoldPhase.Provider value={rowsPhase(fold.phase, enclosing)}>
           {children}
         </FoldPhase.Provider>
-      </ul>
+      </Body>
     </div>
   );
 }

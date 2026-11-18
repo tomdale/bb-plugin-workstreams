@@ -1,7 +1,7 @@
 /**
  * One band's rows, drawn as the band's own trees or grouped by workstream.
  *
- * Recent, Snoozed, and Archived can each group their rows by workstream: the
+ * Recents, Snoozed, and Archived can each group their rows by workstream: the
  * band then draws one folded section per workstream, named for it and
  * carrying the number of trees beneath it, with the workstream's trees inside
  * (see `planBandRows`). A group's fold is stored under `<placement>:<id>`, so
@@ -24,12 +24,8 @@ import {
   type BandGroupPlan,
   type ThreadRow,
 } from "./rows.ts";
-import { type BandId } from "./useBandOptions.ts";
+import { BAND_LABELS, type BandId } from "./useBandOptions.ts";
 import { type RenderRow } from "./types.ts";
-
-/** The name a band's group regions carry: "Archived", "Recent", "Snoozed". */
-const regionLabel = (placement: BandId) =>
-  `${placement[0]!.toUpperCase()}${placement.slice(1)}`;
 
 export function GroupedBand({
   placement,
@@ -59,7 +55,7 @@ export function GroupedBand({
       ).map((entry) => renderRow(entry, { placement, slotWidth })),
     );
   if (!grouped) return <>{rows(planned[0]!.trees)}</>;
-  const label = regionLabel(placement);
+  const label = BAND_LABELS[placement];
   return (
     <>
       {planned.map(({ id, name, trees }) => {

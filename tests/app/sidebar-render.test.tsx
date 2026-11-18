@@ -68,7 +68,7 @@ it("separates the workstreams from Archived and Snoozed without splitting those 
   const archived = slot.getByRole("region", { name: "Archived" });
   const snoozed = slot.getByRole("region", { name: "Snoozed" });
   expect(archived.style.marginTop).toBe(
-    `${SIDEBAR_GEOMETRY.gaps.inlineBoundary}px`,
+    `${SIDEBAR_GEOMETRY.gaps.betweenSections}px`,
   );
   expect(snoozed.style.marginTop).toBe("");
   slot.lifecycle.unmount();
@@ -85,7 +85,7 @@ it("keeps the boundary gap before Snoozed when Archived is hidden", async () => 
     expect(slot.getByRole("region", { name: "Snoozed" })).toBeTruthy(),
   );
   expect(slot.getByRole("region", { name: "Snoozed" }).style.marginTop).toBe(
-    `${SIDEBAR_GEOMETRY.gaps.inlineBoundary}px`,
+    `${SIDEBAR_GEOMETRY.gaps.betweenSections}px`,
   );
   slot.lifecycle.unmount();
 });
@@ -348,7 +348,7 @@ it("shows Other after the populated workstreams, and nothing for an emptied one"
   slot.lifecycle.unmount();
 });
 
-it("draws Recent as a section with a heading like Workstreams, not a card", async () => {
+it("draws Recents as a section with a heading like Workstreams, not a card", async () => {
   const slot = await mountWithBands(
     [
       sidebarThread("a", {
@@ -362,22 +362,59 @@ it("draws Recent as a section with a heading like Workstreams, not a card", asyn
         latestAttentionAt: 200,
       }),
     ],
-    // Up Next off, so no thread leaves Recent for it.
+    // Up Next off, so no thread leaves Recents for it.
     { settings: { showUpNext: false } },
   );
-  const recent = await slot.findByRole("region", { name: "Recent" });
-  const heading = within(recent).getByRole("heading", { name: "Recent" });
+  const recent = await slot.findByRole("region", { name: "Recents" });
+  const heading = within(recent).getByRole("heading", { name: "Recents" });
   const workstreams = slot.getByRole("heading", { name: "Workstreams" });
   expect(heading.className).toBe(workstreams.className);
   expect(recent.closest(".ws-pinned, .ws-needs")).toBeNull();
-  expect(groupRows(slot, "Recent")).toEqual(["Newer task", "Older task"]);
+  expect(groupRows(slot, "Recents")).toEqual(["Newer task", "Older task"]);
   expect(
-    within(recent).getByRole("button", { name: "Recent options" }),
+    within(recent).getByRole("button", { name: "Recents options" }),
   ).toBeTruthy();
   slot.lifecycle.unmount();
 });
 
-it("sorts and groups Recent from its section menu and persists the preference", async () => {
+it("folds Recents and Workstreams from their headings, counting Recents while folded", async () => {
+  const slot = await mountWithBands(
+    [
+      sidebarThread("a", { sectionId: "sec_a", title: "Alpha task" }),
+      sidebarThread("b", { sectionId: "sec_b", title: "Beta task" }),
+    ],
+    { settings: { showUpNext: false } },
+  );
+  const recents = await slot.findByRole("region", { name: "Recents" });
+  // Recents sits above the workstreams, a section gap from them.
+  expect(recents.style.marginBottom).toBe(
+    `${SIDEBAR_GEOMETRY.gaps.betweenSections}px`,
+  );
+  const recentsFold = within(recents).getByRole("button", {
+    name: /^Recents\d*$/,
+  });
+  expect(recentsFold.getAttribute("aria-expanded")).toBe("true");
+  fireEvent.click(recentsFold);
+  await waitFor(() =>
+    expect(within(recents).queryAllByRole("link")).toEqual([]),
+  );
+  expect(recentsFold.getAttribute("aria-expanded")).toBe("false");
+  expect(recentsFold.textContent).toBe("Recents2");
+
+  const workstreamsFold = within(
+    slot.getByRole("heading", { name: "Workstreams" }),
+  ).getByRole("button");
+  fireEvent.click(workstreamsFold);
+  await waitFor(() =>
+    expect(slot.queryByRole("region", { name: "Alpha" })).toBeNull(),
+  );
+  expect(workstreamsFold.getAttribute("aria-expanded")).toBe("false");
+  fireEvent.click(workstreamsFold);
+  expect(await slot.findByRole("region", { name: "Alpha" })).toBeTruthy();
+  slot.lifecycle.unmount();
+});
+
+it("sorts and groups Recents from its section menu and persists the preference", async () => {
   const slot = await mountWithBands(
     [
       sidebarThread("a", {
@@ -394,15 +431,15 @@ it("sorts and groups Recent from its section menu and persists the preference", 
     { settings: { showUpNext: false } },
   );
   const menuButton = await slot.findByRole("button", {
-    name: "Recent options",
+    name: "Recents options",
   });
   fireEvent.pointerDown(menuButton, { button: 0, ctrlKey: false });
   const menu = await screen.findByRole("menu");
   fireEvent.click(
     within(menu).getByRole("menuitemradio", { name: "Title A–Z" }),
   );
-  expect(groupRows(slot, "Recent")).toEqual(["Alpha task", "Zulu task"]);
-  fireEvent.pointerDown(slot.getByRole("button", { name: "Recent options" }), {
+  expect(groupRows(slot, "Recents")).toEqual(["Alpha task", "Zulu task"]);
+  fireEvent.pointerDown(slot.getByRole("button", { name: "Recents options" }), {
     button: 0,
     ctrlKey: false,
   });
@@ -411,13 +448,13 @@ it("sorts and groups Recent from its section menu and persists the preference", 
       name: "Show by workstream",
     }),
   );
-  expect(groupRows(slot, "Recent Alpha")).toEqual(["Zulu task"]);
-  expect(groupRows(slot, "Recent Beta")).toEqual(["Alpha task"]);
+  expect(groupRows(slot, "Recents Alpha")).toEqual(["Zulu task"]);
+  expect(groupRows(slot, "Recents Beta")).toEqual(["Alpha task"]);
   // A grouped band folds each group from its header, as Archived does.
-  const alpha = within(slot.getByRole("region", { name: "Recent Alpha" }));
+  const alpha = within(slot.getByRole("region", { name: "Recents Alpha" }));
   fireEvent.click(alpha.getByRole("button", { name: /^Alpha/ }));
   await waitFor(() => expect(alpha.queryByText("Zulu task")).toBeNull());
-  expect(groupRows(slot, "Recent Beta")).toEqual(["Alpha task"]);
+  expect(groupRows(slot, "Recents Beta")).toEqual(["Alpha task"]);
   expect(
     JSON.parse(window.localStorage.getItem("workstreams:v1:band-options")!)
       .recent,
@@ -428,7 +465,7 @@ it("sorts and groups Recent from its section menu and persists the preference", 
   slot.lifecycle.unmount();
 });
 
-it("shows Up Next and Recent as overlays without removing group rows", async () => {
+it("shows Up Next and Recents as overlays without removing group rows", async () => {
   const slot = await mountWithBands([
     sidebarThread("ask", {
       sectionId: "sec_a",
@@ -453,7 +490,7 @@ it("shows Up Next and Recent as overlays without removing group rows", async () 
       latestAttentionAt: Date.now() - 500,
     }),
   ]);
-  // Up Next takes the question and the four newest others; Recent carries
+  // Up Next takes the question and the four newest others; Recents carries
   // on with the next one.
   expect(groupRows(slot, "Up Next")).toEqual([
     "Asking task, Needs input",
@@ -462,10 +499,10 @@ it("shows Up Next and Recent as overlays without removing group rows", async () 
     "Other 3",
     "Other 4",
   ]);
-  expect(groupRows(slot, "Recent")).toEqual(["Other 5"]);
-  expect(groupRows(slot, "Recent")).not.toContain("Other 5 child");
+  expect(groupRows(slot, "Recents")).toEqual(["Other 5"]);
+  expect(groupRows(slot, "Recents")).not.toContain("Other 5 child");
   expect(
-    within(slot.getByRole("region", { name: "Recent" })).queryByRole("img", {
+    within(slot.getByRole("region", { name: "Recents" })).queryByRole("img", {
       name: "Pinned",
     }),
   ).toBeNull();
@@ -480,9 +517,12 @@ it("shows Up Next and Recent as overlays without removing group rows", async () 
     }),
   ).toBeTruthy();
   expect(
-    within(slot.getByRole("region", { name: "Recent" })).queryByRole("button", {
-      name: /child threads/i,
-    }),
+    within(slot.getByRole("region", { name: "Recents" })).queryByRole(
+      "button",
+      {
+        name: /child threads/i,
+      },
+    ),
   ).toBeNull();
   expect(groupRows(slot, "Beta")).toContain("Other 5 child");
   expect(groupRows(slot, "Beta")).toHaveLength(6);

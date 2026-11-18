@@ -1,10 +1,12 @@
 /**
- * The Workstreams sidebar thread list: the Up Next and Pinned bands, the
- * focused workstreams, and the Recent band, then one group per remaining
- * workstream (BB section, in the user's drag-and-drop order, else BB's) that
- * holds a visible thread, Other, a Dormant fold, and a Snoozed fold. Up
- * Next, Pinned, and Recent are overlays: every visible thread appears in
- * exactly one group, or in Snoozed.
+ * The Workstreams sidebar thread list: the Up Next and Pinned bands, then the
+ * Recents and Workstreams sections (Recents below the workstreams while any
+ * is focused). Workstreams holds the focused workstreams, then one group per
+ * remaining workstream (BB section, in the user's drag-and-drop order, else
+ * BB's) that holds a visible thread, Other, and a Dormant fold; Snoozed and
+ * Archived sections follow. Every section folds from its heading. Up Next,
+ * Pinned, and Recents are overlays: every visible thread appears in exactly
+ * one group, or in Snoozed.
  *
  * Groups nest by workstream (see `nestGroups`): a group lists its own
  * threads, then the threads of workstreams too small for headers, each
@@ -23,8 +25,7 @@
  *
  * Pinned lists the threads the user pinned, in BB's pin order, directly under
  * Up Next. The two bands share one sticky plate at the top of the list, so both
- * stay in reach while the workstreams scroll beneath them. Recent is a
- * section of the list like Workstreams, under its own uppercase heading.
+ * stay in reach while the workstreams scroll beneath them.
  *
  * This file arranges the list and owns its state. The pieces it draws live
  * beside it: `Bands.tsx` (band headers, menus, the lower toggle),
@@ -74,7 +75,7 @@ import { useSidebarSnooze } from "./useSidebarSnooze.tsx";
 import { useGroupCollapse } from "./useGroupCollapse.ts";
 import { SIDEBAR_GEOMETRY } from "./tokens.ts";
 import { workstreamGap } from "./workstreamGap.ts";
-import { useBandOptions, type BandId } from "./useBandOptions.ts";
+import { BAND_LABELS, useBandOptions, type BandId } from "./useBandOptions.ts";
 import { GroupedBand } from "./GroupedBand.tsx";
 import { NameDialog, type NameRequest } from "./NameDialog.tsx";
 import { SuggestionsChip } from "./SuggestionsChip.tsx";
@@ -132,6 +133,7 @@ import { shareJson } from "../structuralSharing.ts";
 import {
   Band,
   BandOptionsMenu,
+  Section,
   SectionHeading,
   SidebarViewOptionsMenu,
   LowerToggle,
@@ -538,7 +540,7 @@ export function WorkstreamsThreadList({
       ),
     [recentRows, bandOptions.recent, planningSnoozeOf, nameOf],
   );
-  // Recent's section opens and closes, and its rows enter and leave, as
+  // The Recents section opens and closes, and its rows enter and leave, as
   // Pinned's do. Grouped by workstream, its rows sit in folded sections
   // instead (see `GroupedBand`).
   const recentSlot = useMemo(
@@ -754,32 +756,43 @@ export function WorkstreamsThreadList({
       tone,
     );
   const bandControlStyle = { paddingLeft: bandTitleInset(needsSlot) };
+  const recentCollapsed = isCollapsed(RECENT_FOLD, false);
   const recentBlock = recentBandPresence.map((band) => (
     <Presence key={band.key} data-flip-key="recent" phase={band.phase}>
-      <section aria-label={RECENT}>
-        <SectionHeading title={RECENT}>
+      <Band
+        title={BAND_LABELS.recent}
+        count={recentRows.length}
+        collapsed={recentCollapsed}
+        toggle={() => toggle(RECENT_FOLD, false)}
+        // Recents sits above the workstreams, or below them when some are
+        // focused; the gap separates it from them either way.
+        style={
+          tiered
+            ? { marginTop: SIDEBAR_GEOMETRY.gaps.betweenSections }
+            : { marginBottom: SIDEBAR_GEOMETRY.gaps.betweenSections }
+        }
+        menu={
           <BandOptionsMenu
             section="recent"
             options={bandOptions.recent}
             onChange={(change) => updateBandOptions("recent", change)}
           />
-        </SectionHeading>
-        <ul>
-          {bandOptions.recent.grouped
-            ? bandBody("recent", recentRows, recentPlan)
-            : recentRowPresence.map((entry) =>
-                present(
-                  entry,
-                  entriesOf([entry.item], "recent").map((row) =>
-                    renderRow(row, {
-                      placement: "recent",
-                      slotWidth: recentSlot,
-                    }),
-                  ),
+        }
+      >
+        {bandOptions.recent.grouped
+          ? bandBody("recent", recentRows, recentPlan)
+          : recentRowPresence.map((entry) =>
+              present(
+                entry,
+                entriesOf([entry.item], "recent").map((row) =>
+                  renderRow(row, {
+                    placement: "recent",
+                    slotWidth: recentSlot,
+                  }),
                 ),
-              )}
-        </ul>
-      </section>
+              ),
+            )}
+      </Band>
     </Presence>
   ));
   const hasWorkstreams =
@@ -788,10 +801,10 @@ export function WorkstreamsThreadList({
       dormantGroups.length +
       projection.other.total >
       0 || placed.otherHasPullRequests;
+  const workstreamsCollapsed = isCollapsed(WORKSTREAMS_FOLD, false);
   /**
    * The heading over the workstreams, holding the organizing suggestions'
-   * count, which opens them, and the workstreams' sort. Not a region: each
-   * workstream below is one.
+   * count, which opens them, and the workstreams' sort.
    */
   const workstreamsHeading = hasWorkstreams ? (
     <SuggestionsChip
@@ -811,7 +824,11 @@ export function WorkstreamsThreadList({
       }
     >
       {(suggestions) => (
-        <SectionHeading title="Workstreams">
+        <SectionHeading
+          title="Workstreams"
+          collapsed={workstreamsCollapsed}
+          toggle={() => toggle(WORKSTREAMS_FOLD, false)}
+        >
           {suggestions}
           <SidebarViewOptionsMenu
             sort={groupSort}
@@ -861,6 +878,24 @@ export function WorkstreamsThreadList({
       </div>
     </Presence>
   ));
+  /**
+   * The workstreams under their heading, folding with it. Not a region: each
+   * workstream inside is one. With no workstream there is no heading, and
+   * whatever remains (a block still closing) stands alone.
+   */
+  const workstreamsSection = (contents: ReactNode[]) =>
+    workstreamsHeading ? (
+      <Section
+        key="workstreams"
+        open={!workstreamsCollapsed}
+        list={false}
+        heading={workstreamsHeading}
+      >
+        {contents}
+      </Section>
+    ) : (
+      contents
+    );
   if (ws.status === "loading")
     return <p className="px-3 py-2 text-xs text-muted-foreground">Loading…</p>;
   if (ws.status === "error")
@@ -1004,34 +1039,35 @@ export function WorkstreamsThreadList({
         ))}
         {tiered
           ? [
-              workstreamsHeading,
-              <SortableContext
-                key="pinned"
-                items={focusedGroupItems}
-                strategy={verticalListSortingStrategy}
-              >
-                {renderGroupList(focusedGroups, "focused")}
-              </SortableContext>,
-              ...(hasLower
-                ? [
-                    <LowerToggle
-                      key="lower-toggle"
-                      open={showLower}
-                      needsYou={lowerNeedsYou ? lowerCounts.needsYou : 0}
-                      total={lowerTotal ? lowerCounts.total : 0}
-                      onToggle={toggleLower}
-                    />,
-                  ]
-                : []),
-              ...lowerBlock,
+              workstreamsSection([
+                <SortableContext
+                  key="focused"
+                  items={focusedGroupItems}
+                  strategy={verticalListSortingStrategy}
+                >
+                  {renderGroupList(focusedGroups, "focused")}
+                </SortableContext>,
+                ...(hasLower
+                  ? [
+                      <LowerToggle
+                        key="lower-toggle"
+                        open={showLower}
+                        needsYou={lowerNeedsYou ? lowerCounts.needsYou : 0}
+                        total={lowerTotal ? lowerCounts.total : 0}
+                        onToggle={toggleLower}
+                      />,
+                    ]
+                  : []),
+                ...lowerBlock,
+              ]),
               recentBlock,
             ]
-          : [recentBlock, workstreamsHeading, ...lowerBlock]}
+          : [recentBlock, workstreamsSection([...lowerBlock])]}
         {showArchivedBand ? (
           <Band
             title="Archived"
             flipKey="archived"
-            style={{ marginTop: SIDEBAR_GEOMETRY.gaps.inlineBoundary }}
+            style={{ marginTop: SIDEBAR_GEOMETRY.gaps.betweenSections }}
             count={archivedThreads.length}
             collapsed={isCollapsed("__archived", true)}
             toggle={() => toggle("__archived", true)}
@@ -1074,7 +1110,7 @@ export function WorkstreamsThreadList({
             style={
               showArchivedBand
                 ? undefined
-                : { marginTop: SIDEBAR_GEOMETRY.gaps.inlineBoundary }
+                : { marginTop: SIDEBAR_GEOMETRY.gaps.betweenSections }
             }
             count={projection.snoozed.filter((row) => row.depth === 0).length}
             collapsed={isCollapsed("__snoozed", true)}
@@ -1139,4 +1175,6 @@ const UP_NEXT_MORE_KEY = ":more";
 const upNextItemKey = (item: UpNextItem) =>
   item.kind === "row" ? item.row.thread.id : UP_NEXT_MORE_KEY;
 const PINNED = "Pinned";
-const RECENT = "Recent";
+/** The fold keys of the Recents and Workstreams sections, open by default. */
+const RECENT_FOLD = "__recent";
+const WORKSTREAMS_FOLD = "__workstreams";

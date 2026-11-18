@@ -1,6 +1,6 @@
 /**
  * Thread snoozes: a thread the user put away until later leaves Up Next,
- * Recent, and its workstream group for the sidebar's Snoozed fold, and comes
+ * Recents, and its workstream group for the sidebar's Snoozed fold, and comes
  * back on its own.
  *
  * A snooze has a wake time, wakes on events (see domain/wake.ts), or both:

@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 
 export type BandId = "recent" | "snoozed" | "archived";
+/** Each band's name as the sidebar shows it. */
+export const BAND_LABELS: Record<BandId, string> = {
+  recent: "Recents",
+  snoozed: "Snoozed",
+  archived: "Archived",
+};
 export type BandSort = "activity" | "title" | "wake" | "archived";
 export type BandSortOption = readonly [BandSort, string];
 export type BandOptions = Record<BandId, { sort: BandSort; grouped: boolean }>;

@@ -472,14 +472,14 @@ describe.skipIf(browserUnavailable)("gallery specimens", () => {
       await page.getByRole("button", { name: "Set minimum to 1" }).click();
       await page
         .getByRole("status")
-        .filter({ hasText: "Recent: 1 threads" })
+        .filter({ hasText: "Recents: 1 threads" })
         .waitFor();
       await page.getByRole("button", { name: "Set maximum to 10" }).click();
       const history = page.getByText("Earlier actions", { exact: true });
       expect(await notes.locator("details").getAttribute("open")).toBeNull();
       await history.click();
       expect(await notes.locator("ol").innerText()).toContain(
-        "Recent: 1 threads",
+        "Recents: 1 threads",
       );
       expect(
         await page.locator("[data-gallery-specimen] [role=status]").count(),

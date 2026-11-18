@@ -6,7 +6,7 @@
  * each tree under the section of the thread at its top. Every visible,
  * non-archived thread appears in exactly one group row, or in Snoozed: a
  * snoozed thread leaves its group, with its descendants, until it wakes. Up
- * Next and Recent (see `upNext.ts`), and Pinned, are overlays that reference
+ * Next and Recents (see `upNext.ts`), and Pinned, are overlays that reference
  * the group rows; they never replace them, and never show snoozed threads.
  * Focused workstreams (`focused`) lead the groups and never go dormant.
  */

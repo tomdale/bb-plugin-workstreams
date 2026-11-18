@@ -68,7 +68,7 @@ function SettingsExample() {
     setLog((items) => [message, ...items].slice(0, 5));
   const updateLimit = (value: number) => {
     setLimit(value);
-    record(`Recent: ${value} threads`);
+    record(`Recents: ${value} threads`);
   };
   // The variants share one set of values, so a change in one shows in all.
   const specimen = (layout: Layout, disabled: boolean) => {
@@ -76,13 +76,13 @@ function SettingsExample() {
     const size = compact ? "sm" : "md";
     const recentSwitch = (
       <SettingSwitch
-        label="Recent"
+        label="Recents"
         size={size}
         checked={recent}
         disabled={disabled}
         onChange={(value) => {
           setRecent(value);
-          record(`Recent ${value ? "shown" : "hidden"}`);
+          record(`Recents ${value ? "shown" : "hidden"}`);
         }}
       />
     );
@@ -124,7 +124,7 @@ function SettingsExample() {
               <>
                 <CompactSettingRow label="Up Next" control={upNextSwitch} />
                 <CompactSettingRow
-                  label="Recent"
+                  label="Recents"
                   accessory={count}
                   control={recentSwitch}
                 />
@@ -138,7 +138,7 @@ function SettingsExample() {
                   control={upNextSwitch}
                 />
                 <SettingRow
-                  label="Recent"
+                  label="Recents"
                   description="Show recently active threads." // slop-ok: 1 Preserve the demonstrated settings row’s own description
                   stacked={layout === "stacked"}
                   control={
@@ -253,12 +253,12 @@ const [limit, setLimit] = useState(5);
 
 <SettingsGroup title="Sections">
   <SectionRows compact>
-    <CompactSettingRow label="Recent"
+    <CompactSettingRow label="Recents"
       accessory={<div inert={!recent}>
         <Stepper size="sm" label="threads shown" value={limit}
           min={1} max={10} disabled={!recent} onChange={setLimit} />
       </div>}
-      control={<SettingSwitch size="sm" label="Recent"
+      control={<SettingSwitch size="sm" label="Recents"
         checked={recent} onChange={setRecent} />} />
   </SectionRows>
 </SettingsGroup>`,

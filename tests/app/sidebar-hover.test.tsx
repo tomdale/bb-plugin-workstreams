@@ -359,14 +359,14 @@ describe("row hover buttons", () => {
     const slot = await mountWithBands(undefined, {
       settings: { showUpNext: false },
     });
-    const recent = await slot.findByRole("button", { name: "Recent options" });
+    const recent = await slot.findByRole("button", { name: "Recents options" });
     const sort = slot.getByRole("button", { name: "Sort workstreams" });
     const archive = within(await rowOf(slot)).getByRole("button", {
       name: "Archive",
     });
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     for (const [target, name] of [
-      [recent, "Recent options"],
+      [recent, "Recents options"],
       [sort, "Sort workstreams"],
       [archive, "Archive"],
     ] as const)

@@ -31,7 +31,7 @@ it("reorders threads by dragging a row", async () => {
       "Loose three",
     ]);
     await waitFor(() =>
-      expect(slot.queryByRole("region", { name: "Recent" })).toBeNull(),
+      expect(slot.queryByRole("region", { name: "Recents" })).toBeNull(),
     );
     let navigated = 0;
     const link = slot.container.querySelector<HTMLAnchorElement>(

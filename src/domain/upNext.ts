@@ -209,7 +209,7 @@ type UpNextSelection<T extends WorkstreamThread> = {
   /**
    * What Show more reveals below `rows`: the trimmed threads that are
    * unread or awaiting the user, most urgent first. Read threads not
-   * awaiting the user stay out; Recent and the groups list them.
+   * awaiting the user stay out; Recents and the groups list them.
    */
   readonly more: readonly Row<T>[];
   /**
@@ -325,8 +325,8 @@ export function selectUpNext<T extends UpNextThread>(
 }
 
 /**
- * Recent: the most recently active threads at the top of their trees that
- * Up Next doesn't show, newest first, so Recent carries on where Up Next
+ * Recents: the most recently active threads at the top of their trees that
+ * Up Next doesn't show, newest first, so Recents carries on where Up Next
  * stops and the two never repeat a thread. `shown` is what Up Next draws,
  * including any row it holds in place.
  */

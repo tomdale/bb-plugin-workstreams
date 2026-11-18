@@ -430,7 +430,7 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
    when there are fewer of them, and nothing when none of them do. **Show N
    more** lists the threads the count pushed out that are unread or need your
    answer or review, below the rest, and **Show less** collapses them; trimmed
-   read threads that need neither stay in Recent and their workstreams. It
+   read threads that need neither stay in Recents and their workstreams. It
    re-ranks as recaps, read state, and activity change. A change in its rows
    waits until changes have been quiet for `120 ms`, so a burst moves once, and
    then everything moves together on one spring. A row that leaves or changes
@@ -502,9 +502,11 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
    - Press the chevron beside a workstream's name to collapse or expand its
      threads. The group closes and opens its height over `260 ms` with a fade,
      like rows and bands, so what follows slides rather than jumps, and the
-     chevron turns a quarter turn. **Dormant**, **Archived**, **Snoozed**, and
-     each archived workstream's group fold the same way. Under reduced motion
-     they change at once.
+     chevron turns a quarter turn. Each archived workstream's group folds the
+     same way, and so does every sidebar section (**Recents**, **Workstreams**,
+     **Dormant**, **Snoozed**, and **Archived**) from its heading's name or
+     chevron, showing its count while folded. Under reduced motion they change
+     at once.
    - Click the **Focus** button (viewfinder icon) on any workstream header to
      move it to the top tier. When at least one workstream is focused, the other
      workstreams, **Other**, and **Dormant** collapse behind **Show/Hide other
@@ -570,18 +572,18 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
 4. **Other:** Threads in no workstream.
 5. **Dormant:** Unfocused workstreams with no activity in the last `30` days and
    nothing that needs you.
-6. **Recent, Snoozed, and Archived bands:**
-   - **Recent** lists the most recently active threads (`1–20`, default `5`)
+6. **Recents, Snoozed, and Archived sections:**
+   - **Recents** lists the most recently active threads (`1–20`, default `5`)
      that Up Next isn't showing, so it carries on where Up Next stops. It is a
      section like **Workstreams**, under its own heading. Snoozed threads stay
      out.
    - **Snoozed** lists snoozed threads ordered by soonest wake time (or
      `On update`), with their child threads under them while snoozed.
    - **Archived** paginates archived threads via BB's archive list.
-   - Each band has a **⋯** menu for **Sort by** (`Recent activity`, `Title A–Z`,
-     `Soonest to wake`, or `Archive date`) and **Show by workstream**. Grouped
-     bands show each workstream under a header with its count; the header folds
-     the group, and Archived groups start folded.
+   - Each section has a **⋯** menu for **Sort by** (`Recent activity`,
+     `Title A–Z`, `Soonest to wake`, or `Archive date`) and **Show by
+     workstream**. Grouped sections show each workstream under a header with its
+     count; the header folds the group, and Archived groups start folded.
 
 #### Row indicators and actions
 
@@ -1317,7 +1319,7 @@ Likewise a question, failed send, or machine wait already there when you snooze
 never wakes it.
 
 - Snoozing a thread removes it and all of its child threads from its workstream
-  and from **Up Next** / **Recent**, placing them in the **Snoozed** section
+  and from **Up Next** / **Recents**, placing them in the **Snoozed** section
   until wake.
 - **Time-only snoozes ignore agent activity** so an overnight run does not wake
   a thread before morning; when a timed snooze expires, Workstreams wakes the
@@ -1336,8 +1338,8 @@ Open **Settings → Workstreams** to configure:
 
 | Section               | Setting                                                                                                          | Default                                           | Details                                                                                                                                                                                                                                                                                                                                                            |
 | --------------------- | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Sidebar**           | **Up Next**, **Recent**, **Snoozed**, **Archived**                                                               | All `On`                                          | Under **Sections**: show or hide each band in the Workstreams sidebar.                                                                                                                                                                                                                                                                                             |
-| **Sidebar**           | Recent's count (**recent threads shown**)                                                                        | `5` (`1–20`)                                      | The stepper beside **Recent**, shown while Recent is on: the most threads the Recent band lists.                                                                                                                                                                                                                                                                   |
+| **Sidebar**           | **Up Next**, **Recents**, **Snoozed**, **Archived**                                                              | All `On`                                          | Under **Sections**: show or hide each band in the Workstreams sidebar.                                                                                                                                                                                                                                                                                             |
+| **Sidebar**           | Recents' count (**recent threads shown**)                                                                        | `5` (`1–20`)                                      | The stepper beside **Recents**, shown while Recents is on: the most threads the Recents section lists.                                                                                                                                                                                                                                                             |
 | **Sidebar**           | **Up Next and workstreams on phones**                                                                            | `On`                                              | Under **Home screen**: replaces BB's Recent list on a phone's Home screen with Up Next over your threads by workstream.                                                                                                                                                                                                                                            |
 | **Sidebar**           | **Timestamp**                                                                                                    | `Always`                                          | Under **Details**: show each row's age, right after its title, `Always`, `On hover`, or `Never`.                                                                                                                                                                                                                                                                   |
 | **Sidebar**           | **Thread count** / **Threads that need you**                                                                     | `When collapsed`                                  | Under **Details**: show a workstream header's thread count, and how many of its threads need you (Needs input or Blocked), `Always`, `When collapsed`, or `Never`.                                                                                                                                                                                                 |
@@ -1702,7 +1704,7 @@ standard location.
 
 | Page       | What it draws                                                                            |
 | ---------- | ---------------------------------------------------------------------------------------- |
-| `sidebar`  | The production thread list: 64 threads in eight workstreams, with Up Next and Recent     |
+| `sidebar`  | The production thread list: 64 threads in eight workstreams, with Up Next and Recents    |
 | `question` | The production question card with eight options. It has no folds, so `fold` does not run |
 
 With no arguments the command runs every scenario on `sidebar`. Name scenarios
@@ -1873,7 +1875,7 @@ production slot bindings, feature order, and new-thread integration. Sidebar
 action tests use `sidebar-action-fixture.tsx` when broader list wiring is not
 under test; it still mounts the real `ThreadList` for snooze, menu, and group
 actions. Consolidated cases keep negative controls and cross-group states that
-make their assertions discriminating. Sidebar fixtures omit Up Next and Recent
+make their assertions discriminating. Sidebar fixtures omit Up Next and Recents
 unless the case requests `mountWithBands`. Related gestures and display variants
 can share a mounted scenario; keep failure, cancellation, and ownership
 boundaries explicit. Ranking policy matrices belong in domain tests, with
