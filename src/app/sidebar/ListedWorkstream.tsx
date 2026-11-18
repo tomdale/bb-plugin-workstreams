@@ -118,6 +118,7 @@ export const ListedWorkstream = memo(function ListedWorkstream({
           pullRequests={pullRequests}
           choosingWorkstream={choosingWorkstream}
           colorOf={colorOf}
+          prefixColorOf={prefixColorOf}
           newThreadIn={newThreadIn}
           openOverview={openOverview}
           groupSnoozeOf={groupSnoozeOf}
@@ -145,6 +146,7 @@ export const ListedWorkstream = memo(function ListedWorkstream({
       pullRequests,
       choosingWorkstream,
       colorOf,
+      prefixColorOf,
       newThreadIn,
       openOverview,
       groupSnoozeOf,

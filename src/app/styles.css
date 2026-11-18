@@ -1137,16 +1137,14 @@ body:has([data-ws-suggestions])
     var(--ws-color-dark, oklch(79% 0.13 var(--ws-hue, 250)))
   );
 }
+/* A category label wears the color the workstream's header gives its
+   group's name (`.ws-text-prefix`), so it reads as a quieter tier under the
+   workstream's own name. */
 .ws-category-label {
   color: color-mix(
     in oklab,
-    var(--ws-color-light, oklch(46% 0.16 var(--ws-hue, 250))) 45%,
-    var(--muted-foreground)
-  );
-  color: color-mix(
-    in oklab,
-    var(--ws-color-light, oklch(46% 0.16 var(--ws-hue, 250))) 45%,
-    oklch(from var(--ws-color-light, oklch(46% 0.16 var(--ws-hue, 250))) l 0 h)
+    var(--ws-color-light, var(--muted-foreground)) 65%,
+    transparent
   );
 }
 .dark .ws-workstream-name {
@@ -1155,13 +1153,8 @@ body:has([data-ws-suggestions])
 .dark .ws-category-label {
   color: color-mix(
     in oklab,
-    var(--ws-color-dark, oklch(79% 0.13 var(--ws-hue, 250))) 45%,
-    var(--muted-foreground)
-  );
-  color: color-mix(
-    in oklab,
-    var(--ws-color-dark, oklch(79% 0.13 var(--ws-hue, 250))) 45%,
-    oklch(from var(--ws-color-dark, oklch(79% 0.13 var(--ws-hue, 250))) l 0 h)
+    var(--ws-color-dark, var(--muted-foreground)) 65%,
+    transparent
   );
 }
 /* The queue's card stack (queue/motion.ts poses every card each frame). The

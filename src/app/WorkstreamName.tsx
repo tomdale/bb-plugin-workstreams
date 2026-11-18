@@ -23,7 +23,7 @@ export function splitWorkstreamName(
  * name with no known parent falls back to the theme's muted ink, even inside
  * a header that sets its area's hue.
  */
-function prefixColors(prefixColor?: WorkstreamColor): CSSProperties {
+export function prefixColors(prefixColor?: WorkstreamColor): CSSProperties {
   return (
     prefixColor
       ? workstreamColorStyle(prefixColor)
