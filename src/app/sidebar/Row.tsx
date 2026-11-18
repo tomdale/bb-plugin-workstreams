@@ -127,6 +127,9 @@ export function Row({
       hasSubtitle: Boolean(subtitle),
     });
 
+  // The title reads at full strength; other rows mute it until hovered.
+  const bright = thread.isUnread || active || traits.attention;
+
   return (
     <div
       className={cn(
@@ -209,7 +212,7 @@ export function Row({
         className={cn(
           "pointer-events-none relative flex min-w-0 flex-1 flex-col",
           thread.isUnread && "font-medium",
-          thread.isUnread || active || traits.attention
+          bright
             ? "text-foreground"
             : "text-muted-foreground group-hover/row:text-foreground",
         )}
@@ -252,7 +255,14 @@ export function Row({
           ) : null}
         </span>
         {subtitle ? (
-          <span className="truncate text-[12px] leading-4 text-muted-foreground/80">
+          // A read row's title is already muted, so its second line steps
+          // down further to stay visibly below the title.
+          <span
+            className={cn(
+              "truncate text-[12px] font-normal leading-4",
+              bright ? "text-muted-foreground/80" : "text-muted-foreground/60",
+            )}
+          >
             {subtitle}
           </span>
         ) : null}
