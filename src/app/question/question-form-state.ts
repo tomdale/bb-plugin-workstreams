@@ -1,3 +1,5 @@
+import type { InteractionArtifact } from "../../server/questions/contracts.ts";
+
 export interface QuestionOption {
   value: string;
   label: string;
@@ -9,6 +11,7 @@ export interface Question {
   id: string;
   prompt: string;
   details?: string;
+  artifacts?: InteractionArtifact[];
   shortLabel: string;
   multiSelect: boolean;
   allowFreeText: boolean;

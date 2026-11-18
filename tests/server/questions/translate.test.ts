@@ -177,6 +177,84 @@ describe("buildInteractionPayload", () => {
   });
 });
 
+describe("artifacts", () => {
+  const approval = {
+    question: "Open this PR as written?",
+    header: "PR",
+    artifacts: [
+      {
+        title: "Body",
+        format: "markdown",
+        content: "## Story\n\n  Ships it.  ",
+      },
+      {
+        title: "Change",
+        format: "diff",
+        path: "  src/a.ts  ",
+        content: "@@ -1 +1 @@\n-a\n+b\n",
+      },
+    ],
+    options: [{ label: "Open it", description: "Push and open the PR." }],
+  };
+
+  it("carries artifacts to the card exactly as written", () => {
+    const payload = buildInteractionPayload(
+      parseInput({ questions: [approval] }),
+    );
+    expect(payload.questions[0]?.artifacts).toEqual([
+      {
+        title: "Body",
+        format: "markdown",
+        content: "## Story\n\n  Ships it.  ",
+      },
+      {
+        title: "Change",
+        format: "diff",
+        path: "src/a.ts",
+        content: "@@ -1 +1 @@\n-a\n+b\n",
+      },
+    ]);
+  });
+
+  it("returns the artifacts with the answer, as the record of what was approved", () => {
+    const payload = buildInteractionPayload(
+      parseInput({ questions: [approval] }),
+    );
+    const result = buildToolResult(payload, {
+      answers: { q0: { selected: ["q0o0"] } },
+    });
+    expect(result.questions[0]?.artifacts).toEqual(
+      payload.questions[0]?.artifacts,
+    );
+    // The stored history rebuilds the card from the result.
+    expect(
+      toolInputSchema.safeParse({ questions: result.questions }).success,
+    ).toBe(true);
+  });
+
+  it("rejects unknown formats, blank content, and more than four artifacts", () => {
+    const withArtifacts = (artifacts: unknown[]) =>
+      toolInputSchema.safeParse({ questions: [{ ...approval, artifacts }] })
+        .success;
+    const text = { title: "T", format: "text", content: "x" };
+    expect(withArtifacts([{ ...text, format: "html" }])).toBe(false);
+    expect(withArtifacts([{ ...text, content: "  " }])).toBe(false);
+    expect(withArtifacts(Array.from({ length: 5 }, () => text))).toBe(false);
+    expect(withArtifacts(Array.from({ length: 4 }, () => text))).toBe(true);
+  });
+
+  it("leaves questions without artifacts unchanged", () => {
+    const payload = buildInteractionPayload(
+      parseInput({
+        questions: [
+          { question: "Which DB?", header: "DB", options: twoOptions },
+        ],
+      }),
+    );
+    expect(payload.questions[0]).not.toHaveProperty("artifacts");
+  });
+});
+
 describe("assertInteractionPayloadFits", () => {
   it("rejects oversized total question content with actionable guidance", () => {
     const preview = "x".repeat(4096);
@@ -195,7 +273,7 @@ describe("assertInteractionPayloadFits", () => {
       PreviewTooLargeError,
     );
     expect(() => assertInteractionPayloadFits(payload)).toThrow(
-      "question details or option previews",
+      "question details, artifacts, or option previews",
     );
   });
 

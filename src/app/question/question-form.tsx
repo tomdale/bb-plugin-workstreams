@@ -31,6 +31,7 @@ import {
 import { Markdown, useBbContext, useSdk } from "@get-bb/plugin-sdk/app";
 import { plainText } from "../../domain/recap.ts";
 import { formatQuestionText } from "./question-markdown.ts";
+import { QuestionArtifacts } from "./QuestionArtifacts.tsx";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { useIsCompactViewport } from "@/components/ui/hooks/use-compact-viewport";
@@ -364,11 +365,20 @@ function QuestionInputBlock({
           />
         </div>
       ) : null}
+      {question.artifacts?.length ? (
+        <QuestionArtifacts
+          artifacts={question.artifacts}
+          className={question.details ? "mt-2.5" : "mt-3"}
+        />
+      ) : null}
       <div
         role={question.multiSelect ? "group" : "radiogroup"}
         aria-labelledby={`${question.id}-prompt`}
         onKeyDown={question.multiSelect ? undefined : moveRadioSelection}
-        className={cn("space-y-px", question.details ? "mt-3" : "mt-2")}
+        className={cn(
+          "space-y-px",
+          question.details || question.artifacts?.length ? "mt-3" : "mt-2",
+        )}
       >
         {options.map((option: QuestionOption, index) => {
           const checked = state.selected.includes(option.value);

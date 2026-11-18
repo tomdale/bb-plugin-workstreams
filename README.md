@@ -1009,6 +1009,12 @@ until you answer:
 - Supports `1–4` questions in tabs, each with up to `4` single-select or
   multi-select options (with number-key shortcuts and optional Markdown
   previews) plus an **Other…** freeform input.
+- A question can carry up to `4` artifacts: the exact content it asks you to
+  approve or review, such as a PR title and body, a review comment, or a patch.
+  They show in full between the question and its options, without selecting
+  anything: Markdown as in chat, diffs in BB's diff viewer (one per file), code
+  with syntax highlighting, and plain text as written. Long artifacts scroll in
+  place. On a BB without the diff or code viewer, those show as plain text.
 - Freeform answers support pasted images and project file attachments. `Enter`
   advances to the next question or submits the final answer; `Shift+Enter`
   inserts a newline. On a compact viewport with a coarse pointer, `Enter`
@@ -1024,15 +1030,15 @@ until you answer:
   message.
 - Submitted questions remain inline as read-only cards, collapsed by default to
   a compact summary of each question and answer. Expand a card to see the
-  original question text, details, all options and previews, selected answers,
-  free text, notes, and downloadable image or file attachments. They use the
-  same display after an interruption, recovery, or page reload, without an extra
-  raw JSON answer. Older answers retain the information saved with them; exact
-  selections are marked when the structured submission is available. Cards
-  expand and collapse with a short animation, unless reduced motion is enabled.
-  Expanding at the bottom keeps the card's top in place and detaches the thread
-  from the bottom. A question closed by a message of your own keeps its original
-  content and shows that it was dismissed without an answer.
+  original question text, details, artifacts, all options and previews, selected
+  answers, free text, notes, and downloadable image or file attachments. They
+  use the same display after an interruption, recovery, or page reload, without
+  an extra raw JSON answer. Older answers retain the information saved with
+  them; exact selections are marked when the structured submission is available.
+  Cards expand and collapse with a short animation, unless reduced motion is
+  enabled. Expanding at the bottom keeps the card's top in place and detaches
+  the thread from the bottom. A question closed by a message of your own keeps
+  its original content and shows that it was dismissed without an answer.
 
 ### Workstreams page (`/plugins/workstreams/home`)
 

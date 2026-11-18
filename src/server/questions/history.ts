@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  ARTIFACT_FORMATS,
   interactionPayloadSchema,
   interactionResponseSchema,
   toolInputSchema,
@@ -14,6 +15,16 @@ export const questionResultSchema = z.object({
         .string()
         .optional()
         .refine((value) => value === undefined || value.trim().length > 0),
+      artifacts: z
+        .array(
+          z.object({
+            title: z.string().min(1),
+            format: z.enum(ARTIFACT_FORMATS),
+            content: z.string().min(1),
+            path: z.string().min(1).optional(),
+          }),
+        )
+        .optional(),
       header: z.string(),
       options: z.array(
         z.object({

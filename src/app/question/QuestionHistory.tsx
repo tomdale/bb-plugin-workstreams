@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/icon";
 import { usePortalScopeProps } from "@/lib/portal-scope";
 import { QuestionAttachment } from "./QuestionAttachment.tsx";
+import { QuestionArtifacts } from "./QuestionArtifacts.tsx";
 import {
   QUESTION_CARD_CLASS,
   PROMPT_CLASS,
@@ -278,6 +279,12 @@ export function QuestionHistoryCard({ record }: { record: QuestionHistory }) {
                         className={DETAILS_CLASS}
                       />
                     </div>
+                  ) : null}
+                  {q.artifacts?.length ? (
+                    <QuestionArtifacts
+                      artifacts={q.artifacts}
+                      className={q.details ? "mt-2.5" : "mt-3"}
+                    />
                   ) : null}
                   {q.options.length ? (
                     <ul

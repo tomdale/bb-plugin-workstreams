@@ -88,7 +88,50 @@ const longQuestion: Question = {
   ],
 };
 
-type Preset = "options" | "freeform" | "mixed" | "questions" | "long";
+const approvalQuestion: Question = {
+  id: "gallery-approval",
+  shortLabel: "Release PR",
+  prompt: "Open this pull request with exactly this title, body and change?",
+  details:
+    "Repository `acme/release-tools`, head `release/summary` into `main`.",
+  multiSelect: false,
+  allowFreeText: true,
+  artifacts: [
+    {
+      title: "Title",
+      format: "text",
+      content: "Add a compact release summary",
+    },
+    {
+      title: "Body",
+      format: "markdown",
+      content:
+        "Adds a compact release summary that leads with the goal and keeps the review steps together.\n\n## Checks\n\n- `npm test` passes\n- The summary fits a 390px pane\n\nThe payment integration still awaits review.",
+    },
+    {
+      title: "Change",
+      format: "diff",
+      path: "src/reports/summary.ts",
+      content:
+        "diff --git a/src/reports/summary.ts b/src/reports/summary.ts\n--- a/src/reports/summary.ts\n+++ b/src/reports/summary.ts\n@@ -1,4 +1,5 @@\n export function summary(report: Report) {\n-  return [report.goal, report.done, report.review];\n+  const sections = [report.goal, report.review];\n+  return report.compact ? sections : [...sections, report.done];\n }\n",
+    },
+  ],
+  options: [
+    {
+      value: "open",
+      label: "Open it",
+      description: "Push the branch and open a ready-for-review PR.",
+    },
+    {
+      value: "draft",
+      label: "Open as a draft",
+      description: "Same text and branches, opened as a draft.",
+    },
+  ],
+};
+
+type Preset =
+  "options" | "freeform" | "mixed" | "questions" | "long" | "artifacts";
 type FormState =
   "ready" | "disabled" | "submitting" | "cancel-disabled" | "error";
 
@@ -123,6 +166,8 @@ function questionsFor(preset: Preset, multiple: boolean): Question[] {
       ];
     case "long":
       return [{ ...longQuestion, multiSelect: multiple }];
+    case "artifacts":
+      return [approvalQuestion];
     default:
       return [layout];
   }
@@ -189,6 +234,12 @@ const formVariants: readonly FormVariant[] = [
   { label: "Options and freeform", preset: "mixed" },
   { label: "Multiple questions", preset: "questions", wide: true },
   { label: "Long details and previews", preset: "long", wide: true },
+  {
+    label: "Approval with artifacts",
+    preset: "artifacts",
+    wide: true,
+    note: "Diffs and code use BB's viewers in the app; this gallery shows their text fallback.",
+  },
   {
     label: "All actions disabled",
     preset: "options",

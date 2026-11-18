@@ -7,6 +7,17 @@ export const MAX_OPTIONS = 4;
 const MAX_SELECTED = MAX_OPTIONS;
 const MAX_FREE_TEXT_LENGTH = 4096;
 export const MAX_OPTION_PREVIEW_LENGTH = 4096;
+export const MAX_ARTIFACTS = 4;
+/** One artifact's content. The interaction payload's byte limit also bounds the card as a whole. */
+export const MAX_ARTIFACT_LENGTH = 40_000;
+
+/**
+ * How a question card draws an artifact: `markdown` in BB's chat renderer,
+ * `diff` in BB's diff viewer (one viewer per file of a unified patch), `code`
+ * in BB's source viewer, and `text` as preformatted text.
+ */
+export const ARTIFACT_FORMATS = ["markdown", "diff", "code", "text"] as const;
+export type ArtifactFormat = (typeof ARTIFACT_FORMATS)[number];
 
 const nonBlank = (value: string) => value.trim().length > 0;
 
@@ -17,10 +28,19 @@ const interactionOptionSchema = z.object({
   preview: z.string().min(1).optional(),
 });
 
+const interactionArtifactSchema = z.object({
+  title: z.string().min(1),
+  format: z.enum(ARTIFACT_FORMATS),
+  content: z.string().min(1),
+  path: z.string().min(1).optional(),
+});
+export type InteractionArtifact = z.infer<typeof interactionArtifactSchema>;
+
 const interactionQuestionSchema = z.object({
   id: z.string().min(1),
   prompt: z.string().min(1),
   details: z.string().min(1).optional(),
+  artifacts: z.array(interactionArtifactSchema).max(MAX_ARTIFACTS).optional(),
   shortLabel: z.string().min(1),
   multiSelect: z.boolean(),
   options: z.array(interactionOptionSchema).max(MAX_OPTIONS),
@@ -85,6 +105,36 @@ const toolOptionSchema = z.strictObject({
     ),
 });
 
+const toolArtifactSchema = z.strictObject({
+  title: z
+    .string()
+    .min(1)
+    .refine(nonBlank, "Artifact titles cannot be blank")
+    .describe(
+      'Short name shown above the artifact, such as "PR body", "Review comment" or "global/projects/workstream.tf".',
+    ),
+  format: z
+    .enum(ARTIFACT_FORMATS)
+    .describe(
+      "How to render the content: markdown (rendered like a chat message; use for PR bodies, comments, docs), diff (a unified patch, one or more files, shown in BB's diff viewer), code (a whole file or snippet with syntax highlighting), or text (preformatted as written).",
+    ),
+  content: z
+    .string()
+    .min(1)
+    .max(MAX_ARTIFACT_LENGTH)
+    .refine(nonBlank, "Artifact content cannot be blank")
+    .describe(
+      "The exact, complete content the user is deciding about, as it would be published or applied. Not a summary.",
+    ),
+  path: z
+    .string()
+    .min(1)
+    .optional()
+    .describe(
+      "File path or name for code and diff artifacts. It sets syntax highlighting and names the file of a patch without a `diff --git` header.",
+    ),
+});
+
 const toolQuestionSchema = z.strictObject({
   question: z
     .string()
@@ -99,7 +149,14 @@ const toolQuestionSchema = z.strictObject({
     .refine(nonBlank, "Details cannot be blank")
     .optional()
     .describe(
-      "Optional always-visible context displayed directly below the question and above its answer options: a short proposal list or the few facts needed to choose, in a few short lines (under about 400 characters), not in an option preview. Put longer explanation in your message text before the call. Rendered as Markdown: use `-` bullets for lists and a blank line between paragraphs.",
+      "Optional always-visible context displayed directly below the question and above its answer options: a short proposal list or the few facts needed to choose, in a few short lines (under about 400 characters), not in an option preview. Content the user is approving or reviewing goes in artifacts instead. Rendered as Markdown: use `-` bullets for lists and a blank line between paragraphs.",
+    ),
+  artifacts: z
+    .array(toolArtifactSchema)
+    .max(MAX_ARTIFACTS)
+    .optional()
+    .describe(
+      "Up to 4 always-visible artifacts shown in full between the details and the options: the exact text, diff, or file the question asks the user to approve or review, such as a PR title and body, a review comment, a commit message, or a patch. The card is the only place the user is sure to see them; text in a message before the call may never be shown.",
     ),
   header: z
     .string()
@@ -134,6 +191,8 @@ export type ToolInput = z.infer<typeof toolInputSchema>;
 interface ToolResultQuestion {
   question: string;
   details?: string;
+  /** The artifacts as shown, the record of exactly what the user answered about. */
+  artifacts?: InteractionArtifact[];
   header: string;
   options: Array<{ label: string; description: string; preview?: string }>;
   multiSelect: boolean;

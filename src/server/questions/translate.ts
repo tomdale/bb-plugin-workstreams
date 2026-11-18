@@ -1,6 +1,7 @@
 import {
   MAX_OPTION_PREVIEW_LENGTH,
   type InteractionAnswer,
+  type InteractionArtifact,
   type InteractionPayload,
   type InteractionQuestion,
   type InteractionResponse,
@@ -25,7 +26,7 @@ export const MAX_INTERACTION_PAYLOAD_BYTES = 60 * 1024;
 export class PreviewTooLargeError extends Error {
   constructor(byteLength: number) {
     super(
-      `The question content is too large to display (${byteLength} bytes, limit ${MAX_INTERACTION_PAYLOAD_BYTES}). Shorten the question details or option previews and call the tool again.`,
+      `The question content is too large to display (${byteLength} bytes, limit ${MAX_INTERACTION_PAYLOAD_BYTES}). Shorten the question details, artifacts, or option previews, and call the tool again.`,
     );
     this.name = "PreviewTooLargeError";
   }
@@ -46,12 +47,28 @@ function normalizePreview(preview: string | undefined): string | undefined {
   return trimmed.slice(0, MAX_OPTION_PREVIEW_LENGTH);
 }
 
+/** Artifact content stays exactly as written; only an empty path is dropped. */
+function normalizeArtifact(
+  artifact: NonNullable<ToolInput["questions"][number]["artifacts"]>[number],
+): InteractionArtifact {
+  const path = artifact.path?.trim();
+  return {
+    title: artifact.title,
+    format: artifact.format,
+    content: artifact.content,
+    ...(path ? { path } : {}),
+  };
+}
+
 export function buildInteractionPayload(input: ToolInput): InteractionPayload {
   return {
     questions: input.questions.map((question, index) => ({
       id: questionId(index),
       prompt: question.question,
       ...(question.details === undefined ? {} : { details: question.details }),
+      ...(question.artifacts?.length
+        ? { artifacts: question.artifacts.map(normalizeArtifact) }
+        : {}),
       shortLabel: question.header,
       multiSelect: question.multiSelect,
       options: question.options.map((option, optionIndex) => {
@@ -217,6 +234,7 @@ export function buildToolResult(
     questions: payload.questions.map((question) => ({
       question: question.prompt,
       ...(question.details === undefined ? {} : { details: question.details }),
+      ...(question.artifacts?.length ? { artifacts: question.artifacts } : {}),
       header: question.shortLabel,
       options: question.options.map((option) => ({
         label: option.label,
