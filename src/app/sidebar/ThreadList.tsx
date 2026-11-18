@@ -72,6 +72,7 @@ import { shareArrangement } from "../shareNodes.ts";
 import { useStableSidebarThreads } from "../useStableSidebarThreads.ts";
 import { useLatest, useStableCallback } from "../useLatest.ts";
 import { useSidebarSnooze } from "./useSidebarSnooze.tsx";
+import { useRevealActiveThread } from "./revealActive.ts";
 import { useGroupCollapse } from "./useGroupCollapse.ts";
 import { SIDEBAR_GEOMETRY } from "./tokens.ts";
 import { workstreamGap } from "./workstreamGap.ts";
@@ -321,6 +322,22 @@ export function WorkstreamsThreadList({
   );
 
   const listRef = useRef<HTMLDivElement>(null);
+  // Rows place only once the server state has loaded, since snoozes and the
+  // stored order move them.
+  const listedIds = useMemo(
+    () =>
+      ws.status === "ready" && ws.server.loaded
+        ? new Set(
+            [...ws.threads, ...archivedThreads].map((thread) => thread.id),
+          )
+        : null,
+    [ws.status, ws.server.loaded, ws.threads, archivedThreads],
+  );
+  useRevealActiveThread(
+    listRef,
+    activeThreadId,
+    (id) => listedIds?.has(id) ?? false,
+  );
   const captureLayout = useFlip(listRef, [...focused].sort().join(" "));
   /** Focus covers a whole top-level group, so it names every section in it. */
   const toggleFocus = useStableCallback((group: ThreadNode) => {

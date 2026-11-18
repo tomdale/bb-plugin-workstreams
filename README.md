@@ -590,7 +590,11 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
 Thread ages and the wake time a snooze button shows refresh once a minute, and
 snoozes wake at their expiry time. An empty workstream leaves the list as soon
 as its last visible thread does. Active rows use a highlighted background and
-foreground text without changing title weight. Unread titles use medium weight.
+foreground text without changing title weight. When a thread opens, the sidebar
+scrolls just far enough to show its highlighted row, unless one of its rows (in
+Up Next, Pinned, Recents, or its workstream) is already in view. A thread whose
+rows all sit in collapsed sections or workstreams leaves the scroll position
+alone. Unread titles use medium weight.
 
 - **Status marks:** Each row shows at most one mark before its title, in this
   order of precedence: the working spinner (customizable) while a turn runs, a
