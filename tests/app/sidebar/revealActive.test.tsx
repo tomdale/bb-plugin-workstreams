@@ -100,6 +100,19 @@ describe("revealThreadRow", () => {
     expect(layout.scrollTop()).toBe(300 - (60 - 30) - 8);
   });
 
+  it("counts a row in the fade below the plate as under it", () => {
+    const plate = document.createElement("div");
+    plate.className = "ws-up-next-sticky";
+    plate.style.setProperty("--ws-up-next-heading-gap", "8px");
+    list.append(plate);
+    layout.place(plate, 0, 60, true);
+    layout.place(row("a", list), 362);
+    list.parentElement!.scrollTop = 300;
+    revealThreadRow(list, "a");
+    // The row sat at 62, inside the fade that ends at 68.
+    expect(layout.scrollTop()).toBe(300 - (68 - 62) - 8);
+  });
+
   it("is satisfied by any one of the thread's rows in view", () => {
     const plate = document.createElement("div");
     plate.className = "ws-up-next-sticky";

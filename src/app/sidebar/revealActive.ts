@@ -42,7 +42,7 @@ export function useRevealActiveThread(
  * `threadId`'s drawn rows fully into view, unless one already is.
  *
  * Rows scrolling under the sticky Up Next and Pinned plate are hidden by it,
- * so for them the visible region starts below the plate. A row on the plate
+ * so for them the visible region starts below the plate and its fade. A row on the plate
  * itself is visible wherever the list is scrolled, and scrolling cannot move
  * it, so it is never the row scrolled to. Rows in a closing fold are leaving
  * and do not count.
@@ -66,10 +66,20 @@ export function revealThreadRow(list: HTMLElement, threadId: string): void {
   const top = frame.top + scroller.clientTop;
   const bottom = top + scroller.clientHeight;
   const plate = list.querySelector<HTMLElement>(".ws-up-next-sticky");
-  const belowPlate = Math.max(
-    top,
-    plate ? plate.getBoundingClientRect().bottom : top,
-  );
+  // The plate's `::after` fades the rows up to `--ws-up-next-heading-gap`
+  // below its box (see `.ws-up-next-sticky` in styles.css), so they count as
+  // under it too.
+  const belowPlate = plate
+    ? Math.max(
+        top,
+        plate.getBoundingClientRect().bottom +
+          (parseFloat(
+            getComputedStyle(plate).getPropertyValue(
+              "--ws-up-next-heading-gap",
+            ),
+          ) || 0),
+      )
+    : top;
 
   let scrollBy: number | null = null;
   for (const row of rows) {
