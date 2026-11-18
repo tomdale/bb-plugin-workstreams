@@ -27,6 +27,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { interactionPayloadSchema } from "../../server/questions/contracts.ts";
 import { QuestionForm } from "./question-form.tsx";
+import { QuestionComposerPickers } from "./QuestionComposerPickers.tsx";
 import { usePendingQuestion } from "./pending.ts";
 import { useSidebarThread } from "../useStableSidebarThreads.ts";
 import type { RpcContract } from "../../server/contract.ts";
@@ -70,7 +71,9 @@ export function QuestionAnchor() {
   const { scope } = composer;
   const threadId = scope.kind === "thread" ? scope.threadId : null;
   const pending = usePendingQuestion(threadId);
-  const native = useSidebarThread(threadId)?.hasPendingInteraction === true;
+  const thread = useSidebarThread(threadId);
+  const native = thread?.hasPendingInteraction === true;
+  const [anchor, setAnchorElement] = useState<HTMLElement | null>(null);
   const rpc = useRpc<RpcContract>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -131,6 +134,7 @@ export function QuestionAnchor() {
   };
   const anchorRef = useCallback(
     (node: HTMLElement | null) => {
+      setAnchorElement(node);
       if (!threadId) return;
       setAnchor(threadId, node);
       return () => setAnchor(threadId, null);
@@ -139,6 +143,7 @@ export function QuestionAnchor() {
   );
   return (
     <div ref={anchorRef} className="contents">
+      <QuestionComposerPickers anchor={anchor} thread={thread} />
       {showsCard && pending ? (
         <div
           className={QUESTION_CARD_CLASS}

@@ -1375,6 +1375,10 @@ section[data-testid="plugin-interaction-shell"]:has(.ws-question-portaled) {
    and an important layered declaration beats every unlayered one, so this
    rule joins that layer and wins there on specificity. */
 @layer base {
+  [data-ws-question-picker-replaced] {
+    display: none !important;
+  }
+
   [data-app-composer]:has(.ws-question-portaled)
     [data-follow-up-composer][hidden] {
     display: block !important;
