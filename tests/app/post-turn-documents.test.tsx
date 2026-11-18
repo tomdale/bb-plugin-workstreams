@@ -5,7 +5,11 @@ import { renderSlot } from "@get-bb/plugin-sdk/testing/app";
 import { PostTurnDocuments } from "../../src/app/postTurn/PostTurnDocuments.tsx";
 import { assistantMessageId } from "../../src/domain/postTurn/message.ts";
 import { documentText } from "../../src/domain/postTurn/document.ts";
-import { CORRECTION, DEPLOYED_CHANGE } from "../fixtures/postTurn.ts";
+import {
+  CORRECTION,
+  DEPLOYED_CHANGE,
+  SETTINGS_PLAN,
+} from "../fixtures/postTurn.ts";
 
 afterEach(() => {
   cleanup();
@@ -243,5 +247,190 @@ describe("PostTurnDocuments", () => {
     expect(target.querySelector("[data-message-column]")!.innerHTML).toBe(
       ORIGINAL,
     );
+  });
+});
+
+describe("plan documents", () => {
+  type Outcome =
+    | { kind: "approved" }
+    | { kind: "replied"; message: string }
+    | { kind: "superseded" }
+    | null;
+
+  /** A plan below T1, with a server that records answers like the plugin's. */
+  function mountPlan(
+    options: {
+      outcome?: Outcome;
+      refuse?: string;
+    } = {},
+  ) {
+    let outcome: Outcome = options.outcome ?? null;
+    const presentations = vi.fn(async () => ({
+      enabled: true,
+      items: [
+        {
+          messageId: T1,
+          workstream: { name: "Workstreams", color: null },
+          document: SETTINGS_PLAN,
+          outcome,
+        },
+      ],
+    }));
+    const presentation_answer = vi.fn(
+      async ({
+        answer,
+      }: {
+        answer: { kind: "approve" } | { kind: "reply"; message: string };
+      }) => {
+        if (options.refuse) throw new Error(options.refuse);
+        outcome =
+          answer.kind === "approve"
+            ? { kind: "approved" }
+            : { kind: "replied", message: answer.message };
+        return { outcome };
+      },
+    );
+    const target = row(T1);
+    const slot = renderSlot(
+      { component: PostTurnDocuments },
+      {},
+      { rpc: { presentations, presentation_answer } as never },
+    );
+    return { target, slot, presentations, presentation_answer };
+  }
+  const plan = (target: HTMLElement) =>
+    target.querySelector<HTMLElement>("[data-ws-plan]");
+  const approve = (target: HTMLElement) =>
+    target.querySelector<HTMLButtonElement>("[data-plan-approve]");
+  const replies = (target: HTMLElement) => [
+    ...target.querySelectorAll<HTMLButtonElement>("[data-plan-reply]"),
+  ];
+
+  it("draws the plan form without the document surface", async () => {
+    const { target } = mountPlan();
+    await waitFor(() => expect(plan(target)).not.toBeNull());
+    const view = plan(target)!;
+    expect(view.querySelector("[data-doc-body]")).toBeNull();
+    expect(view.querySelector("header")!.textContent).toContain("Plan");
+    expect(view.querySelector("h3")!.textContent).toBe(
+      "Move settings from JSON to SQLite",
+    );
+    const steps = [...view.querySelectorAll("ol > li")].map((li) =>
+      li.textContent?.trim(),
+    );
+    expect(steps).toEqual([
+      "1Add SQLite storageCreate the ws_setting table, then write settings to SQLite and JSON for one release.",
+      "2Switch reads to SQLiteOn the next release's first launch, copy the JSON values into SQLite.",
+      "3Keep the JSON fallbackLeave the blob unchanged for two releases, then delete it.",
+      "4Remove dual writesDelete the code that writes to both stores.",
+    ]);
+    const headings = [...view.querySelectorAll("h4")].map((h) => h.textContent);
+    expect(headings).toEqual(["Risks", "Notes"]);
+    expect(view.querySelectorAll("ul > li")).toHaveLength(2);
+    expect(view.textContent).toContain(
+      "Versioned JSON: less work, but two windows saving at once could still overwrite each other.",
+    );
+    expect(approve(target)!.textContent).toBe("Approve");
+    expect(approve(target)!.disabled).toBe(false);
+    expect(view.textContent).not.toMatch(/approve this/i);
+    const group = view.querySelector('[role="group"]')!;
+    expect(group.getAttribute("aria-label")).toBe("Suggested replies");
+    // The replies sit outside the plan's reading measure.
+    expect(group.parentElement).toBe(view);
+    expect(replies(target).map((button) => button.textContent)).toEqual(
+      SETTINGS_PLAN.plan.replies,
+    );
+  });
+
+  it("approves through the server and removes the replies", async () => {
+    const { target, presentation_answer } = mountPlan();
+    await waitFor(() => expect(approve(target)).not.toBeNull());
+    fireEvent.click(approve(target)!);
+    expect(replies(target)).toHaveLength(0);
+    await waitFor(() =>
+      expect(target.querySelector("[data-plan-approved]")).not.toBeNull(),
+    );
+    expect(presentation_answer).toHaveBeenCalledTimes(1);
+    expect(presentation_answer.mock.calls[0]![0]).toEqual({
+      threadId: "thr_a",
+      messageId: T1,
+      answer: { kind: "approve" },
+    });
+    expect(approve(target)).toBeNull();
+    expect(replies(target)).toHaveLength(0);
+  });
+
+  it.each(SETTINGS_PLAN.plan.replies!.map((reply) => [reply]))(
+    "sends %s and keeps it as the sent message, disabling Approve",
+    async (reply) => {
+      const { target, presentation_answer } = mountPlan();
+      await waitFor(() => expect(replies(target)).toHaveLength(4));
+      fireEvent.click(replies(target).find((b) => b.textContent === reply)!);
+      await waitFor(() =>
+        expect(presentation_answer).toHaveBeenCalledWith(
+          expect.objectContaining({
+            messageId: T1,
+            answer: { kind: "reply", message: reply },
+          }),
+        ),
+      );
+      const sent = target.querySelector("[data-plan-sent]")!;
+      expect(sent.textContent).toBe(reply);
+      expect(sent.getAttribute("role")).toBe("status");
+      expect(replies(target)).toHaveLength(0);
+      expect(approve(target)!.disabled).toBe(true);
+      fireEvent.click(approve(target)!);
+      expect(presentation_answer).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it("draws a stored outcome after a reload", async () => {
+    const replied = mountPlan({
+      outcome: { kind: "replied", message: "What if the copy fails?" },
+    });
+    await waitFor(() => expect(plan(replied.target)).not.toBeNull());
+    expect(replied.target.querySelector("[data-plan-sent]")!.textContent).toBe(
+      "What if the copy fails?",
+    );
+    expect(approve(replied.target)!.disabled).toBe(true);
+    cleanup();
+    document.body.innerHTML = "";
+    const passed = mountPlan({ outcome: { kind: "superseded" } });
+    await waitFor(() => expect(plan(passed.target)).not.toBeNull());
+    expect(approve(passed.target)).toBeNull();
+    expect(replies(passed.target)).toHaveLength(0);
+    expect(passed.target.querySelector("[data-plan-sent]")).toBeNull();
+  });
+
+  it("restores the open plan with the server's reason when it refuses", async () => {
+    const { target } = mountPlan({
+      refuse: "A newer turn has replaced this plan.",
+    });
+    await waitFor(() => expect(replies(target)).toHaveLength(4));
+    fireEvent.click(replies(target)[1]!);
+    await waitFor(() =>
+      expect(target.querySelector('[role="alert"]')!.textContent).toBe(
+        "A newer turn has replaced this plan.",
+      ),
+    );
+    expect(target.querySelector("[data-plan-sent]")).toBeNull();
+    expect(replies(target)).toHaveLength(4);
+    expect(approve(target)!.disabled).toBe(false);
+  });
+
+  it("copies the plan's text form", async () => {
+    const writeText = vi.fn(async (_text: string) => {});
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    const { target } = mountPlan();
+    await waitFor(() => expect(plan(target)).not.toBeNull());
+    fireEvent.click(
+      [...target.querySelectorAll("button")].find((b) =>
+        b.textContent?.includes("Copy"),
+      )!,
+    );
+    expect(writeText).toHaveBeenCalledWith(documentText(SETTINGS_PLAN));
   });
 });

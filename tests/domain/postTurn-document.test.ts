@@ -6,6 +6,7 @@ import {
   documentText,
   foldedTotals,
   validateDocument,
+  type BlocksDocument,
   type EnhancedDocument,
 } from "../../src/domain/postTurn/document.ts";
 import {
@@ -16,7 +17,11 @@ import {
   isReplyBlock,
   RESPONSE_INSTRUCTIONS,
 } from "../../src/domain/postTurn/instructions.ts";
-import { CORRECTION, DEPLOYED_CHANGE } from "../fixtures/postTurn.ts";
+import {
+  CORRECTION,
+  DEPLOYED_CHANGE,
+  SETTINGS_PLAN,
+} from "../fixtures/postTurn.ts";
 
 const issuesOf = (candidate: unknown) => {
   const result = validateDocument(candidate);
@@ -226,6 +231,88 @@ describe("validateDocument", () => {
   });
 });
 
+describe("plan documents", () => {
+  const plan = (patch: Record<string, unknown>) => ({
+    version: 1,
+    plan: { ...SETTINGS_PLAN.plan, ...patch },
+  });
+  const paths = (candidate: unknown) =>
+    issuesOf(candidate).map((issue) => issue.path);
+
+  it("accepts a plan and keeps blocks out of it", () => {
+    expect(validateDocument(SETTINGS_PLAN)).toEqual({
+      ok: true,
+      document: SETTINGS_PLAN,
+    });
+    expect(paths({ ...SETTINGS_PLAN, blocks: DEPLOYED_CHANGE.blocks })).toEqual(
+      ["(document)"],
+    );
+    expect(paths(plan({ approve: "Ship it" }))).toEqual(["plan"]);
+    expect(paths(plan({ steps: [] }))).toEqual(["plan.steps"]);
+  });
+
+  it("checks plan text with field paths", () => {
+    expect(paths(plan({ steps: [{ title: "", detail: "<b>x</b>" }] }))).toEqual(
+      ["plan.steps[0].title", "plan.steps[0].detail"],
+    );
+    expect(paths(plan({ risks: ["   "] }))).toEqual(["plan.risks[0]"]);
+    expect(
+      paths(
+        plan({
+          steps: Array.from({ length: DOCUMENT_LIMITS.steps + 1 }, () => ({
+            title: "Step",
+          })),
+        }),
+      ),
+    ).toEqual(["plan.steps"]);
+  });
+
+  it("limits replies to distinct one-line messages other than approval", () => {
+    expect(paths(plan({ replies: [{ code: "x" }] }))).toEqual([
+      "plan.replies[0]",
+    ]);
+    expect(
+      issuesOf(
+        plan({
+          replies: ["Why?", "why?", "Line one\nline two", "Approved."],
+        }),
+      ),
+    ).toEqual([
+      { path: "plan.replies[1]", message: "Replies repeat." },
+      { path: "plan.replies[2]", message: "A reply is one line." },
+      {
+        path: "plan.replies[3]",
+        message: "Approve already sends this; offer another reply.",
+      },
+    ]);
+    expect(paths(plan({ replies: ["a", "b", "c", "d", "e"] }))).toEqual([
+      "plan.replies",
+    ]);
+  });
+
+  it("writes a text form with steps, risks, and notes, without replies", () => {
+    expect(documentText(SETTINGS_PLAN)).toBe(
+      [
+        "Plan: Move settings from JSON to SQLite",
+        "Stop two windows from overwriting each other's settings in the shared JSON blob.",
+        [
+          "1. Add SQLite storage",
+          "   Create the `ws_setting` table, then write settings to SQLite and JSON for one release.",
+          "2. Switch reads to SQLite",
+          "   On the next release's first launch, copy the JSON values into SQLite.",
+          "3. Keep the JSON fallback",
+          "   Leave the blob unchanged for two releases, then delete it.",
+          "4. Remove dual writes",
+          "   Delete the code that writes to both stores.",
+        ].join("\n"),
+        "## Risks\n\n- A downgrade after step 2 restores the last JSON values.\n- Changes made after that copy won't appear in older releases.",
+        "## Notes\n\nVersioned JSON: less work, but two windows saving at once could still overwrite each other.",
+      ].join("\n\n"),
+    );
+    expect(documentText(SETTINGS_PLAN)).not.toContain("copy fails");
+  });
+});
+
 describe("canonicalDocument", () => {
   it("compares documents regardless of key order", () => {
     const reordered = JSON.parse(
@@ -249,7 +336,7 @@ describe("checks summaries", () => {
         blocks: { type: string; items?: unknown }[];
       }
     ).blocks[3] as Extract<
-      EnhancedDocument["blocks"][number],
+      BlocksDocument["blocks"][number],
       { type: "checks" }
     >;
     expect(checksSummary(checks.items, "local")).toBe(

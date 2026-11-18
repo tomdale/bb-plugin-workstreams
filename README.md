@@ -992,13 +992,25 @@ it is on:
 - When any step fails, Workstreams stores nothing and writes the reason to the
   plugin log (`bb plugin logs workstreams`); the original response stays as it
   was.
+- A response that proposes a plan and asks for approval before acting is drawn
+  as a **Plan**, without the document surface: its title and summary, numbered
+  steps with short technical details, **Risks**, **Notes**, and **Approve**. The
+  plan leaves out effort estimates and deadlines; the original response keeps
+  them. Below the plan, up to four suggested replies (questions, or changes to
+  the plan) span the full width. **Approve** sends `Approved.` to the thread as
+  your message, and the replies disappear; a reply sends its own text, stays
+  shown as the sent message, and disables **Approve**. A plan takes one answer,
+  shared by every pane, and only while it is current: once you or another thread
+  sends the thread a message, its **Approve** and replies are gone. Recap
+  reminders and waiting checks leave it open.
 
 The document format is typed JSON: paragraphs, lists, sections, checks with
-reported test totals, tables, notes, and callouts, with code spans inside text.
-The validator rejects unknown fields, HTML in text, and documents over 24,000
-characters or 40 blocks, naming the field at fault. The composing model must be
-an AI Gateway model (a Pi `vercel-ai-gateway/…` pick) that accepts tools and
-images, and the analysis machine needs Chrome (or `CHROME_PATH`).
+reported test totals, tables, notes, and callouts, with code spans inside text,
+or a plan with steps, risks, notes, and suggested replies. The validator rejects
+unknown fields, HTML in text, and documents over 24,000 characters or 40 blocks,
+naming the field at fault. The composing model must be an AI Gateway model (a Pi
+`vercel-ai-gateway/…` pick) that accepts tools and images, and the analysis
+machine needs Chrome (or `CHROME_PATH`).
 
 ### Structured question card (`AskUserQuestion`)
 

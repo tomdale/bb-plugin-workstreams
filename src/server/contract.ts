@@ -16,7 +16,10 @@ import { WORK_STATES } from "../domain/analysis.ts";
 import { prefsPatchSchema, prefsSchema } from "../domain/prefs.ts";
 import { recapPrefsSchema } from "../domain/recapPrefs.ts";
 import { presentationPrefsSchema } from "../domain/postTurn/prefs.ts";
-import { documentWorkstreamSchema } from "../domain/postTurn/message.ts";
+import {
+  documentWorkstreamSchema,
+  planOutcomeSchema,
+} from "../domain/postTurn/message.ts";
 import { recapSchema } from "../domain/recap.ts";
 import { snoozePrefsPatchSchema, snoozePrefsSchema } from "../domain/snooze.ts";
 import {
@@ -624,9 +627,26 @@ export const rpcContract = defineRpcContract({
           messageId: z.string(),
           workstream: documentWorkstreamSchema.nullable(),
           document: z.unknown(),
+          /** A plan document's outcome; null while it is open, or for any other document. */
+          outcome: planOutcomeSchema.nullable(),
         }),
       ),
     }),
+  },
+  /**
+   * Answers an open plan document for the thread's latest turn: Approve, or
+   * one of the replies the plan suggests, sent as the user's message.
+   */
+  presentation_answer: {
+    input: z.object({
+      threadId: z.string().min(1).max(200),
+      messageId: z.string().min(1),
+      answer: z.discriminatedUnion("kind", [
+        z.object({ kind: z.literal("approve") }),
+        z.object({ kind: z.literal("reply"), message: z.string().min(1) }),
+      ]),
+    }),
+    output: z.object({ outcome: planOutcomeSchema }),
   },
   workstreamMigrationPreview: {
     input: workstreamMigrationInput.nullable(),

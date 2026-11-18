@@ -34,6 +34,12 @@ export const DOCUMENT_LIMITS = {
   checks: 24,
   columns: 6,
   rows: 30,
+  /** Steps in a plan. */
+  steps: 12,
+  /** Notes in a plan. */
+  notes: 6,
+  /** Suggested replies under a plan. */
+  replies: 4,
 } as const;
 
 /** A literal code span: drawn in the code face, copied inside backticks. */
@@ -134,11 +140,48 @@ const block: z.ZodType<BlockShape> = z.lazy(() =>
 );
 export type Block = BlockShape;
 
-const documentSchema = z.strictObject({
+/**
+ * A plan that waits for the user's approval. It draws as its own form rather
+ * than as blocks: numbered steps, then risks and notes, then Approve, with
+ * the replies the user might send instead of approving beside it. Each reply
+ * is the exact message a click sends, so it is plain text with no code spans.
+ */
+const planSchema = z.strictObject({
+  title: richText,
+  summary: richText.optional(),
+  steps: z
+    .array(z.strictObject({ title: richText, detail: richText.optional() }))
+    .min(1),
+  risks: z.array(richText).min(1).optional(),
+  notes: z
+    .array(z.strictObject({ label: richText.optional(), text: richText }))
+    .min(1)
+    .optional(),
+  replies: z.array(z.string()).min(1).optional(),
+});
+export type Plan = z.infer<typeof planSchema>;
+
+const blocksDocumentSchema = z.strictObject({
   version: z.literal(DOCUMENT_VERSION),
   blocks: z.array(block).min(1),
 });
-export type EnhancedDocument = { version: 1; blocks: Block[] };
+const planDocumentSchema = z.strictObject({
+  version: z.literal(DOCUMENT_VERSION),
+  plan: planSchema,
+});
+const documentSchema = z.union([blocksDocumentSchema, planDocumentSchema]);
+export type BlocksDocument = { version: 1; blocks: Block[] };
+export type PlanDocument = { version: 1; plan: Plan };
+export type EnhancedDocument = BlocksDocument | PlanDocument;
+
+export function isPlanDocument(
+  document: EnhancedDocument,
+): document is PlanDocument {
+  return "plan" in document;
+}
+
+/** The message Approve sends to the thread. */
+export const PLAN_APPROVAL_MESSAGE = "Approved.";
 
 /** One problem with a candidate, at a field path such as `blocks[2].items[0].totals`. */
 export type DocumentIssue = { path: string; message: string };
@@ -206,7 +249,13 @@ export function validateDocument(candidate: unknown): DocumentValidation {
         },
       ],
     };
-  const parsed = documentSchema.safeParse(candidate);
+  // The `plan` key picks the form, so issues name the fields of the form the
+  // candidate meant rather than a union's "no shape matched".
+  const planned =
+    !!candidate && typeof candidate === "object" && "plan" in candidate;
+  const parsed = (
+    planned ? planDocumentSchema : blocksDocumentSchema
+  ).safeParse(candidate);
   if (!parsed.success) {
     for (const issue of parsed.error.issues)
       add(formatPath(issue.path), issue.message);
@@ -324,6 +373,49 @@ export function validateDocument(candidate: unknown): DocumentValidation {
       }
     });
   };
+  const bounded = (
+    count: number,
+    limit: number,
+    path: string,
+    noun: string,
+  ) => {
+    if (count > limit) add(path, `Use at most ${limit} ${noun}.`);
+  };
+  if (isPlanDocument(document)) {
+    const plan = document.plan;
+    text(plan.title, "plan.title", DOCUMENT_LIMITS.title);
+    optional(plan.summary, "plan.summary", DOCUMENT_LIMITS.text);
+    bounded(plan.steps.length, DOCUMENT_LIMITS.steps, "plan.steps", "steps");
+    plan.steps.forEach((step, i) => {
+      text(step.title, `plan.steps[${i}].title`, DOCUMENT_LIMITS.title);
+      optional(step.detail, `plan.steps[${i}].detail`, DOCUMENT_LIMITS.text);
+    });
+    const risks = plan.risks ?? [];
+    bounded(risks.length, DOCUMENT_LIMITS.listItems, "plan.risks", "risks");
+    risks.forEach((risk, i) =>
+      text(risk, `plan.risks[${i}]`, DOCUMENT_LIMITS.text),
+    );
+    const notes = plan.notes ?? [];
+    bounded(notes.length, DOCUMENT_LIMITS.notes, "plan.notes", "notes");
+    notes.forEach((note, i) => {
+      optional(note.label, `plan.notes[${i}].label`, DOCUMENT_LIMITS.title);
+      text(note.text, `plan.notes[${i}].text`, DOCUMENT_LIMITS.text);
+    });
+    const replies = plan.replies ?? [];
+    bounded(replies.length, DOCUMENT_LIMITS.replies, "plan.replies", "replies");
+    const seen = new Set<string>();
+    replies.forEach((reply, i) => {
+      const at = `plan.replies[${i}]`;
+      text(reply, at, DOCUMENT_LIMITS.title);
+      if (/\n/.test(reply)) add(at, "A reply is one line.");
+      const key = reply.trim().toLowerCase();
+      if (seen.has(key)) add(at, "Replies repeat.");
+      seen.add(key);
+      if (key === PLAN_APPROVAL_MESSAGE.toLowerCase())
+        add(at, "Approve already sends this; offer another reply.");
+    });
+    return issues.length ? { ok: false, issues } : { ok: true, document };
+  }
   visit(document.blocks, "blocks", 0);
   if (blocks > DOCUMENT_LIMITS.blocks)
     add("blocks", `Use at most ${DOCUMENT_LIMITS.blocks} blocks in all.`);
@@ -476,6 +568,10 @@ export function documentText(
 ): string {
   const out: string[] = [];
   if (heading) out.push(heading);
+  if (isPlanDocument(document)) {
+    out.push(...planText(document.plan));
+    return out.join("\n\n");
+  }
   const visit = (list: readonly Block[], depth: number) => {
     for (const item of list) {
       switch (item.type) {
@@ -547,6 +643,39 @@ export function documentText(
   };
   visit(document.blocks, 0);
   return out.join("\n\n");
+}
+
+/**
+ * A plan's text form. Suggested replies are offers to the reader, not part of
+ * the plan, so they are left out.
+ */
+function planText(plan: Plan): string[] {
+  const out = [`Plan: ${richMarkdown(plan.title)}`];
+  if (plan.summary) out.push(richMarkdown(plan.summary));
+  out.push(
+    plan.steps
+      .map(
+        (step, i) =>
+          `${i + 1}. ${richMarkdown(step.title)}${
+            step.detail ? `\n   ${richMarkdown(step.detail)}` : ""
+          }`,
+      )
+      .join("\n"),
+  );
+  if (plan.risks)
+    out.push(
+      `## Risks\n\n${plan.risks.map((risk) => `- ${richMarkdown(risk)}`).join("\n")}`,
+    );
+  if (plan.notes)
+    out.push(
+      `## Notes\n\n${plan.notes
+        .map(
+          (note) =>
+            `${note.label ? `${richMarkdown(note.label)}: ` : ""}${richMarkdown(note.text)}`,
+        )
+        .join("\n\n")}`,
+    );
+  return out;
 }
 
 /**

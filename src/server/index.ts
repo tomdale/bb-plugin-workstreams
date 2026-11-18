@@ -82,6 +82,7 @@ import {
 } from "./pullRequests/tracker.ts";
 import { registerStreamDeck, type StreamDeck } from "./streamDeck.ts";
 import { PresentationStore } from "./postTurn/store.ts";
+import { PlanOutcomes } from "./postTurn/planOutcomes.ts";
 import { PostTurnPresenter, type Compose } from "./postTurn/presenter.ts";
 import { SpendCapError, SpendGuard } from "./spendGuard.ts";
 import {
@@ -706,6 +707,12 @@ export default async function plugin(bb: BbPluginApi) {
     log: bb.log,
   });
   bb.onDispose(() => presenter.dispose());
+  const planOutcomes = new PlanOutcomes({
+    sdk: () => bb.sdk,
+    store: presentations,
+    enabled: () => loadPresentationPrefs(db).enabled,
+    changed: (threadId) => bb.realtime.publish("presentations", { threadId }),
+  });
   registerAgentInstructions(bb, recaps, presenter);
   const categories: Categories = new Categories({
     db,
@@ -1247,6 +1254,7 @@ export default async function plugin(bb: BbPluginApi) {
     return recaps.onIdle(thread.id);
   });
   bb.events.on("thread.active", ({ thread }) => {
+    void planOutcomes.onActive(thread.id);
     waker?.onActive(thread.id);
     analyzer.onActive(thread.id);
     if (organizedThread(thread)) triggerOrganizer(200);
@@ -1781,6 +1789,7 @@ export default async function plugin(bb: BbPluginApi) {
     presentations: async ({ threadId }) => {
       if (!loadPresentationPrefs(db).enabled)
         return { enabled: false, items: [] };
+      const outcomes = presentations.outcomes(threadId);
       return {
         enabled: true,
         items: presentations
@@ -1789,9 +1798,14 @@ export default async function plugin(bb: BbPluginApi) {
             messageId,
             workstream,
             document,
+            outcome: outcomes.get(messageId) ?? null,
           })),
       };
     },
+    presentation_answer: ({ threadId, messageId, answer }) =>
+      userFacing(async () => ({
+        outcome: await planOutcomes.answer(threadId, messageId, answer),
+      })),
     recapPrefs: async () => ({ prefs: loadRecapPrefs(db) }),
     setRecapPrefs: async ({ patch }) => {
       const prefs = saveRecapPrefs(db, patch);

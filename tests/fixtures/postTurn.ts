@@ -1,12 +1,16 @@
 /*
  * Enhanced-document fixtures written for these tests. They follow the shapes
- * of two approved response designs (a deployed change with local checks, and
- * a correction that withdraws earlier advice) with invented content.
+ * of three approved response designs (a deployed change with local checks, a
+ * correction that withdraws earlier advice, and a plan awaiting approval) with
+ * invented content.
  */
-import type { EnhancedDocument } from "../../src/domain/postTurn/document.ts";
+import type {
+  BlocksDocument,
+  PlanDocument,
+} from "../../src/domain/postTurn/document.ts";
 
 /** A deployed change: prose, a list, four local checks with a skipped test, and a note. */
-export const DEPLOYED_CHANGE: EnhancedDocument = {
+export const DEPLOYED_CHANGE: BlocksDocument = {
   version: 1,
   blocks: [
     {
@@ -60,7 +64,7 @@ export const DEPLOYED_CHANGE: EnhancedDocument = {
 };
 
 /** A correction: the withdrawn claim, the revised result, and its sample limit. */
-export const CORRECTION: EnhancedDocument = {
+export const CORRECTION: BlocksDocument = {
   version: 1,
   blocks: [
     {
@@ -91,4 +95,53 @@ export const CORRECTION: EnhancedDocument = {
       text: "These are small samples, not a general reliability comparison.",
     },
   ],
+};
+
+/** A plan awaiting approval: four steps, risks, a note, and four replies. */
+export const SETTINGS_PLAN: PlanDocument = {
+  version: 1,
+  plan: {
+    title: "Move settings from JSON to SQLite",
+    summary:
+      "Stop two windows from overwriting each other's settings in the shared JSON blob.",
+    steps: [
+      {
+        title: "Add SQLite storage",
+        detail: [
+          "Create the ",
+          { code: "ws_setting" },
+          " table, then write settings to SQLite and JSON for one release.",
+        ],
+      },
+      {
+        title: "Switch reads to SQLite",
+        detail:
+          "On the next release's first launch, copy the JSON values into SQLite.",
+      },
+      {
+        title: "Keep the JSON fallback",
+        detail: "Leave the blob unchanged for two releases, then delete it.",
+      },
+      {
+        title: "Remove dual writes",
+        detail: "Delete the code that writes to both stores.",
+      },
+    ],
+    risks: [
+      "A downgrade after step 2 restores the last JSON values.",
+      "Changes made after that copy won't appear in older releases.",
+    ],
+    notes: [
+      {
+        label: "Versioned JSON",
+        text: "less work, but two windows saving at once could still overwrite each other.",
+      },
+    ],
+    replies: [
+      "How will you test the migration?",
+      "What if the copy fails?",
+      "Keep dual writes through step 3.",
+      "Add a rollback for failed copies.",
+    ],
+  },
 };

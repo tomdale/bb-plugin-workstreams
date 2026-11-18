@@ -7,6 +7,9 @@
  * row markup changes, nothing matches and the original response is left as
  * it was.
  *
+ * A plan document's Approve and replies send through the server, which
+ * records the plan's outcome; every pane then draws the answered plan.
+ *
  * Every view reads stored documents and never composes. Rows are found as
  * they mount, so a virtualized row gets its document back when it scrolls
  * into view, and each pane showing the thread draws its own copy. Anchors,
@@ -30,16 +33,22 @@ import { usePortalScopeProps } from "@/lib/portal-scope";
 import type { RpcContract } from "../../server/contract.ts";
 import {
   documentText,
+  isPlanDocument,
   validateDocument,
   type EnhancedDocument,
 } from "../../domain/postTurn/document.ts";
 import {
   parseAssistantRowId,
   type DocumentWorkstream,
+  type PlanOutcome,
 } from "../../domain/postTurn/message.ts";
 import { mutationTargetElement } from "../mutationRecords.ts";
 import { ActivityThreadLink } from "../page/ActivityThreadLink.tsx";
-import { DocumentView, ThreadMention } from "./DocumentView.tsx";
+import {
+  DocumentView,
+  ThreadMention,
+  type PlanControls,
+} from "./DocumentView.tsx";
 
 const ROW = "[data-timeline-row-id]";
 const ANCHOR = "data-ws-post-turn-anchor";
@@ -48,6 +57,7 @@ type Item = {
   messageId: string;
   workstream: DocumentWorkstream | null;
   document: EnhancedDocument;
+  outcome: PlanOutcome | null;
 };
 
 type Target = {
@@ -71,8 +81,55 @@ const drawThread = (threadId: string) => (
   <ActivityThreadLink threadId={threadId} fallback={threadId} />
 );
 
+type Answer = NonNullable<PlanControls["sending"]>;
+
+/**
+ * A plan's controls. The clicked answer is drawn as sent while the server
+ * records and sends it, and stays drawn until the stored outcome arrives; a
+ * refusal restores the open plan with the server's reason.
+ */
+function usePlanControls(item: Item): PlanControls {
+  const rpc = useRpc<RpcContract>();
+  const [sending, setSending] = useState<Answer | null>(null);
+  const [settled, setSettled] = useState<PlanOutcome | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const answer = useCallback(
+    (next: Answer) => {
+      if (sending || settled || item.outcome) return;
+      setError(null);
+      setSending(next);
+      const threadId = parseAssistantRowId(item.messageId)?.threadId ?? "";
+      rpc
+        .call("presentation_answer", {
+          threadId,
+          messageId: item.messageId,
+          answer: next,
+        })
+        .then(
+          ({ outcome }) => setSettled(outcome),
+          (failure: unknown) =>
+            setError(
+              failure instanceof Error && failure.message
+                ? failure.message
+                : "The answer wasn't sent.",
+            ),
+        )
+        .finally(() => setSending(null));
+    },
+    [rpc, item, sending, settled],
+  );
+  return {
+    outcome: item.outcome ?? settled,
+    sending,
+    error,
+    onApprove: () => answer({ kind: "approve" }),
+    onReply: (message) => answer({ kind: "reply", message }),
+  };
+}
+
 function DocumentPanel({ item }: { item: Item }) {
   const scope = usePortalScopeProps();
+  const plan = usePlanControls(item);
   const [copied, setCopied] = useState(false);
   useEffect(() => {
     if (!copied) return;
@@ -84,12 +141,15 @@ function DocumentPanel({ item }: { item: Item }) {
       data-bb-plugin-root=""
       data-bb-plugin={scope["data-bb-plugin"]}
       data-ws-post-turn=""
-      className="mt-4 mb-2"
+      // A plan has no surface of its own, so its text lines up with the
+      // response's, which BB insets by its message column's padding.
+      className={isPlanDocument(item.document) ? "mt-4 mb-2 px-2" : "mt-4 mb-2"}
     >
       <ThreadMention.Provider value={drawThread}>
         <DocumentView
           document={item.document}
           workstream={item.workstream}
+          plan={isPlanDocument(item.document) ? plan : undefined}
           copy={{
             label: copied ? "Copied" : "Copy",
             icon: (
@@ -151,6 +211,7 @@ export function PostTurnDocuments() {
                   messageId: entry.messageId,
                   workstream: entry.workstream,
                   document: valid.document,
+                  outcome: entry.outcome ?? null,
                 });
             }
             return byId;

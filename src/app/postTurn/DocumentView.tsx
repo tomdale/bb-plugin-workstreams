@@ -5,8 +5,9 @@
  *
  * It imports nothing from the BB SDK: the preview host renders it to static
  * markup outside BB, with no script. Anything interactive is supplied by the
- * caller (the Copy action, and its icon from BB's icon set), and folded
- * content uses `<details>`, which opens without script.
+ * caller (the Copy action, its icon from BB's icon set, and a plan's Approve
+ * and replies), and folded content uses `<details>`, which opens without
+ * script.
  *
  * Every string is rendered as React text, so a document's content can never
  * become markup.
@@ -17,20 +18,26 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react";
+import { Button } from "../../../components/ui/button.tsx";
 import {
   checksSummary,
   foldedTotals,
+  isPlanDocument,
   plainText,
   scopeQualifier,
   totalsText,
   type Block,
   type EnhancedDocument,
+  type Plan,
   type RichText,
 } from "../../domain/postTurn/document.ts";
 import { splitThreadMentions } from "../../domain/threadMentions.ts";
-import type { DocumentWorkstream } from "../../domain/postTurn/message.ts";
+import type {
+  DocumentWorkstream,
+  PlanOutcome,
+} from "../../domain/postTurn/message.ts";
 import { workstreamColorStyle } from "../../domain/workstreamColor.ts";
-import { Glyph, MARK_CLASS } from "../recap/marks.tsx";
+import { CHECK, Glyph, MARK_CLASS } from "../recap/marks.tsx";
 import { STATUS_ROW_CLASS, StatusMark, StatusWord } from "../reply/Panel.tsx";
 import { CHECK_STATUS, reportsFailure } from "../reply/status.ts";
 import { SECONDARY_CLASS } from "../reply/type.ts";
@@ -39,6 +46,7 @@ import { SECONDARY_CLASS } from "../reply/type.ts";
 const PATH = "data-doc-path";
 
 const CHEVRON = "M6 4 10 8 6 12";
+const CHEVRON_UP = "M4 10 8 6 12 10";
 const INFO =
   "M8 2.75a5.25 5.25 0 1 0 0 10.5 5.25 5.25 0 1 0 0-10.5Z M8 7.25v3.5 M8 5.25v.01";
 
@@ -382,15 +390,259 @@ export type DocumentCopy = {
   onClick?: () => void;
 };
 
+/**
+ * What a plan's reader can do. Without it, as in the preview, an open plan is
+ * drawn with Approve and its replies, which do nothing.
+ */
+export type PlanControls = {
+  outcome: PlanOutcome | null;
+  /** An answer on its way: drawn as sent, with every control disabled. */
+  sending: { kind: "approve" } | { kind: "reply"; message: string } | null;
+  /** Why the last answer was not sent. */
+  error: string | null;
+  onApprove: () => void;
+  onReply: (message: string) => void;
+};
+
+function CopyButton({ copy }: { copy: DocumentCopy }) {
+  return (
+    <button
+      type="button"
+      onClick={copy.onClick}
+      className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-0.5 text-[12px] leading-[18px] text-muted-foreground hover:bg-state-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+    >
+      {copy.icon}
+      {copy.label}
+    </button>
+  );
+}
+
+/** A plan's divided section, such as Risks or Notes. */
+function PlanSection({
+  title,
+  path,
+  children,
+}: {
+  title: string;
+  path: string;
+  children: ReactNode;
+}) {
+  return (
+    <section
+      {...{ [PATH]: path }}
+      className="border-t border-border pt-3.5 pb-4"
+    >
+      <h4 className="m-0 mb-2 text-[13px] font-semibold leading-4">{title}</h4>
+      {children}
+    </section>
+  );
+}
+
+/**
+ * A plan awaiting approval, drawn without the document surface: the Plan
+ * label, its title and summary, numbered steps, risks, notes, and Approve, all
+ * at a reading measure, then the suggested replies across the full width.
+ * Once the plan is answered, Approve gives way to a sent line or is disabled,
+ * and the replies to the one that was sent or to nothing.
+ */
+function PlanView({
+  plan,
+  copy,
+  controls,
+}: {
+  plan: Plan;
+  copy: DocumentCopy;
+  controls?: PlanControls;
+}) {
+  const outcome = controls?.outcome ?? null;
+  const sending = controls?.sending ?? null;
+  const approved = outcome?.kind === "approved" || sending?.kind === "approve";
+  const sent =
+    outcome?.kind === "replied"
+      ? outcome.message
+      : sending?.kind === "reply"
+        ? sending.message
+        : null;
+  const open = outcome === null;
+  const busy = sending !== null;
+  const replies = plan.replies ?? [];
+  return (
+    <section
+      data-ws-document=""
+      data-ws-plan=""
+      className="@container/plan min-w-0 text-[13px] leading-[21px] text-foreground [overflow-wrap:break-word]"
+    >
+      <div className="max-w-[420px]">
+        <header className="flex min-w-0 items-center gap-3">
+          <span className="min-w-0 flex-1 text-[13px] font-semibold leading-4">
+            Plan
+          </span>
+          <CopyButton copy={copy} />
+        </header>
+        <h3
+          {...{ [PATH]: "plan.title" }}
+          className="m-0 mt-2 mb-1.5 text-[23px] font-semibold leading-[27px] tracking-[-0.01em] [text-wrap:balance]"
+        >
+          <Rich text={plan.title} />
+        </h3>
+        {plan.summary ? (
+          <p
+            {...{ [PATH]: "plan.summary" }}
+            className="m-0 mb-5 text-[15px] leading-[22px] [text-wrap:pretty]"
+          >
+            <Rich text={plan.summary} />
+          </p>
+        ) : null}
+        <ol role="list" className="m-0 list-none p-0 pb-[18px]">
+          {plan.steps.map((step, i) => (
+            <li
+              key={i}
+              {...{ [PATH]: `plan.steps[${i}]` }}
+              className="relative grid grid-cols-[24px_minmax(0,1fr)] gap-2.5 pb-4 last:pb-0"
+            >
+              {i < plan.steps.length - 1 ? (
+                <span
+                  aria-hidden
+                  className="absolute top-6 bottom-0 left-[11.5px] w-px bg-border"
+                />
+              ) : null}
+              <span
+                aria-hidden
+                className="flex size-6 items-center justify-center rounded-full border border-border text-[12px] leading-4 tabular-nums text-muted-foreground" /* slop-ok: 1 Tom approved the numbered step rail in the plan design */
+              >
+                {i + 1}
+              </span>
+              <div className="min-w-0 pt-0.5">
+                <p className="m-0 font-semibold [text-wrap:pretty]">
+                  <Rich text={step.title} />
+                </p>
+                {step.detail ? (
+                  <p className="m-0 mt-[3px] text-[12px] leading-4 text-muted-foreground [text-wrap:pretty]">
+                    <Rich text={step.detail} />
+                  </p>
+                ) : null}
+              </div>
+            </li>
+          ))}
+        </ol>
+        {plan.risks ? (
+          <PlanSection title="Risks" path="plan.risks">
+            <ul className="m-0 list-disc space-y-1.5 pl-5">
+              {plan.risks.map((risk, i) => (
+                <li key={i} className="[text-wrap:pretty]">
+                  <Rich text={risk} />
+                </li>
+              ))}
+            </ul>
+          </PlanSection>
+        ) : null}
+        {plan.notes ? (
+          <PlanSection title="Notes" path="plan.notes">
+            <div className="flex flex-col gap-2">
+              {plan.notes.map((note, i) => (
+                <p key={i} className="m-0 [text-wrap:pretty]">
+                  {note.label ? (
+                    <>
+                      <strong className="font-semibold">
+                        <Rich text={note.label} />:
+                      </strong>{" "}
+                    </>
+                  ) : null}
+                  <Rich text={note.text} />
+                </p>
+              ))}
+            </div>
+          </PlanSection>
+        ) : null}
+        {approved ? (
+          <p
+            role="status"
+            data-plan-approved=""
+            className="m-0 flex items-center gap-1.5 border-t border-border pt-4 text-[12px] leading-4 text-muted-foreground"
+          >
+            <Glyph
+              path={CHECK}
+              className="h-3.5 w-3.5 shrink-0 text-(--ws-complete-text)"
+            />
+            Approved
+          </p>
+        ) : outcome?.kind === "superseded" ? null : (
+          <div className="border-t border-border pt-4">
+            <Button
+              type="button"
+              size="sm"
+              data-plan-approve=""
+              disabled={controls ? !open || busy : undefined}
+              onClick={controls?.onApprove}
+              className="h-8 px-3 text-[13px] font-semibold"
+            >
+              Approve
+            </Button>
+          </div>
+        )}
+        {controls?.error ? (
+          <p
+            role="alert"
+            className="m-0 mt-2 text-[12px] leading-4 text-destructive"
+          >
+            {controls.error}
+          </p>
+        ) : null}
+      </div>
+      {sent !== null ? (
+        <div className="mt-4 flex justify-end">
+          <p
+            role="status"
+            aria-label={`Sent: ${sent}`}
+            data-plan-sent=""
+            className="m-0 max-w-[85%] rounded-xl border border-border bg-surface-recessed px-3 py-[9px] [text-wrap:pretty]" /* slop-ok: 1 Tom approved the sent reply bubble in the plan design */
+          >
+            {sent}
+          </p>
+        </div>
+      ) : open && !approved && replies.length ? (
+        <div
+          role="group"
+          aria-label="Suggested replies"
+          {...{ [PATH]: "plan.replies" }}
+          className="mt-4 grid grid-cols-2 gap-1.5 @min-[40rem]/plan:grid-cols-4"
+        >
+          {replies.map((reply, i) => (
+            <button
+              key={i}
+              type="button"
+              data-plan-reply=""
+              disabled={controls ? busy : undefined}
+              onClick={() => controls?.onReply(reply)}
+              {...{ [PATH]: `plan.replies[${i}]` }}
+              className="flex min-h-[34px] min-w-0 cursor-pointer items-center justify-between gap-1 rounded-lg border border-dashed border-input py-[5px] pr-2 pl-2.5 text-left text-[12px] leading-4 text-foreground hover:border-solid hover:border-border hover:bg-surface-recessed focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-default disabled:hover:border-dashed disabled:hover:border-input disabled:hover:bg-transparent" /* slop-ok: 1 Tom approved dashed reply drafts in the plan design */
+            >
+              <span className="min-w-0">{reply}</span>
+              <Glyph
+                path={CHEVRON_UP}
+                className="h-3 w-3 shrink-0 text-muted-foreground"
+              />
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 export function DocumentView({
   document,
   workstream,
   copy,
+  plan,
 }: {
   document: EnhancedDocument;
   workstream: DocumentWorkstream | null;
   copy: DocumentCopy;
+  plan?: PlanControls;
 }) {
+  if (isPlanDocument(document))
+    return <PlanView plan={document.plan} copy={copy} controls={plan} />;
   const style = (
     workstream?.color ? workstreamColorStyle(workstream.color) : {}
   ) as CSSProperties;
@@ -404,14 +656,7 @@ export function DocumentView({
         <span className="ws-workstream-name min-w-0 flex-1 truncate text-[12px] font-medium leading-[18px]">
           {workstream?.name}
         </span>
-        <button
-          type="button"
-          onClick={copy.onClick}
-          className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-0.5 text-[12px] leading-[18px] text-muted-foreground hover:bg-state-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-        >
-          {copy.icon}
-          {copy.label}
-        </button>
+        <CopyButton copy={copy} />
       </header>
       <div
         data-doc-body=""

@@ -58,3 +58,15 @@ export type StoredPresentation = {
   document: EnhancedDocument;
   createdAt: number;
 };
+
+/**
+ * What became of a plan document: approved, answered with one of its
+ * suggested replies, or passed by a newer turn before either. A plan with no
+ * outcome is open, and only an open plan offers Approve and its replies.
+ */
+export const planOutcomeSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("approved") }),
+  z.object({ kind: z.literal("replied"), message: z.string() }),
+  z.object({ kind: z.literal("superseded") }),
+]);
+export type PlanOutcome = z.infer<typeof planOutcomeSchema>;

@@ -3,7 +3,7 @@ import { fakeWorld } from "../fake-bb.ts";
 import { openDatabase } from "../../../src/server/db.ts";
 import { WorkstreamStore } from "../../../src/server/workstreams.ts";
 import { assistantMessageId } from "../../../src/domain/postTurn/message.ts";
-import { DEPLOYED_CHANGE } from "../../fixtures/postTurn.ts";
+import { DEPLOYED_CHANGE, SETTINGS_PLAN } from "../../fixtures/postTurn.ts";
 
 type World = Awaited<ReturnType<typeof fakeWorld>>;
 let world: World | null = null;
@@ -21,8 +21,11 @@ const composed = {
   usage: { input: 1000, output: 400, cost: 0.01 },
 };
 
-async function setup(present?: () => unknown) {
-  world = await fakeWorld({ present });
+async function setup(
+  present?: () => unknown,
+  send?: (args: Record<string, unknown>) => Promise<void>,
+) {
+  world = await fakeWorld({ present, send });
   const w = world;
   const store = new WorkstreamStore(openDatabase(w.bb));
   const snooze = store.create("Snooze", "Workstreams");
@@ -44,7 +47,7 @@ const finish = (w: World, id: string, text: string) => {
 const list = async (w: World, threadId: string) =>
   (await w.harness.behavior.callRpc("presentations", { threadId })) as {
     enabled: boolean;
-    items: { messageId: string; document: unknown }[];
+    items: { messageId: string; document: unknown; outcome: unknown }[];
   };
 
 describe("bb workstreams present", () => {
@@ -150,6 +153,7 @@ describe("Enhanced responses through the plugin", () => {
           // This world binds no section, so the workstream has no color yet.
           workstream: { name: "Snooze", color: null },
           document: DEPLOYED_CHANGE,
+          outcome: null,
         },
       ]),
     );
@@ -191,6 +195,99 @@ describe("Enhanced responses through the plugin", () => {
     await idle(w, "task", "Second.");
     await vi.waitFor(() => expect(w.presents).toHaveLength(2));
     await new Promise((resolve) => setTimeout(resolve, 20));
+    expect((await list(w, "task")).items).toEqual([]);
+  });
+});
+
+describe("Plan documents through the plugin", () => {
+  /** A stored, open plan for the thread's latest turn. */
+  async function planned(
+    send?: (args: Record<string, unknown>) => Promise<void>,
+  ) {
+    const w = await setup(
+      () => ({ ...composed, document: SETTINGS_PLAN }),
+      send,
+    );
+    await w.harness.behavior.callRpc("setPresentationPrefs", {
+      patch: { enabled: true },
+    });
+    const turnId = finish(w, "task", "Here's the plan.");
+    await idle(w, "task", "Here's the plan.");
+    const messageId = assistantMessageId({
+      threadId: "task",
+      turnId,
+      itemId: "item0",
+    });
+    await vi.waitFor(async () =>
+      expect((await list(w, "task")).items).toHaveLength(1),
+    );
+    const answer = (value: unknown) =>
+      w.harness.behavior.callRpc("presentation_answer", {
+        threadId: "task",
+        messageId,
+        answer: value,
+      });
+    const outcome = async () => (await list(w, "task")).items[0]!.outcome;
+    return { w, messageId, answer, outcome };
+  }
+  const texts = (w: World) =>
+    w.sent.map((args) => [
+      args.threadId,
+      (args.input as { text: string }[])[0]!.text,
+    ]);
+
+  it("approves once, sending the approval as the user's message", async () => {
+    const { w, answer, outcome } = await planned();
+    expect(await outcome()).toBeNull();
+    await expect(answer({ kind: "approve" })).resolves.toEqual({
+      outcome: { kind: "approved" },
+    });
+    expect(texts(w)).toEqual([["task", "Approved."]]);
+    expect(await outcome()).toEqual({ kind: "approved" });
+    // A second click, or another window, sends nothing more.
+    await expect(
+      answer({ kind: "reply", message: "What if the copy fails?" }),
+    ).rejects.toThrow("already been answered");
+    expect(w.sent).toHaveLength(1);
+  });
+
+  it("sends only a reply the plan offers", async () => {
+    const { w, answer, outcome } = await planned();
+    await expect(
+      answer({ kind: "reply", message: "Ship it tonight." }),
+    ).rejects.toThrow("doesn't offer that reply");
+    expect(w.sent).toEqual([]);
+    await answer({
+      kind: "reply",
+      message: "Keep dual writes through step 3.",
+    });
+    expect(texts(w)).toEqual([["task", "Keep dual writes through step 3."]]);
+    expect(await outcome()).toEqual({
+      kind: "replied",
+      message: "Keep dual writes through step 3.",
+    });
+    await expect(answer({ kind: "approve" })).rejects.toThrow(
+      "already been answered",
+    );
+  });
+
+  it("reopens the plan when the message cannot be sent", async () => {
+    const { w, answer, outcome } = await planned(async () => {
+      throw new Error("The thread is busy.");
+    });
+    await expect(answer({ kind: "approve" })).rejects.toThrow(
+      "The thread is busy.",
+    );
+    expect(w.sent).toEqual([]);
+    expect(await outcome()).toBeNull();
+  });
+
+  it("drops outcomes with the thread", async () => {
+    const { w, answer } = await planned();
+    await answer({ kind: "approve" });
+    await w.harness.behavior.emitThreadEvent("thread.deleted", {
+      thread: w.threads.get("task")!,
+    });
     expect((await list(w, "task")).items).toEqual([]);
   });
 });

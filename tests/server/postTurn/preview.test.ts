@@ -8,7 +8,11 @@ import {
   type Theme,
 } from "../../../src/server/inference/presentation/preview.ts";
 import { findChrome } from "../../../src/server/inference/presentation/chrome.ts";
-import { CORRECTION, DEPLOYED_CHANGE } from "../../fixtures/postTurn.ts";
+import {
+  CORRECTION,
+  DEPLOYED_CHANGE,
+  SETTINGS_PLAN,
+} from "../../fixtures/postTurn.ts";
 import type { EnhancedDocument } from "../../../src/domain/postTurn/document.ts";
 import { previewStyles } from "./preview-styles.ts";
 
@@ -35,6 +39,19 @@ describe("preview page", () => {
     expect(html).not.toMatch(/<\/style><script/i);
     expect(html).toContain("default-src 'none'");
     expect(html).toContain(">Snooze</span>");
+  });
+
+  it("draws a plan's Approve and replies without disabling them", () => {
+    const html = previewPage({
+      document: SETTINGS_PLAN,
+      workstream: null,
+      styles: "",
+      theme: "light",
+    });
+    expect(html).toContain("data-ws-plan");
+    expect(html).toContain(">Approve</button>");
+    expect(html.match(/data-plan-reply=""/g)).toHaveLength(4);
+    expect(html).not.toMatch(/\sdisabled(=""|[\s>])/);
   });
 
   it("renders document text as text, never as markup", () => {
@@ -125,6 +142,16 @@ describe.skipIf(!chromePath)("preview host", () => {
     const second = await render(host, DEPLOYED_CHANGE, "deployed-dark");
     expect(first.captures).toHaveLength(2);
     expect(second.folded).toEqual(["blocks[0].blocks[3]"]);
+  }, 60_000);
+
+  it("lays out a plan at both widths with nothing cut off", async () => {
+    for (const theme of ["light", "dark"] as const) {
+      const host = await open(theme);
+      const result = await render(host, SETTINGS_PLAN, `plan-${theme}`);
+      expect(result.diagnostics).toEqual([]);
+      expect(result.folded).toEqual([]);
+      expect(result.captures.every((c) => !c.truncated)).toBe(true);
+    }
   }, 60_000);
 
   it("reports a table that scrolls sideways at the narrow width", async () => {

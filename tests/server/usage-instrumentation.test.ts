@@ -110,6 +110,10 @@ const PRIMITIVES: { name: string; pattern: RegExp; sites: Sites }[] = [
         1,
         "the user's answer to a question, delivered as their message",
       ],
+      "src/server/postTurn/planOutcomes.ts": [
+        1,
+        "the user's Approve or suggested reply on a plan, delivered as their message",
+      ],
     },
   },
 ];

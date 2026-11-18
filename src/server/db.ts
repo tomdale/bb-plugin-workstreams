@@ -779,6 +779,17 @@ const MIGRATIONS = [
     created_at INTEGER NOT NULL,
     UNIQUE (workstream_id, url)
   )`,
+  // What became of an enhanced plan (src/server/postTurn/planOutcomes.ts):
+  // approved, replied to with one of its suggested replies, or passed by a
+  // newer turn. A plan with no row is still open.
+  `CREATE TABLE ws_plan_outcome (
+    message_id TEXT PRIMARY KEY,
+    thread_id TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    message TEXT,
+    created_at INTEGER NOT NULL
+  )`,
+  "CREATE INDEX ws_plan_outcome_thread ON ws_plan_outcome (thread_id)",
 ];
 
 export function openDatabase(bb: BbPluginApi): Database {

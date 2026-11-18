@@ -47,6 +47,14 @@ export function eventLog() {
         data: { item: { type: "commandExecution", id: itemId, command: "ls" } },
       });
     },
+    /** A turn request: the user's message, another thread's, or a reminder. */
+    request(text: string) {
+      return add({
+        type: "client/turn/requested",
+        scope: { kind: "thread" },
+        data: { input: [{ type: "text", text, mentions: [] }] },
+      });
+    },
     endTurn(turnId: string, status = "completed") {
       return add({
         type: "turn/completed",
