@@ -221,7 +221,14 @@ export function Row({
             itself, so the row's trailing end is left to its marks and hover
             buttons. */}
         <span
-          className={cn("flex min-w-0 items-baseline gap-1.5", leadingClass)}
+          className={cn(
+            "flex min-w-0 items-baseline gap-1.5",
+            leadingClass,
+            // The smaller context and age sit lower on the shared baseline
+            // and would make the line 1px taller wherever they show, so a
+            // two-line row fixes its title line's height.
+            subtitle && "h-5",
+          )}
         >
           <span
             className={cn(

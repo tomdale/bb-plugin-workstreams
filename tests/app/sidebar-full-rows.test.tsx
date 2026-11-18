@@ -60,6 +60,12 @@ it("adds a second line to every row with something to say when rows are Full", a
   const { slot, group } = await mountRows("full");
   expect(within(group).getByText("Shipped the checkout", shown)).toBeTruthy();
   expect(within(group).getByText("Which region?", shown)).toBeTruthy();
+  // The title line keeps one height whether or not the row's age shows, so
+  // an age revealed on hover does not move the rows below.
+  expect(
+    within(group).getByText("Which region?", shown).previousElementSibling
+      ?.className,
+  ).toMatch(/(^|\s)h-5(\s|$)/);
   // Nothing is known about the third thread, so its row stays one line.
   const fresh = group.querySelector('[data-sidebar-thread-id="fresh"]');
   expect(fresh?.closest(".ws-row")?.className).toContain("items-center");
