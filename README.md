@@ -1013,8 +1013,9 @@ until you answer:
   approve or review, such as a PR title and body, a review comment, or a patch.
   They show in full between the question and its options, without selecting
   anything: Markdown as in chat, diffs in BB's diff viewer (one per file), code
-  with syntax highlighting, and plain text as written. Long artifacts scroll in
-  place. On a BB without the diff or code viewer, those show as plain text.
+  with syntax highlighting, and plain text as written. Long artifacts scroll
+  with the card. On a BB without the diff or code viewer, those show as plain
+  text.
 - Freeform answers support pasted images and project file attachments. `Enter`
   advances to the next question or submits the final answer; `Shift+Enter`
   inserts a newline. On a compact viewport with a coarse pointer, `Enter`

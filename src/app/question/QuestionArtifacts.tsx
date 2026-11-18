@@ -28,8 +28,6 @@ function hostProvides(name: HostViewer): boolean {
 
 const PLAIN_CLASS =
   "m-0 whitespace-pre-wrap break-words px-3 py-2 font-mono text-[12.5px] leading-relaxed text-foreground max-md:pointer-coarse:text-xs";
-// Long content scrolls inside its own frame so the options stay in reach.
-const BODY_CLASS = "max-h-80 overflow-auto overscroll-contain";
 
 function PlainText({ content }: { content: string }) {
   return <pre className={PLAIN_CLASS}>{content}</pre>;
@@ -115,7 +113,10 @@ export function QuestionArtifacts({
                 </span>
               ) : null}
             </div>
-            <div className={BODY_CLASS}>
+            {/* The body grows with its content and scrolls with the card: a
+                nested vertical scroller here would take the wheel from the
+                card, even when it has nothing to scroll. */}
+            <div className="min-w-0">
               <ArtifactBody artifact={artifact} />
             </div>
           </section>

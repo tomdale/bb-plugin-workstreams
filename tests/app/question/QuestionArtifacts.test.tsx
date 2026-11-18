@@ -67,6 +67,16 @@ describe("QuestionArtifacts", () => {
     ).toBe("Add the project");
   });
 
+  it("adds no scroll container of its own, so the wheel scrolls the card", () => {
+    const view = render(<QuestionArtifacts artifacts={artifacts} />);
+    const scrollers = [...view.container.querySelectorAll("*")].filter((el) =>
+      /\b(?:overflow(?:-y)?-(?:auto|scroll)|overscroll-|max-h-)/.test(
+        el.getAttribute("class") ?? "",
+      ),
+    );
+    expect(scrollers).toEqual([]);
+  });
+
   it("shows diffs and code as text on a BB without the viewers", () => {
     const host = runtime();
     const full = host.pluginSdkApp;
