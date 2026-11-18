@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { installTestPluginRuntime } from "@get-bb/plugin-sdk/testing/app";
-import { cleanup, render, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { QuestionArtifacts } from "../../../src/app/question/QuestionArtifacts.tsx";
 import { QuestionHistoryCard } from "../../../src/app/question/QuestionHistory.tsx";
@@ -42,39 +42,78 @@ const artifacts: InteractionArtifact[] = [
 ];
 
 describe("QuestionArtifacts", () => {
-  it("renders each format with BB's renderer for it", () => {
+  const slide = (view: ReturnType<typeof render>) =>
+    view.container.querySelector<HTMLElement>("[data-ws-question-artifact]")!;
+  const next = (view: ReturnType<typeof render>) =>
+    fireEvent.click(view.getByRole("button", { name: "Next artifact" }));
+
+  it("shows one artifact at a time, each with BB's renderer for its format", () => {
     const view = render(<QuestionArtifacts artifacts={artifacts} />);
-    const body = view.getByRole("region", { name: "Body" });
-    expect(within(body).getByText(/Ships it\./)).toBeTruthy();
-    const diffs = within(
-      view.getByRole("region", { name: "Change" }),
-    ).getAllByTestId("bb-diff");
-    expect(diffs.map((diff) => diff.dataset.path)).toEqual([
-      "src/a.ts",
-      "src/b.ts",
-    ]);
-    expect(diffs[0]?.textContent).toContain("+new");
-    const code = within(
-      view.getByRole("region", { name: "Config" }),
-    ).getByTestId("bb-source-code");
-    expect(code.dataset.path).toBe("infra/main.tf");
-    expect(view.getByRole("region", { name: "Config" }).textContent).toContain(
+    const carousel = view.getByRole("region", { name: "Artifacts" });
+    expect(carousel.getAttribute("aria-roledescription")).toBe("carousel");
+    expect(
+      view.container.querySelectorAll("[data-ws-question-artifact]"),
+    ).toHaveLength(1);
+    expect(carousel.textContent).toContain("1 of 4");
+    expect(within(slide(view)).getByText(/Ships it\./)).toBeTruthy();
+
+    next(view);
+    expect(slide(view).getAttribute("aria-label")).toBe("2 of 4: Change");
+    expect(
+      within(slide(view))
+        .getAllByTestId("bb-diff")
+        .map((diff) => diff.dataset.path),
+    ).toEqual(["src/a.ts", "src/b.ts"]);
+    expect(
+      within(slide(view)).getAllByTestId("bb-diff")[0]?.textContent,
+    ).toContain("+new");
+
+    next(view);
+    expect(within(slide(view)).getByTestId("bb-source-code").dataset.path).toBe(
       "infra/main.tf",
     );
-    expect(
-      view.getByRole("region", { name: "Title" }).querySelector("pre")
-        ?.textContent,
-    ).toBe("Add the project");
+    expect(carousel.textContent).toContain("infra/main.tf");
+
+    next(view);
+    expect(slide(view).querySelector("pre")?.textContent).toBe(
+      "Add the project",
+    );
+    // The last artifact wraps around to the first.
+    next(view);
+    expect(slide(view).getAttribute("aria-label")).toBe("1 of 4: Body");
   });
 
-  it("adds no scroll container of its own, so the wheel scrolls the card", () => {
+  it("moves with the arrow keys and the previous button", () => {
     const view = render(<QuestionArtifacts artifacts={artifacts} />);
-    const scrollers = [...view.container.querySelectorAll("*")].filter((el) =>
-      /\b(?:overflow(?:-y)?-(?:auto|scroll)|overscroll-|max-h-)/.test(
-        el.getAttribute("class") ?? "",
-      ),
+    const previous = view.getByRole("button", { name: "Previous artifact" });
+    fireEvent.click(previous);
+    expect(slide(view).getAttribute("aria-label")).toBe("4 of 4: Title");
+    fireEvent.keyDown(previous, { key: "ArrowRight" });
+    expect(slide(view).getAttribute("aria-label")).toBe("1 of 4: Body");
+    fireEvent.keyDown(previous, { key: "ArrowLeft" });
+    expect(slide(view).getAttribute("aria-label")).toBe("4 of 4: Title");
+  });
+
+  it("shows a lone artifact without navigation", () => {
+    const view = render(
+      <QuestionArtifacts artifacts={artifacts.slice(0, 1)} />,
     );
-    expect(scrollers).toEqual([]);
+    expect(view.getByRole("region", { name: "Body" })).toBeTruthy();
+    expect(view.queryByRole("button", { name: "Next artifact" })).toBeNull();
+    expect(view.container.textContent).not.toContain("1 of 1");
+  });
+
+  it("scrolls a long artifact in place without trapping the wheel", () => {
+    const view = render(<QuestionArtifacts artifacts={artifacts} />);
+    const panel = view.getByRole("region", { name: "Artifacts" });
+    expect(panel.className).toMatch(/max-h-\[/);
+    expect(slide(view).className).toContain("overflow-y-auto");
+    // Overscroll passes to the card, so a wheel over an artifact with nothing
+    // left to scroll moves the card.
+    const contained = [...view.container.querySelectorAll("*")].filter((el) =>
+      /\boverscroll-/.test(el.getAttribute("class") ?? ""),
+    );
+    expect(contained).toEqual([]);
   });
 
   it("shows diffs and code as text on a BB without the viewers", () => {
@@ -88,12 +127,11 @@ describe("QuestionArtifacts", () => {
     host.pluginSdkApp = older;
     try {
       const view = render(<QuestionArtifacts artifacts={artifacts} />);
+      next(view);
       expect(view.queryByTestId("bb-diff")).toBeNull();
+      expect(slide(view).querySelector("pre")?.textContent).toBe(twoFiles);
+      next(view);
       expect(view.queryByTestId("bb-source-code")).toBeNull();
-      expect(
-        view.getByRole("region", { name: "Change" }).querySelector("pre")
-          ?.textContent,
-      ).toBe(twoFiles);
     } finally {
       host.pluginSdkApp = full;
     }

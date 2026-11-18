@@ -1011,11 +1011,13 @@ until you answer:
   previews) plus an **Other…** freeform input.
 - A question can carry up to `4` artifacts: the exact content it asks you to
   approve or review, such as a PR title and body, a review comment, or a patch.
-  They show in full between the question and its options, without selecting
-  anything: Markdown as in chat, diffs in BB's diff viewer (one per file), code
-  with syntax highlighting, and plain text as written. Long artifacts scroll
-  with the card. On a BB without the diff or code viewer, those show as plain
-  text.
+  The card shows one artifact at a time between the question and its options,
+  without selecting anything; with several, the arrows beside its title (or the
+  left and right arrow keys) move between them. Markdown renders as in chat,
+  diffs in BB's diff viewer (one per file), code with syntax highlighting, and
+  plain text as written. A long artifact scrolls in place, and the panel shrinks
+  on a short card so the options stay in view. On a BB without the diff or code
+  viewer, those show as plain text.
 - Freeform answers support pasted images and project file attachments. `Enter`
   advances to the next question or submits the final answer; `Shift+Enter`
   inserts a newline. On a compact viewport with a coarse pointer, `Enter`

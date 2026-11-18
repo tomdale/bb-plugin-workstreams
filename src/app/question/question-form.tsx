@@ -336,9 +336,12 @@ function QuestionInputBlock({
   };
 
   return (
+    // A column whose only shrinking child is the artifact panel: when the
+    // card runs short of height, the panel gives up room before the options
+    // scroll out of view.
     <fieldset
       disabled={disabled}
-      className="min-w-0"
+      className="flex min-h-0 min-w-0 flex-col [&>*]:shrink-0"
       aria-describedby={question.details ? `${question.id}-details` : undefined}
     >
       <legend className="sr-only">{plainText(question.prompt)}</legend>
@@ -816,7 +819,7 @@ export function QuestionForm({
           // Extends 8px into the card's padding so an option row's hover fill
           // and focus outline are not clipped; the bottom padding does the same
           // for the last row's outline.
-          className="-mx-2 min-h-0 touch-pan-y overflow-y-auto overscroll-contain px-2 pb-1"
+          className="-mx-2 flex min-h-0 flex-col touch-pan-y overflow-y-auto overscroll-contain px-2 pb-1"
           onScroll={scrollFade.onScroll}
           onKeyDown={(event) => {
             if (
