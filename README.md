@@ -572,8 +572,9 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
    nothing that needs you.
 6. **Recent, Snoozed, and Archived bands:**
    - **Recent** lists the most recently active threads (`1–20`, default `5`)
-     that Up Next isn't showing, so it carries on where Up Next stops, in the
-     same quiet card as **Pinned**. Snoozed threads stay out.
+     that Up Next isn't showing, so it carries on where Up Next stops. It is a
+     section like **Workstreams**, under its own heading. Snoozed threads stay
+     out.
    - **Snoozed** lists snoozed threads ordered by soonest wake time (or
      `On update`), with their child threads under them while snoozed.
    - **Archived** paginates archived threads via BB's archive list.

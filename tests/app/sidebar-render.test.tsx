@@ -348,6 +348,35 @@ it("shows Other after the populated workstreams, and nothing for an emptied one"
   slot.lifecycle.unmount();
 });
 
+it("draws Recent as a section with a heading like Workstreams, not a card", async () => {
+  const slot = await mountWithBands(
+    [
+      sidebarThread("a", {
+        sectionId: "sec_a",
+        title: "Older task",
+        latestAttentionAt: 100,
+      }),
+      sidebarThread("b", {
+        sectionId: "sec_b",
+        title: "Newer task",
+        latestAttentionAt: 200,
+      }),
+    ],
+    // Up Next off, so no thread leaves Recent for it.
+    { settings: { showUpNext: false } },
+  );
+  const recent = await slot.findByRole("region", { name: "Recent" });
+  const heading = within(recent).getByRole("heading", { name: "Recent" });
+  const workstreams = slot.getByRole("heading", { name: "Workstreams" });
+  expect(heading.className).toBe(workstreams.className);
+  expect(recent.closest(".ws-pinned, .ws-needs")).toBeNull();
+  expect(groupRows(slot, "Recent")).toEqual(["Newer task", "Older task"]);
+  expect(
+    within(recent).getByRole("button", { name: "Recent options" }),
+  ).toBeTruthy();
+  slot.lifecycle.unmount();
+});
+
 it("sorts and groups Recent from its section menu and persists the preference", async () => {
   const slot = await mountWithBands(
     [

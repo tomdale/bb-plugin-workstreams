@@ -73,12 +73,44 @@ export function BandGroup({
 }
 
 /**
+ * The heading over one of the sidebar's sections, Workstreams or Recent: an
+ * uppercase label on the sidebar itself, with the section's controls after
+ * it. A card's title, by contrast, sits inside its card in title case.
+ */
+export function SectionHeading({
+  title,
+  children,
+}: {
+  title: string;
+  /** Controls drawn after the title, at the heading's far end. */
+  children?: ReactNode;
+}) {
+  const { sectionHeading } = SIDEBAR_GEOMETRY;
+  return (
+    <div
+      className="flex items-center gap-3 outline-none"
+      style={{
+        height: sectionHeading.height,
+        marginTop: sectionHeading.topMargin,
+        marginBottom: sectionHeading.bottomMargin,
+        paddingLeft: sectionHeading.leftInset,
+      }}
+    >
+      <h2 className="ws-text-section flex min-w-0 items-center text-muted-foreground">
+        {title}
+      </h2>
+      <div className="flex-1" />
+      {children}
+    </div>
+  );
+}
+
+/**
  * An overlay band. A plain band collapses from its header. A boxed band is an
  * always-open block spanning the column, with its header inside: `attention`
- * is the Up Next card (`.ws-needs`), and `pinned` the quiet card that Pinned
- * and Recent share (`.ws-pinned`). Each sets its rows apart from the
- * workstream list. A card's title is title case, unlike the uppercase
- * headings of the sidebar's sections.
+ * is the Up Next card (`.ws-needs`), and `pinned` the quiet Pinned card
+ * (`.ws-pinned`). Each sets its rows apart from the workstream list. A card's
+ * title is title case, unlike the uppercase `SectionHeading`.
  */
 export const BOX_STYLES = {
   attention: {

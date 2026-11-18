@@ -23,9 +23,8 @@
  *
  * Pinned lists the threads the user pinned, in BB's pin order, directly under
  * Up Next. The two bands share one sticky plate at the top of the list, so both
- * stay in reach while the workstreams scroll beneath them. Recent is drawn
- * the same way, as its own card in the list, and keeps its sort and
- * grouping options.
+ * stay in reach while the workstreams scroll beneath them. Recent is a
+ * section of the list like Workstreams, under its own uppercase heading.
  *
  * This file arranges the list and owns its state. The pieces it draws live
  * beside it: `Bands.tsx` (band headers, menus, the lower toggle),
@@ -133,6 +132,7 @@ import { shareJson } from "../structuralSharing.ts";
 import {
   Band,
   BandOptionsMenu,
+  SectionHeading,
   SidebarViewOptionsMenu,
   LowerToggle,
 } from "./Bands.tsx";
@@ -538,8 +538,9 @@ export function WorkstreamsThreadList({
       ),
     [recentRows, bandOptions.recent, planningSnoozeOf, nameOf],
   );
-  // Recent opens, closes, and moves its rows as Pinned does. Grouped by
-  // workstream, its rows sit in folded sections instead (see `GroupedBand`).
+  // Recent's section opens and closes, and its rows enter and leave, as
+  // Pinned's do. Grouped by workstream, its rows sit in folded sections
+  // instead (see `GroupedBand`).
   const recentSlot = useMemo(
     () => slotWidthOf(recentRows),
     [recentRows, ws.server.analysis, ws.server.recaps, spinnerShape],
@@ -755,20 +756,15 @@ export function WorkstreamsThreadList({
   const bandControlStyle = { paddingLeft: bandTitleInset(needsSlot) };
   const recentBlock = recentBandPresence.map((band) => (
     <Presence key={band.key} data-flip-key="recent" phase={band.phase}>
-      <div>
-        <Band
-          title={RECENT}
-          box="pinned"
-          markless={recentSlot === 0}
-          style={{ marginTop: 4, marginBottom: 4 }}
-          menu={
-            <BandOptionsMenu
-              section="recent"
-              options={bandOptions.recent}
-              onChange={(change) => updateBandOptions("recent", change)}
-            />
-          }
-        >
+      <section aria-label={RECENT}>
+        <SectionHeading title={RECENT}>
+          <BandOptionsMenu
+            section="recent"
+            options={bandOptions.recent}
+            onChange={(change) => updateBandOptions("recent", change)}
+          />
+        </SectionHeading>
+        <ul>
           {bandOptions.recent.grouped
             ? bandBody("recent", recentRows, recentPlan)
             : recentRowPresence.map((entry) =>
@@ -782,8 +778,8 @@ export function WorkstreamsThreadList({
                   ),
                 ),
               )}
-        </Band>
-      </div>
+        </ul>
+      </section>
     </Presence>
   ));
   const hasWorkstreams =
@@ -815,19 +811,7 @@ export function WorkstreamsThreadList({
       }
     >
       {(suggestions) => (
-        <div
-          className="flex items-center gap-3 outline-none"
-          style={{
-            height: SIDEBAR_GEOMETRY.sectionHeading.height,
-            marginTop: SIDEBAR_GEOMETRY.sectionHeading.topMargin,
-            marginBottom: SIDEBAR_GEOMETRY.sectionHeading.bottomMargin,
-            paddingLeft: SIDEBAR_GEOMETRY.sectionHeading.leftInset,
-          }}
-        >
-          <h2 className="ws-text-section flex min-w-0 items-center text-muted-foreground">
-            Workstreams
-          </h2>
-          <div className="flex-1" />
+        <SectionHeading title="Workstreams">
           {suggestions}
           <SidebarViewOptionsMenu
             sort={groupSort}
@@ -835,7 +819,7 @@ export function WorkstreamsThreadList({
               void savePrefs({ sidebar: { groupSort } }).catch(report)
             }
           />
-        </div>
+        </SectionHeading>
       )}
     </SuggestionsChip>
   ) : null;
