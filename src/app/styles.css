@@ -40,6 +40,12 @@
   background-color: transparent;
 }
 
+/* A thread mentioned in a row's text reads as that thread's title. BB draws
+   no title for a thread its sidebar doesn't hold. */
+.ws-row-mention:empty::before {
+  content: "another thread";
+}
+
 .ws-row [data-timestamp="hover"] {
   display: none;
 }

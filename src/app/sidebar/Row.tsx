@@ -17,6 +17,7 @@ import { presentRow } from "./presentation.ts";
 import { useClock } from "../clock.ts";
 import { relativeAge } from "../../domain/presentation.ts";
 import type { WorkView } from "../useWorkstreams.ts";
+import { MentionText } from "./MentionText.tsx";
 import { StatusMark } from "./StatusMark.tsx";
 import { usePrefsSelector } from "../prefs.ts";
 import { HoverAction, RowActions, RowPressButton } from "./HoverActions.tsx";
@@ -161,7 +162,7 @@ export function Row({
       />
       {recap ? (
         <span id={`ws-recap-${thread.id}`} hidden>
-          {recap}
+          <MentionText text={recap} />
         </span>
       ) : null}
       {pinned ? (
@@ -267,7 +268,7 @@ export function Row({
               bright ? "text-muted-foreground/80" : "text-muted-foreground/60",
             )}
           >
-            {subtitle}
+            <MentionText text={subtitle} />
           </span>
         ) : null}
       </span>
