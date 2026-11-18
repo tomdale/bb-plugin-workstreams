@@ -195,7 +195,7 @@ export function ChoreographedHeading({
   useLayoutEffect(() => {
     if (!centered) return;
     const next = {
-      title: probeRef.current?.offsetWidth ?? 0,
+      title: Math.ceil(probeRef.current?.getBoundingClientRect().width ?? 0),
       eyebrow: eyebrowRef.current?.offsetWidth ?? 0,
     };
     setNatural((prev) =>

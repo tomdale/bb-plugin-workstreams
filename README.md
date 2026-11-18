@@ -770,7 +770,8 @@ Stream Deck plugin gets that token from the `bb` CLI.
   transition, and removes the animation from the step down of a heading that
   stays in the timeline. Switching threads preserves your reading position. When
   you follow the newest message, the view stays attached to it as the heading
-  loads.
+  loads. The minimized title uses the available title-bar width and truncates
+  only when its text exceeds that space.
 - **Thread header actions:**
   - **Parent thread** (optional, off by default): Opens the parent thread from a
     child thread's header.
