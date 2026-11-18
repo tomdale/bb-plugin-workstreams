@@ -152,6 +152,12 @@ const GROUPS = {
     recentLimit: [recentLimit, RECENT_LIMIT.fallback],
     /** Thread ages on rows: always, on hover or focus, or never. */
     timestamps: [z.enum(["show", "hover", "hide"]), "show"],
+    /**
+     * Thread rows: one line each, or a second line saying the most useful
+     * thing known about the thread (see `rowDetail`). Up Next rows show what
+     * they ask of the user either way.
+     */
+    rows: [z.enum(["compact", "full"]), "compact"],
     /** When workstream headers show their thread count. */
     threadCount: [countVisibility, "collapsed"],
     /** When workstream headers show how many threads need you. */

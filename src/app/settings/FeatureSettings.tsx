@@ -132,6 +132,15 @@ export function SidebarSettings() {
       <SettingsGroup title="Details">
         <SectionRows compact>
           {choice(
+            "Rows",
+            prefs.sidebar.rows,
+            [
+              { value: "compact", label: "Compact" },
+              { value: "full", label: "Full" },
+            ],
+            (rows) => update({ sidebar: { rows } }),
+          )}
+          {choice(
             "Timestamp",
             prefs.sidebar.timestamps,
             [

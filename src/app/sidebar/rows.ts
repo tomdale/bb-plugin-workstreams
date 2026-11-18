@@ -29,7 +29,10 @@ export type RowLocationTraits = {
   readonly overlay: boolean;
   /** Up Next: every row needs the user, so rows read at full strength. */
   readonly attention: boolean;
-  /** Up Next rows add a second line saying what the thread asks. */
+  /**
+   * Up Next rows add a second line saying what the thread asks, even while
+   * rows are Compact. Full rows have a second line in every location.
+   */
   readonly subtitle: boolean;
   readonly showPin: boolean;
   readonly showArchive: boolean;

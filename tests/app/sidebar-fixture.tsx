@@ -175,6 +175,7 @@ export async function mount(
             recentLimit: 5,
             groupSort: options.settings?.groupSort ?? "alphabetical",
             timestamps: options.settings?.timestamps ?? "show",
+            rows: options.settings?.rows ?? "compact",
             threadCount: options.settings?.threadCount ?? "collapsed",
             needsYouCount: options.settings?.needsYouCount ?? "collapsed",
           },

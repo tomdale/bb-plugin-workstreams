@@ -4,6 +4,8 @@ import { type ServerState } from "../useWorkstreams.ts";
 import { workView } from "../../domain/status.ts";
 import { useClock } from "../clock.ts";
 import { useSharedServerStateSelector } from "../serverState.ts";
+import { usePrefsSelector } from "../prefs.ts";
+import { rowDetail } from "./presentation.ts";
 import { Row, type RowSnoozeAction } from "./Row.tsx";
 import {
   foldKey,
@@ -96,6 +98,7 @@ export const SidebarThreadRow = memo(function SidebarThreadRow({
     snooze ? shortWake(snooze.until, now) : undefined,
   );
   const traits = LOCATION_TRAITS[placement];
+  const full = usePrefsSelector((prefs) => prefs?.sidebar.rows === "full");
   let snoozeAction: RowSnoozeAction | undefined;
   // The button reads the clock itself for the wake time it names, so a
   // minute passing does not render the row.
@@ -146,9 +149,11 @@ export const SidebarThreadRow = memo(function SidebarThreadRow({
           work={work}
           slotWidth={slotWidth}
           subtitle={
-            traits.subtitle && work.kind === "current"
-              ? work.analysis.ask
-              : null
+            full
+              ? rowDetail(thread, work)
+              : traits.subtitle && work.kind === "current"
+                ? work.analysis.ask
+                : null
           }
           snoozeAction={snoozeAction}
           disclosure={

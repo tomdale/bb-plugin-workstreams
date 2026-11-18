@@ -3,6 +3,7 @@ import {
   headerCounts,
   hasStatusMark,
   presentRow,
+  rowDetail,
 } from "../../src/app/sidebar/presentation.ts";
 import { workView } from "../../src/domain/status.ts";
 import type { StoredAnalysis } from "../../src/domain/analysis.ts";
@@ -195,4 +196,65 @@ it("reserves a shared status slot when any row has a slot mark", () => {
   const marked = [{ ...thread, hasPendingInteraction: true }, quiet[1]!];
   expect(quiet.some((t) => hasStatusMark(t, undefined))).toBe(false);
   expect(marked.some((t) => hasStatusMark(t, undefined))).toBe(true);
+});
+
+it("gives a Full row the most useful line for the thread's status", () => {
+  const stored = (
+    state: StoredAnalysis["state"],
+    extra: Partial<StoredAnalysis> = {},
+  ) =>
+    workView(thread, {
+      ...analysis(state),
+      goal: "Checkout is live",
+      ...extra,
+    });
+  // What the turn asks of the user, while it asks something.
+  for (const state of ["needs-input", "blocked"] as const) {
+    expect(rowDetail(thread, stored(state, { ask: "Pick a region" }))).toBe(
+      "Pick a region",
+    );
+    expect(rowDetail(thread, stored(state))).toBe("Shipped it");
+  }
+  // The turn's result once it finished, wherever the thread stands.
+  for (const state of ["review", "waiting", "complete"] as const)
+    expect(rowDetail(thread, stored(state, { ask: "Pick a region" }))).toBe(
+      "Shipped it",
+    );
+  expect(rowDetail(thread, stored("complete", { recap: " " }))).toBe(
+    "Checkout is live",
+  );
+});
+
+it("gives a Full row the goal while the last result is out of date", () => {
+  const stored = { ...analysis("complete"), goal: "Checkout is live" };
+  const running = sidebarThread("t", {
+    latestAttentionAt: 100,
+    indicator: "runtime",
+  });
+  expect(rowDetail(running, workView(running, stored))).toBe(
+    "Checkout is live",
+  );
+  // A turn ended after the stored analysis: its result describes the past.
+  const later = sidebarThread("t", { latestAttentionAt: 200 });
+  const pending = workView(later, stored);
+  expect(pending.kind).toBe("pending");
+  expect(rowDetail(later, pending)).toBe("Checkout is live");
+  expect(rowDetail(later, workView(later, analysis("complete")))).toBeNull();
+});
+
+it("names the status of a Full row with nothing else to say", () => {
+  const running = sidebarThread("t", { indicator: "runtime" });
+  expect(rowDetail(running, workView(running, undefined))).toBe("Working");
+  const failed = sidebarThread("t", { status: "error" });
+  expect(rowDetail(failed, workView(failed, analysis("complete")))).toBe(
+    "Failed",
+  );
+  expect(
+    rowDetail(thread, workView(thread, { ...analysis("review"), recap: "" })),
+  ).toBe("Ready for review");
+});
+
+it("leaves a Full row one line when nothing is known", () => {
+  expect(rowDetail(thread, undefined)).toBeNull();
+  expect(rowDetail(thread, workView(thread, undefined))).toBeNull();
 });

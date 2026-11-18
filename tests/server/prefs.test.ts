@@ -55,6 +55,7 @@ describe("Workstreams prefs", () => {
       recentLimit: 5,
       groupSort: "alphabetical",
       timestamps: "show",
+      rows: "compact",
       threadCount: "collapsed",
       needsYouCount: "collapsed",
     });

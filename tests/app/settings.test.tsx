@@ -165,6 +165,14 @@ it("saves the phone Home screen preference from its own group", async () => {
 
 it.each([
   [
+    "Rows",
+    "rows",
+    [
+      ["Full", "full"],
+      ["Compact", "compact"],
+    ],
+  ],
+  [
     "Timestamp",
     "timestamps",
     [

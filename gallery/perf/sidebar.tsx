@@ -4,7 +4,7 @@
  * so the Up Next and Recent bands, workstream headers, folds, hover actions,
  * and row marks are the ones BB draws. Each workstream cycles through the
  * statuses below. A working or waiting thread shows a spinner, so 64 threads
- * keep sixteen turning.
+ * keep sixteen turning. `rows=full` in the page's query draws Full rows.
  *
  * The host is a stub: thread data and plugin state are fixed, every write
  * RPC is refused, and nothing reaches a BB server.
@@ -43,15 +43,21 @@ const titles = [
 const statuses: {
   thread?: Parameters<typeof sidebarThread>[1];
   state?: StoredAnalysis["state"];
+  recap?: string;
+  ask?: string;
 }[] = [
   {},
   { thread: { status: "active", indicator: "runtime" } },
-  { state: "review" },
-  { state: "complete" },
+  { state: "review", recap: "Opened a pull request with the new shortcuts" },
+  { state: "complete", recap: "Cut startup work from 420 ms to 180 ms" },
   { thread: { indicator: "waiting-for-input", hasPendingInteraction: true } },
   { thread: { status: "error", indicator: "unread-error" } },
-  { state: "waiting" },
-  { state: "blocked" },
+  { state: "waiting", recap: "Waiting for the test run to finish" },
+  {
+    state: "blocked",
+    recap: "Could not reach the staging server",
+    ask: "Sign in to the staging server",
+  },
 ];
 
 export const sidebarPage: PerfPage = (size) => {
@@ -60,14 +66,14 @@ export const sidebarPage: PerfPage = (size) => {
   const threads = Array.from({ length: size }, (_, index) => {
     const workstream = index % workstreams.length;
     const row = Math.floor(index / workstreams.length);
-    const { thread, state } = statuses[row % statuses.length]!;
+    const { thread, state, recap, ask } = statuses[row % statuses.length]!;
     const id = `thread-${index}`;
     const at = now - index * 90_000;
     if (state)
       analysis[id] = {
         state,
-        recap: "",
-        ask: null,
+        recap: recap ?? "",
+        ask: ask ?? null,
         title: null,
         revision: at,
         at,
@@ -101,7 +107,11 @@ export const sidebarPage: PerfPage = (size) => {
     },
   };
   const answers: Record<string, unknown> = {
-    prefs: { prefs: parsePrefs({}) },
+    prefs: {
+      prefs: parsePrefs({
+        sidebar: { rows: new URLSearchParams(location.search).get("rows") },
+      }),
+    },
     spinner: { spinner: DEFAULT_SPINNER },
     state,
   };
