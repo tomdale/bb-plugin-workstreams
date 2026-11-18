@@ -12,6 +12,7 @@ import { workstreamGap } from "../../src/app/sidebar/workstreamGap.ts";
 const defaults = {
   grouping: "family",
   sort: "name",
+  colorScheme: "app",
   focus: "off",
   disclosureWorkstream: "always",
   disclosureThread: "current",
@@ -1569,7 +1570,7 @@ function buildRow(target, sectionName, row) {
 const viewGrid = $("view-groups");
 buildRow(viewGrid, "View", [
   null,
-  ["Arrangement", ["grouping", "sort", "focus"]],
+  ["Arrangement", ["grouping", "sort", "focus", "colorScheme"]],
 ]);
 $("view-section").append(document.querySelector(".presets"));
 for (const [id, title, rows] of rowSections) {
@@ -2070,7 +2071,7 @@ $("inlineWorkstreamStyle").closest(".control").hidden = true;
 {
   const bar = document.createElement("div");
   bar.className = "global-arrangement";
-  for (const id of ["grouping", "sort", "focus"])
+  for (const id of ["grouping", "sort", "focus", "colorScheme"])
     bar.append($(id).closest(".control"));
   document.querySelector(".top").after(bar);
   const note = $("orderNote");
@@ -2733,6 +2734,54 @@ function applyFontColor(element, role, panel, resolve = effectiveValue) {
             : `color-mix(in oklab, ${accent} ${blend}%, ${mixWith[mode]})`;
   if (role === "prefix") element.style.opacity = "1";
 }
+/**
+ * Trial colorings for groups and their workstreams (the `colorScheme`
+ * control). Each returns CSS colors built on the panel's theme lightness and
+ * chroma (`--ws-l`, `--ws-c`), so one scheme serves both themes.
+ *
+ * - tints: every workstream of a group has the group's hue and its own
+ *   lightness step.
+ * - band: a group's workstreams spread over neighboring hues, and the group's
+ *   name takes each workstream's color, dimmed.
+ * - rail: every workstream has a hue of its own from the whole wheel, the
+ *   group's name is neutral, and a rail in the group's color runs beside its
+ *   workstreams.
+ * - heading: the band's hues under one group heading.
+ */
+const GROUP_HUES = { Studio: 254, Agent: 47, Tools: 190 };
+const LONE_HUES = { prompting: 119, quality: 320 };
+const BAND_STEP = 20;
+const TINT_SPAN = 16;
+const schemeInk = (hue, shift = 0) =>
+  `oklch(calc(var(--ws-l) + ${shift}%) var(--ws-c) ${((hue % 360) + 360) % 360})`;
+const groupInk = (parent) => schemeInk(GROUP_HUES[parent]);
+function schemeColors(item, scheme) {
+  if (scheme === "app") return null;
+  const siblings = item.parent
+    ? data
+        .filter((other) => other.parent === item.parent)
+        .sort((a, b) => a.name.localeCompare(b.name))
+    : [item];
+  const index = siblings.indexOf(item),
+    spread = siblings.length > 1 ? index / (siblings.length - 1) - 0.5 : 0,
+    hue = item.parent ? GROUP_HUES[item.parent] : LONE_HUES[item.id],
+    group = item.parent ? groupInk(item.parent) : null;
+  if (scheme === "tints")
+    return {
+      color: schemeInk(hue, spread * TINT_SPAN),
+      prefix: `color-mix(in oklab, ${group} 65%, transparent)`,
+    };
+  if (scheme === "rail")
+    return {
+      color: schemeInk(47 + data.indexOf(item) * 137.5),
+      prefix: "var(--muted)",
+      rail: group,
+    };
+  return {
+    color: schemeInk(hue + (index - (siblings.length - 1) / 2) * BAND_STEP),
+    prefix: "color-mix(in oklab, var(--color) 60%, transparent)",
+  };
+}
 function childKey(itemId, group, index) {
   return `${itemId}.${group}.${index}`;
 }
@@ -2885,7 +2934,13 @@ function insetPosition(panel, id, parent) {
 function renderUnit(item, mode, panel, lower, hasParent) {
   const unit = document.createElement("div");
   unit.className = "unit";
-  unit.style.setProperty("--color", `var(--${item.color})`);
+  const scheme =
+    panel === "after" ? schemeColors(item, valueOf("colorScheme")) : null;
+  unit.style.setProperty("--color", scheme?.color ?? `var(--${item.color})`);
+  if (scheme?.rail) {
+    unit.classList.add("has-rail");
+    unit.style.setProperty("--rail", scheme.rail);
+  }
   // The fixture supplies a theme-specific color; production names read these tokens.
   unit.style.setProperty("--ws-color-light", "var(--color)");
   unit.style.setProperty("--ws-color-dark", "var(--color)");
@@ -2966,6 +3021,7 @@ function renderUnit(item, mode, panel, lower, hasParent) {
         panel === "after" && valueOf("prefixGapMode") === "fixed";
       if (fixedGap) prefix.style.marginRight = valueOf("prefixGap") + "px";
       applyFontColor(prefix, "prefix", panel);
+      if (scheme) prefix.style.color = scheme.prefix;
     }
     const accent = name.querySelector(".ws-workstream-name");
     const separate =
@@ -3224,7 +3280,9 @@ function renderPanel(id, mode) {
       }
       family.style.setProperty(
         "--family-color",
-        `var(--${{ Studio: "blue", Agent: "orange", Tools: "teal" }[group.parent] ?? group.items[0].color})`,
+        isTrial && valueOf("colorScheme") !== "app" && group.parent
+          ? groupInk(group.parent)
+          : `var(--${{ Studio: "blue", Agent: "orange", Tools: "teal" }[group.parent] ?? group.items[0].color})`,
       );
       previousKey = group.key;
       previousInline = inline;
@@ -3250,6 +3308,8 @@ function renderPanel(id, mode) {
         label.className = "name";
         label.textContent = group.parent;
         applyFontColor(label, "parent", id);
+        if (isTrial && valueOf("colorScheme") !== "app")
+          label.style.color = "var(--family-color)";
         if (
           isTrial &&
           isParentCollapsed &&
@@ -3795,6 +3855,13 @@ for (const id of Object.keys(defaults)) {
     }
     input.removeAttribute("aria-invalid");
     lastValid[id] = input.value;
+    // One group heading is the Shared parent treatment, so that scheme
+    // selects it.
+    if (id === "colorScheme" && input.value === "heading") {
+      $("grouping").value = "family";
+      lastValid.grouping = "family";
+      propertyChanged("grouping");
+    }
     propertyChanged(id);
     render(panelsForSetting(id));
   });

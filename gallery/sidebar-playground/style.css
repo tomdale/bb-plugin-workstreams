@@ -393,6 +393,9 @@ body[data-embedded="true"] .playground {
   flex-direction: column;
 }
 .sidebar {
+  /* The app's name lightness and chroma, for the trial color schemes. */
+  --ws-l: 79%;
+  --ws-c: 0.13;
   --ink: #ededed;
   --muted: #a1a1a1;
   --bg: #000;
@@ -429,6 +432,8 @@ body[data-embedded="true"] .playground {
   font-size: 13px;
 }
 .sidebar.light {
+  --ws-l: 46%;
+  --ws-c: 0.16;
   --ink: #171717;
   --muted: #666;
   --bg: #fff;
@@ -1369,4 +1374,18 @@ body[data-embedded="true"] .playground {
 }
 .row[data-custom-weight="true"] .ws-row > span:has(.ws-text-thread) {
   font-weight: inherit;
+}
+
+/* The trial rail scheme: a group's color beside each of its workstreams,
+   left of the status marks. */
+.unit.has-rail {
+  position: relative;
+}
+.unit.has-rail::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 -6px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--rail);
 }
