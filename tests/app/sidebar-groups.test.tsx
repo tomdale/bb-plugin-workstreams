@@ -162,7 +162,7 @@ describe("groups and their workstreams", () => {
   });
 
   it.each([false, true])(
-    "gives categories the color of the workstream's container when inline is %s",
+    "uses the leaf workstream's hue for categories when inline is %s",
     async (inline) => {
       const threads = inline
         ? nestedThreads().filter((thread) => thread.id !== "flags")
@@ -171,10 +171,7 @@ describe("groups and their workstreams", () => {
         ...options,
         tree: {
           ...tree,
-          colors: {
-            auto: { hue: 35, level: 1 },
-            alerts: { hue: 120, level: 1 },
-          },
+          colors: { alerts: { hue: 35, level: 1 } },
           categories: {
             alerts: {
               id: "generation",
@@ -209,7 +206,7 @@ describe("groups and their workstreams", () => {
         ).toBe("Alert Investigations");
         expect(
           (workstream as HTMLElement).style.getPropertyValue("--ws-hue"),
-        ).toBe("120");
+        ).toBe("35");
       }
       slot.lifecycle.unmount();
     },

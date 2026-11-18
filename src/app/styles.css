@@ -1137,14 +1137,14 @@ body:has([data-ws-suggestions])
     var(--ws-color-dark, oklch(79% 0.13 var(--ws-hue, 250)))
   );
 }
-/* A category label wears the color the workstream's header gives its
-   group's name (`.ws-text-prefix`), so it reads as a quieter tier under the
-   workstream's own name. */
+/* A category label wears its workstream's color at the name's own strength.
+   The share is written out because the sidebar playground reads it as the
+   default of its strength control. */
 .ws-category-label {
   color: color-mix(
     in oklab,
-    var(--ws-color-light, var(--muted-foreground)) 65%,
-    transparent
+    var(--ws-color-light, oklch(46% 0.16 var(--ws-hue, 250))) 100%,
+    var(--muted-foreground)
   );
 }
 .dark .ws-workstream-name {
@@ -1153,8 +1153,8 @@ body:has([data-ws-suggestions])
 .dark .ws-category-label {
   color: color-mix(
     in oklab,
-    var(--ws-color-dark, var(--muted-foreground)) 65%,
-    transparent
+    var(--ws-color-dark, oklch(79% 0.13 var(--ws-hue, 250))) 100%,
+    var(--muted-foreground)
   );
 }
 /* The queue's card stack (queue/motion.ts poses every card each frame). The

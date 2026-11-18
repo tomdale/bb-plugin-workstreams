@@ -2705,7 +2705,7 @@ function applyFontColor(element, role, panel, resolve = effectiveValue) {
       panel === "after" &&
       valueOf("mix") !== appDefaults.mix
     )
-      element.style.color = `color-mix(in oklab, var(--color) ${valueOf("mix")}%, transparent)`;
+      element.style.color = `color-mix(in oklab, var(--color) ${valueOf("mix")}%, oklch(from var(--color) l 0 h))`;
     return;
   }
   const accent =
@@ -2858,10 +2858,6 @@ function addRows(root, item, panel) {
       const cat = document.createElement("div");
       cat.className = "cat ws-category-label" + (index ? " subsequent" : "");
       cat.textContent = name;
-      // As in the app, a category label wears its workstream's container
-      // color, and the fixture names none (see `prefixColors`).
-      cat.style.setProperty("--ws-color-light", "var(--muted-foreground)");
-      cat.style.setProperty("--ws-color-dark", "var(--muted-foreground)");
       applyFontColor(cat, "category", panel);
       root.append(cat);
       const content = document.createElement("div");

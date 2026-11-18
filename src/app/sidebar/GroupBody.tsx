@@ -1,4 +1,10 @@
-import { Fragment, memo, useCallback, useMemo } from "react";
+import {
+  Fragment,
+  memo,
+  useCallback,
+  useMemo,
+  type CSSProperties,
+} from "react";
 import {
   SortableContext,
   verticalListSortingStrategy,
@@ -14,8 +20,10 @@ import {
   treeKey,
 } from "./dnd.tsx";
 import { categoryRows } from "../../domain/categoryRows.ts";
-import { type WorkstreamColor } from "../../domain/workstreamColor.ts";
-import { prefixColors } from "../WorkstreamName.tsx";
+import {
+  workstreamColorStyle,
+  type WorkstreamColor,
+} from "../../domain/workstreamColor.ts";
 import { GroupSnooze, RenderRow, ThreadNode, ThreadRow } from "./types.ts";
 import { WorkstreamGroup } from "./WorkstreamGroup.tsx";
 import {
@@ -153,10 +161,6 @@ export type GroupBodyProps = {
   pullRequests: PullRequestPlacement;
   choosingWorkstream: boolean;
   colorOf: (group: ThreadNode) => WorkstreamColor;
-  /** The color of the group a workstream's header names, when it names one. */
-  prefixColorOf: (group: ThreadNode) => WorkstreamColor | undefined;
-  /** The group whose header this one is drawn under, for a nested group. */
-  container?: ThreadNode;
   newThreadIn: (group: ThreadNode) => () => void;
   /** Opens a workstream's Overview; absent where the list offers none. */
   openOverview?: (group: ThreadNode) => () => void;
@@ -173,7 +177,7 @@ export function CategorizedTrees({
   collapsed,
   groupSlot,
   choosingWorkstream,
-  labelColor,
+  colorOf,
   isCollapsed,
 }: Pick<
   GroupBodyProps,
@@ -182,20 +186,18 @@ export function CategorizedTrees({
   | "collapsed"
   | "groupSlot"
   | "choosingWorkstream"
+  | "colorOf"
   | "isCollapsed"
-> & {
-  label?: string;
-  /** The color of the group this workstream is in; absent when in none. */
-  labelColor: WorkstreamColor | undefined;
-}) {
+> & { label?: string }) {
   const rows = group.rows;
   const categories = useMemo(
     () => categoryRows(rows, group.categories),
     [rows, group.categories],
   );
-  // A category label wears its workstream's group color as the header's
-  // group name does (`.ws-category-label`).
-  const color = useMemo(() => prefixColors(labelColor), [labelColor]);
+  const color = useMemo(
+    () => workstreamColorStyle(colorOf(group)) as CSSProperties,
+    [colorOf, group.id, group.workstreamId],
+  );
   return categories.map((category, index) => (
     <Fragment key={category.id ?? "unplaced"}>
       {category.name ? (
@@ -290,25 +292,17 @@ export function NestedGroup(
  */
 export const GroupBody = memo(
   function GroupBody(props: GroupBodyProps) {
-    const { group, container, colorOf, prefixColorOf } = props;
-    // A workstream's group is the one its header names, or the one whose
-    // header it is drawn under.
-    const labelColor = useMemo(
-      () => (container ? colorOf(container) : prefixColorOf(group)),
-      [container, colorOf, prefixColorOf, group],
-    );
-    const ownColor = useMemo(() => colorOf(group), [colorOf, group]);
+    const { group } = props;
     return (
       <>
         <PullRequestList groupId={group.id} placement={props.pullRequests} />
-        <CategorizedTrees {...props} labelColor={labelColor} />
+        <CategorizedTrees {...props} />
         {inlineGroups(group).map((sub) => (
           <CategorizedTrees
             {...props}
             key={`inline:${sub.id}`}
             group={sub}
             label={shortLabel(sub.label)}
-            labelColor={ownColor}
           />
         ))}
         {group.workstreams
@@ -320,12 +314,7 @@ export const GroupBody = memo(
                 data={{ type: "target", groupId: sub.id }}
               >
                 {(ref) => (
-                  <NestedGroup
-                    {...props}
-                    group={sub}
-                    container={group}
-                    sectionRef={ref}
-                  />
+                  <NestedGroup {...props} group={sub} sectionRef={ref} />
                 )}
               </DropTarget>
             </li>
@@ -342,8 +331,6 @@ export const GroupBody = memo(
       before.pullRequests === after.pullRequests &&
       before.choosingWorkstream === after.choosingWorkstream &&
       before.colorOf === after.colorOf &&
-      before.prefixColorOf === after.prefixColorOf &&
-      before.container === after.container &&
       before.newThreadIn === after.newThreadIn &&
       before.openOverview === after.openOverview &&
       before.groupSnoozeOf === after.groupSnoozeOf &&

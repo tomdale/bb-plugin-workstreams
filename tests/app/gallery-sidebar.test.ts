@@ -731,9 +731,10 @@ describe.skipIf(browserUnavailable)("gallery sidebar", () => {
               },
               category: {
                 actual: getComputedStyle(category).color,
-                // Probed inside the label, which carries the same container
-                // color as the prefix.
-                expected: productionColor(category, "ws-category-label"),
+                expected: productionColor(
+                  firstWithCategory,
+                  "ws-category-label",
+                ),
               },
               marks,
             };

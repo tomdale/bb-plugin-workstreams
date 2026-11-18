@@ -294,8 +294,7 @@ colors look similar.
 **Categories** arrange rows inside a workstream without changing any thread's
 workstream, native section, or color. Both the sidebar and phone Home screen
 show them. Any workstream can have categories, whether or not it is in a group.
-A sidebar category heading uses the color its workstream's header gives the
-group's name, or a muted gray for a workstream in no group:
+Sidebar category headings use the workstream's color, as its name does:
 
 - At **6 threads**, the category classifier sees the whole collection and
   creates useful categories. It counts visible, non-archived, unsnoozed threads,

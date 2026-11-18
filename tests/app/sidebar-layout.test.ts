@@ -28,7 +28,7 @@ describe.skipIf(browserUnavailable)(
   { timeout: 30_000 },
   () => {
     browserTest(
-      "colors workstream names and category labels while leaving status and thread titles neutral",
+      "colors workstream names and category labels alike while leaving status and thread titles neutral",
       async ({ page }) => {
         await page.setContent(`<style>${styles}</style>
           <div style="--ws-hue: 47; --ws-color-light: oklch(42% .1 47); --ws-color-dark: oklch(75% .1 47); --muted-foreground: rgb(130, 130, 130); color: rgb(130, 130, 130)">
@@ -38,7 +38,7 @@ describe.skipIf(browserUnavailable)(
               <span class="ws-text-prefix">Prefix</span>
             </span>
             <span class="ws-workstream-name">Workstream</span>
-            <h4 class="ws-category-label" style="--ws-color-light: oklch(58% .12 200); --ws-color-dark: oklch(72% .12 200)">Category</h4>
+            <h4 class="ws-category-label">Category</h4>
             <span class="thread-title">Thread title</span>
           </div>`);
         for (const dark of [false, true]) {
@@ -65,9 +65,12 @@ describe.skipIf(browserUnavailable)(
             "rgba(0, 0, 0, 0)",
             "rgba(0, 0, 0, 0)",
           ]);
-          expect(colors.category).not.toBe(colors.name);
-          // A category label matches the group's name in the header.
-          expect(colors.category).toBe(colors.prefix);
+          // A category label has its workstream name's color. `color-mix`
+          // serializes as oklab, so compare its chroma and hue to the name's.
+          const category = oklab(colors.category)!;
+          expect(category.alpha).toBe(1);
+          expect(category.chroma).toBeCloseTo(0.1, 2);
+          expect(category.hue).toBeCloseTo(47, 0);
           expect(colors.prefix).not.toBe(colors.name);
           // The group in a "Group › Workstream" name wears its own hue,
           // dimmed, rather than the workstream's, so every workstream in
