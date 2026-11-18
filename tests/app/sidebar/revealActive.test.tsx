@@ -147,13 +147,14 @@ describe("the thread list", () => {
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   /**
    * Thirty rows in Alpha, then Beta's row at the bottom, each row placed
    * by its index among the drawn rows.
    */
-  async function mountTall() {
+  async function mountTall(shift = { px: 0 }) {
     const threads = [
       ...Array.from({ length: 30 }, (_, index) =>
         sidebarThread(`alpha-${index}`, {
@@ -174,7 +175,7 @@ describe("the thread list", () => {
         if (!this.classList.contains("ws-row")) return rect(0, 0);
         const rows = [...document.querySelectorAll(".ws-row")];
         return rect(
-          rows.indexOf(this) * ROW_HEIGHT - layout.scrollTop(),
+          rows.indexOf(this) * ROW_HEIGHT + shift.px - layout.scrollTop(),
           ROW_HEIGHT,
         );
       },
@@ -197,6 +198,41 @@ describe("the thread list", () => {
       .closest(".ws-row")!
       .getBoundingClientRect();
     expect(beta.bottom).toBeLessThanOrEqual(VIEW_HEIGHT);
+  });
+
+  it("keeps the row in view while the list settles, until the user scrolls", async () => {
+    const resized = new Set<() => void>();
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        callback: () => void;
+        constructor(callback: () => void) {
+          this.callback = callback;
+        }
+        observe() {
+          resized.add(this.callback);
+        }
+        unobserve() {}
+        disconnect() {
+          resized.delete(this.callback);
+        }
+      },
+    );
+    const shift = { px: 0 };
+    const { slot, layout } = await mountTall(shift);
+    act(() => slot.selectThread("beta"));
+    const revealed = layout.scrollTop();
+    expect(revealed).toBeGreaterThan(0);
+
+    // A band opens above, pushing the row out of view.
+    shift.px = 100;
+    for (const callback of resized) callback();
+    expect(layout.scrollTop()).toBe(revealed + 100);
+
+    fireEvent.wheel(document.body);
+    shift.px = 200;
+    for (const callback of resized) callback();
+    expect(layout.scrollTop()).toBe(revealed + 100);
   });
 
   it("leaves the list alone for a thread in a collapsed workstream", async () => {

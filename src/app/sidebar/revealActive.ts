@@ -1,7 +1,15 @@
-import { useLayoutEffect, useRef, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, type RefObject } from "react";
 
 /** Room left between a revealed row and the scroll region's edge. */
 const REVEAL_MARGIN_PX = 8;
+/**
+ * How long after a reveal the list keeps the row in view while its layout
+ * settles: bands opening, and data such as pull requests arriving, move rows
+ * for a moment after the first draw.
+ */
+const SETTLE_MS = 2000;
+/** Input on the scroller that means the user took over its scrolling. */
+const USER_SCROLL_EVENTS = ["wheel", "touchstart", "pointerdown"] as const;
 
 /**
  * Scrolls the sidebar just enough to show the active thread's row whenever a
@@ -14,8 +22,10 @@ const REVEAL_MARGIN_PX = 8;
  *
  * The reveal waits until `listed(threadId)` says the list holds the thread,
  * so a thread opened before its row arrives (a new one, or before the
- * sidebar loads) is revealed when the row is drawn. It runs at most once per
- * activation, so a row that later moves out of view stays where it went.
+ * sidebar loads) is revealed when the row is drawn. For `SETTLE_MS` after
+ * that, each change in the list's size reveals the row again, until the user
+ * scrolls the sidebar themselves; after that a row that moves out of view
+ * stays where it went.
  */
 export function useRevealActiveThread(
   listRef: RefObject<HTMLElement | null>,
@@ -23,9 +33,12 @@ export function useRevealActiveThread(
   listed: (threadId: string) => boolean,
 ): void {
   const pending = useRef<string | null>(null);
+  const stopSettling = useRef<() => void>(() => {});
   useLayoutEffect(() => {
+    stopSettling.current();
     pending.current = activeThreadId;
   }, [activeThreadId]);
+  useEffect(() => () => stopSettling.current(), []);
   // Runs after every commit, so the reveal happens in the first one that
   // draws the thread's row.
   useLayoutEffect(() => {
@@ -34,7 +47,29 @@ export function useRevealActiveThread(
     if (!threadId || !list || !listed(threadId)) return;
     pending.current = null;
     revealThreadRow(list, threadId);
+    stopSettling.current = keepRevealed(list, threadId);
   });
+}
+
+/**
+ * Reveals `threadId`'s row again whenever `list` changes size, for
+ * `SETTLE_MS` or until the user scrolls. Returns what stops it early.
+ */
+function keepRevealed(list: HTMLElement, threadId: string): () => void {
+  const scroller = scrollerOf(list);
+  if (!scroller || typeof ResizeObserver === "undefined") return () => {};
+  const observer = new ResizeObserver(() => revealThreadRow(list, threadId));
+  const stop = () => {
+    observer.disconnect();
+    clearTimeout(timer);
+    for (const type of USER_SCROLL_EVENTS)
+      scroller.removeEventListener(type, stop);
+  };
+  const timer = setTimeout(stop, SETTLE_MS);
+  for (const type of USER_SCROLL_EVENTS)
+    scroller.addEventListener(type, stop, { passive: true });
+  observer.observe(list);
+  return stop;
 }
 
 /**
