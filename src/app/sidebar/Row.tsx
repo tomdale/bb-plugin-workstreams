@@ -139,6 +139,7 @@ export function Row({
         active && "ws-row-active",
       )}
       style={{ paddingLeft }}
+      data-row-location={placement}
     >
       {/* Must stay an anchor: BB's thread shortcuts find rows by these
             data attributes, and modifier-click opens a split. */}

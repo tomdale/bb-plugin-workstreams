@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, type RefObject } from "react";
+import { LOCATION_TRAITS, type RowLocation } from "./rows.ts";
 
 /** Room left between a revealed row and the scroll region's edge. */
 const REVEAL_MARGIN_PX = 8;
@@ -15,10 +16,11 @@ const USER_SCROLL_EVENTS = ["wheel", "touchstart", "pointerdown"] as const;
  * Scrolls the sidebar just enough to show the active thread's row whenever a
  * thread becomes active, including the one open when the list mounts.
  *
- * A thread can be listed more than once (Up Next, Pinned, Recents, and its
- * workstream), and any one of its rows in view is enough. A row inside a
- * collapsed fold is not drawn, so a thread whose every row is folded away
- * leaves the scroll position alone: the list never opens a fold to reveal it.
+ * Only the thread's row in its workstream (or in Snoozed or Archived) counts,
+ * not its copies in Up Next, Pinned, or Recents (see `revealThreadRow`). A
+ * row inside a collapsed fold is not drawn, so a thread whose row is folded
+ * away leaves the scroll position alone, even when an overlay shows it: the
+ * list never opens a fold to reveal it.
  *
  * The reveal waits until `listed(threadId)` says the list holds the thread,
  * so a thread opened before its row arrives (a new one, or before the
@@ -74,13 +76,14 @@ function keepRevealed(list: HTMLElement, threadId: string): () => void {
 
 /**
  * Scrolls `list`'s scrolling ancestor the least distance that brings one of
- * `threadId`'s drawn rows fully into view, unless one already is.
+ * `threadId`'s drawn rows in the workstreams, Snoozed, or Archived fully into
+ * view, unless one already is. Overlay rows (Up Next, Pinned, Recents) never
+ * count: the reveal shows where the thread sits among its workstreams, which
+ * its copy in an overlay doesn't.
  *
  * Rows scrolling under the sticky Up Next and Pinned plate are hidden by it,
- * so for them the visible region starts below the plate and its fade. A row on the plate
- * itself is visible wherever the list is scrolled, and scrolling cannot move
- * it, so it is never the row scrolled to. Rows in a closing fold are leaving
- * and do not count.
+ * so the visible region starts below the plate and its fade. Rows in a
+ * closing fold are leaving and do not count.
  */
 export function revealThreadRow(list: HTMLElement, threadId: string): void {
   const scroller = scrollerOf(list);
@@ -94,7 +97,7 @@ export function revealThreadRow(list: HTMLElement, threadId: string): void {
         !anchor.closest('[inert], [data-presence="leave"]'),
     )
     .map((anchor) => anchor.closest<HTMLElement>(".ws-row") ?? anchor)
-    .filter((row) => row.getClientRects().length > 0);
+    .filter((row) => !isOverlayRow(row) && row.getClientRects().length > 0);
   if (rows.length === 0) return;
 
   const frame = scroller.getBoundingClientRect();
@@ -119,18 +122,21 @@ export function revealThreadRow(list: HTMLElement, threadId: string): void {
   let scrollBy: number | null = null;
   for (const row of rows) {
     const box = row.getBoundingClientRect();
-    const onPlate = plate?.contains(row) ?? false;
-    const regionTop = onPlate ? top : belowPlate;
-    if (box.top >= regionTop - 0.5 && box.bottom <= bottom + 0.5) return;
-    if (onPlate) continue;
+    if (box.top >= belowPlate - 0.5 && box.bottom <= bottom + 0.5) return;
     const delta =
-      box.top < regionTop
-        ? box.top - regionTop - REVEAL_MARGIN_PX
+      box.top < belowPlate
+        ? box.top - belowPlate - REVEAL_MARGIN_PX
         : box.bottom - bottom + REVEAL_MARGIN_PX;
     if (scrollBy === null || Math.abs(delta) < Math.abs(scrollBy))
       scrollBy = delta;
   }
   if (scrollBy !== null) scroller.scrollTop += scrollBy;
+}
+
+/** Whether `row` is a copy in an overlay band (see `LOCATION_TRAITS`). */
+function isOverlayRow(row: HTMLElement): boolean {
+  const location = row.dataset.rowLocation as RowLocation | undefined;
+  return location !== undefined && LOCATION_TRAITS[location].overlay;
 }
 
 /**

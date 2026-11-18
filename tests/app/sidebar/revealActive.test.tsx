@@ -2,6 +2,7 @@
 import { act, cleanup, fireEvent, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { revealThreadRow } from "../../../src/app/sidebar/revealActive.ts";
+import type { RowLocation } from "../../../src/app/sidebar/rows.ts";
 import { section, sidebarThread } from "../fixtures.ts";
 import { mount } from "../sidebar-fixture.tsx";
 
@@ -53,10 +54,15 @@ const rect = (top: number, height: number) =>
     y: top,
   }) as DOMRect;
 
-/** A drawn row for `id`, as `Row` marks it. */
-function row(id: string, parent: Element): HTMLElement {
+/** A drawn row for `id` at `location`, as `Row` marks it. */
+function row(
+  id: string,
+  parent: Element,
+  location: RowLocation = "group",
+): HTMLElement {
   const element = document.createElement("div");
   element.className = "ws-row";
+  element.dataset.rowLocation = location;
   const anchor = document.createElement("a");
   anchor.dataset.sidebarThreadId = id;
   element.append(anchor);
@@ -113,20 +119,28 @@ describe("revealThreadRow", () => {
     expect(layout.scrollTop()).toBe(300 - (68 - 62) - 8);
   });
 
-  it("is satisfied by any one of the thread's rows in view", () => {
+  it("reveals the workstream row even while an overlay copy is in view", () => {
     const plate = document.createElement("div");
     plate.className = "ws-up-next-sticky";
     list.append(plate);
     layout.place(plate, 0, 60, true);
-    layout.place(row("a", plate), 20, ROW_HEIGHT, true);
+    layout.place(row("a", plate, "up-next"), 20, ROW_HEIGHT, true);
+    layout.place(row("a", list, "recent"), 80);
     layout.place(row("a", list), 600);
+    revealThreadRow(list, "a");
+    expect(layout.scrollTop()).toBe(600 + ROW_HEIGHT - VIEW_HEIGHT + 8);
+  });
+
+  it("leaves the list alone for a thread drawn only in overlays", () => {
+    layout.place(row("a", list, "pinned"), 600);
+    layout.place(row("a", list, "recent"), 900);
     revealThreadRow(list, "a");
     expect(layout.scrollTop()).toBe(0);
   });
 
   it("scrolls to whichever of the thread's rows is nearest", () => {
     layout.place(row("a", list), 900);
-    layout.place(row("a", list), 300);
+    layout.place(row("a", list, "snoozed"), 300);
     revealThreadRow(list, "a");
     expect(layout.scrollTop()).toBe(300 + ROW_HEIGHT - VIEW_HEIGHT + 8);
   });
@@ -154,7 +168,10 @@ describe("the thread list", () => {
    * Thirty rows in Alpha, then Beta's row at the bottom, each row placed
    * by its index among the drawn rows.
    */
-  async function mountTall(shift = { px: 0 }) {
+  async function mountTall(
+    shift = { px: 0 },
+    settings: Record<string, boolean> = {},
+  ) {
     const threads = [
       ...Array.from({ length: 30 }, (_, index) =>
         sidebarThread(`alpha-${index}`, {
@@ -162,7 +179,13 @@ describe("the thread list", () => {
           title: `Alpha ${index}`,
         }),
       ),
-      sidebarThread("beta", { sectionId: "sec_b", title: "Beta task" }),
+      // The newest, so Recents lists it first.
+      sidebarThread("beta", {
+        sectionId: "sec_b",
+        title: "Beta task",
+        latestAttentionAt: Date.now() + 1000,
+        updatedAt: Date.now() + 1000,
+      }),
     ];
     const layout = layOut(document.body);
     vi.spyOn(Element.prototype, "getClientRects").mockImplementation(function (
@@ -183,8 +206,9 @@ describe("the thread list", () => {
     const slot = await mount(threads, {
       activeThreadId: null,
       sections: [section("sec_a", "Alpha"), section("sec_b", "Beta")],
+      settings,
     });
-    await slot.findByRole("link", { name: /Beta task/ });
+    await slot.findAllByRole("link", { name: /Beta task/ });
     return { slot, layout };
   }
 
@@ -198,6 +222,20 @@ describe("the thread list", () => {
       .closest(".ws-row")!
       .getBoundingClientRect();
     expect(beta.bottom).toBeLessThanOrEqual(VIEW_HEIGHT);
+  });
+
+  it("scrolls to the workstream row when Recents shows the thread in view", async () => {
+    const { slot, layout } = await mountTall(undefined, { showRecent: true });
+    const copies = await waitFor(() => {
+      const links = slot.getAllByRole("link", { name: /Beta task/ });
+      expect(links).toHaveLength(2);
+      return links;
+    });
+    expect(copies[0]!.closest(".ws-row")!.getBoundingClientRect().top).toBe(0);
+    act(() => slot.selectThread("beta"));
+    expect(layout.scrollTop()).toBeGreaterThan(0);
+    const inWorkstream = copies[1]!.closest(".ws-row")!.getBoundingClientRect();
+    expect(inWorkstream.bottom).toBeLessThanOrEqual(VIEW_HEIGHT);
   });
 
   it("keeps the row in view while the list settles, until the user scrolls", async () => {
