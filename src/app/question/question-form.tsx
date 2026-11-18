@@ -336,12 +336,13 @@ function QuestionInputBlock({
   };
 
   return (
-    // A column whose only shrinking child is the artifact panel: when the
-    // card runs short of height, the panel gives up room before the options
-    // scroll out of view.
+    // The fieldset's children lay out directly in the scroll area's column
+    // (a fieldset's own flex box ignores the height it is given), where the
+    // artifact panel is the only child that shrinks: when the card runs short
+    // of height, the panel gives up room before the options scroll away.
     <fieldset
       disabled={disabled}
-      className="flex min-h-0 min-w-0 flex-col [&>*]:shrink-0"
+      className="contents [&>*]:min-w-0 [&>*]:shrink-0"
       aria-describedby={question.details ? `${question.id}-details` : undefined}
     >
       <legend className="sr-only">{plainText(question.prompt)}</legend>
