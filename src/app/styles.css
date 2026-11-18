@@ -1369,10 +1369,15 @@ section[data-testid="plugin-interaction-shell"]:has(.ws-question-portaled) {
 
 /* BB hides the composer while a question is live. The card above it is a
    composer banner like the recap card, so keep the composer drawn beneath it.
-   BB still blocks sending until the question is answered. */
-[data-app-composer]:has(.ws-question-portaled)
-  [data-follow-up-composer][hidden] {
-  display: block !important;
+   BB still blocks sending until the question is answered.
+   BB's `[hidden] { display: none !important }` reset lives in `@layer base`,
+   and an important layered declaration beats every unlayered one, so this
+   rule joins that layer and wins there on specificity. */
+@layer base {
+  [data-app-composer]:has(.ws-question-portaled)
+    [data-follow-up-composer][hidden] {
+    display: block !important;
+  }
 }
 
 /* The portal is a direct child of the delivery row, outside BB's clipped

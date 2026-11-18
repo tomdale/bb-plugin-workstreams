@@ -7,10 +7,17 @@ const styles = readFileSync(
   "utf8",
 );
 
-/** BB's composer shell with the same `[hidden]` rule its stylesheet resets to. */
+/**
+ * BB's composer shell with its `[hidden]` reset declared as BB's stylesheet
+ * declares it: in `@layer base`, with the layer order BB establishes before
+ * plugin styles load.
+ */
 const shell = (portaled: boolean) => `
   <style>
-    [hidden]:where(:not([hidden="until-found"])) { display: none !important; }
+    @layer theme, base, components, utilities;
+    @layer base {
+      [hidden]:where(:not([hidden="until-found"])) { display: none !important; }
+    }
     ${styles}
   </style>
   <div data-app-composer="">
