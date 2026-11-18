@@ -60,7 +60,6 @@ export function Row({
   subtitle,
   snoozeAction,
   disclosure,
-  categorized = false,
   onNavigate,
 }: {
   thread: PluginSidebarThread;
@@ -92,7 +91,6 @@ export function Row({
   snoozeAction?: RowSnoozeAction;
   /** Present when the row has child threads: the expand/collapse toggle. */
   disclosure?: { expanded: boolean; toggle: () => void };
-  categorized?: boolean;
   onNavigate: () => void;
 }) {
   const traits = placement ? LOCATION_TRAITS[placement] : STANDALONE_TRAITS;
@@ -123,7 +121,6 @@ export function Row({
       depth,
       slotWidth,
       inGroup: traits.inGroup,
-      categorized,
       hasSubtitle: Boolean(subtitle),
     });
 

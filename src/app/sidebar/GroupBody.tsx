@@ -9,9 +9,8 @@ import {
   SortableContext,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { cn } from "@/lib/utils";
 import { SIDEBAR_GEOMETRY } from "./tokens.ts";
-import { childIndent } from "./statusSlot.ts";
+import { categoryHeadingInset, childIndent } from "./statusSlot.ts";
 import { foldKey, foldDefault, treesOf, visibleEntries } from "./rows.ts";
 import {
   DropTarget,
@@ -47,7 +46,6 @@ export type ThreadTreesProps = {
   rows: readonly ThreadRow[];
   groupId: string;
   label?: string;
-  categorized?: boolean;
   renderRow: RenderRow;
   collapsed?: boolean;
   slotWidth: number;
@@ -63,7 +61,6 @@ export function SortableThreadTree({
   tree,
   groupId,
   label,
-  categorized = false,
   renderRow,
   slotWidth,
   choosingWorkstream,
@@ -87,12 +84,11 @@ export function SortableThreadTree({
             handle: index === 0 ? handle : undefined,
             slotWidth,
             label,
-            categorized,
           }),
         )}
       </ul>
     ),
-    [visible, renderRow, slotWidth, label, categorized],
+    [visible, renderRow, slotWidth, label],
   );
   const topThread = tree[0]!.thread;
   return (
@@ -100,9 +96,7 @@ export function SortableThreadTree({
       id={treeKey(topThread.id)}
       data={{ type: "thread", threadId: topThread.id, groupId }}
       disabled={choosingWorkstream}
-      // `pl-3` is `SIDEBAR_GEOMETRY.category.treeInset`, which `rowGeometry`
-      // subtracts from the category indent.
-      className={cn("list-none", categorized && "pl-3")}
+      className="list-none"
     >
       {content}
     </Sortable>
@@ -119,7 +113,6 @@ export const ThreadTrees = memo(
     rows,
     groupId,
     label,
-    categorized = false,
     renderRow,
     slotWidth,
     choosingWorkstream,
@@ -138,7 +131,6 @@ export const ThreadTrees = memo(
             tree={tree}
             groupId={groupId}
             label={label}
-            categorized={categorized}
             renderRow={renderRow}
             slotWidth={slotWidth}
             choosingWorkstream={choosingWorkstream}
@@ -154,7 +146,6 @@ export const ThreadTrees = memo(
       before.rows === after.rows &&
       before.groupId === after.groupId &&
       before.label === after.label &&
-      before.categorized === after.categorized &&
       before.renderRow === after.renderRow &&
       before.slotWidth === after.slotWidth &&
       before.choosingWorkstream === after.choosingWorkstream &&
@@ -211,7 +202,9 @@ export function CategorizedTrees({
     <Fragment key={category.id ?? "unplaced"}>
       {category.name ? (
         <li
-          className="list-none"
+          // The inset follows the status slot as it folds, in step with
+          // the rows' own padding (see `.ws-row`).
+          className="ws-category-heading list-none"
           style={{
             marginTop:
               index === 0
@@ -219,7 +212,7 @@ export function CategorizedTrees({
                 : SIDEBAR_GEOMETRY.category.betweenGap,
             marginBottom: SIDEBAR_GEOMETRY.category.afterGap,
             height: SIDEBAR_GEOMETRY.category.height,
-            paddingLeft: SIDEBAR_GEOMETRY.category.indent,
+            paddingLeft: categoryHeadingInset(groupSlot),
           }}
         >
           <h4
@@ -240,7 +233,6 @@ export function CategorizedTrees({
         rows={category.rows}
         groupId={group.id}
         label={label}
-        categorized={Boolean(category.name)}
         renderRow={renderRow}
         collapsed={collapsed}
         slotWidth={groupSlot}

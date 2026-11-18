@@ -488,13 +488,7 @@ export function WorkstreamsThreadList({
   const renderRow = useCallback<RenderRow>(
     (
       { row, depth, key },
-      {
-        placement,
-        handle,
-        slotWidth = FULL_SLOT_PX,
-        label,
-        categorized = false,
-      },
+      { placement, handle, slotWidth = FULL_SLOT_PX, label },
     ) => {
       let context = label;
       if (
@@ -525,7 +519,6 @@ export function WorkstreamsThreadList({
               ? !folded(placement, row.thread.id)
               : undefined
           }
-          categorized={categorized}
           onNavigate={onNavigate}
           toggleDisclosure={toggle}
         />

@@ -2798,7 +2798,6 @@ function addRows(root, item, panel) {
         kind,
         legacy: panel === "after" && legacyPresentation,
         depth: depth || 0,
-        categorized,
         expanded: !hidden,
         toggle: hasChildren
           ? () => {

@@ -37,7 +37,6 @@ export type SidebarThreadRowProps = {
   snoozePrefs: ServerState["snoozePrefs"];
   handlers: RowMenuHandlers;
   disclosureExpanded?: boolean;
-  categorized: boolean;
   onNavigate: () => void;
   toggleDisclosure: (id: string, byDefault?: boolean) => void;
 };
@@ -81,7 +80,6 @@ export const SidebarThreadRow = memo(function SidebarThreadRow({
   snoozePrefs,
   handlers,
   disclosureExpanded,
-  categorized,
   onNavigate,
   toggleDisclosure,
   handleRef,
@@ -168,7 +166,6 @@ export const SidebarThreadRow = memo(function SidebarThreadRow({
                     ),
                 }
           }
-          categorized={categorized}
           onNavigate={onNavigate}
         />
       </li>

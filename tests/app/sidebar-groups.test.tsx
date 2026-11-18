@@ -197,12 +197,6 @@ describe("groups and their workstreams", () => {
       expect(heading.style.getPropertyValue("--ws-color-light")).toContain(
         "50.00%",
       );
-      const row = slot
-        .getByRole("link", { name: "Rebase alerts PR" })
-        .closest(".ws-row")!;
-      expect(
-        row.closest("li")!.parentElement!.closest("li")?.className,
-      ).toContain("pl-3");
       if (!inline) {
         const workstream = slot.getByRole("region", {
           name: "Beacon › Automations › Alert Investigations",
@@ -460,9 +454,16 @@ describe("small groups", () => {
       .closest(".ws-row") as HTMLElement;
     const tree = (row: HTMLElement) =>
       row.closest("li")!.parentElement!.closest("li")!;
-    expect(tree(root).className).toContain("pl-3");
     expect(tree(child)).toBe(tree(root));
-    expect(tree(arrival).className).not.toContain("pl-3");
+    // A category is a heading over its threads, not a level of nesting: a
+    // thread in one sits where a thread outside any category sits, and the
+    // heading starts at their titles' edge.
+    expect(tree(root).className).toBe(tree(arrival).className);
+    expect(root.style.paddingLeft).toBe(arrival.style.paddingLeft);
+    expect(
+      slot.getByRole("heading", { name: "Billing" }).parentElement!.style
+        .paddingLeft,
+    ).toBe(`${parseFloat(root.style.paddingLeft) + childIndent(8)}px`);
     expect(
       parseFloat(child.style.paddingLeft) - parseFloat(root.style.paddingLeft),
     ).toBe(childIndent(8));

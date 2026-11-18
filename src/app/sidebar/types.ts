@@ -17,7 +17,6 @@ export type RowRenderOptions = {
   slotWidth?: number;
   /** Its group's name, for a row listed outside that group's header. */
   label?: string;
-  categorized?: boolean;
 };
 export type RenderRow = (
   entry: RowEntry,

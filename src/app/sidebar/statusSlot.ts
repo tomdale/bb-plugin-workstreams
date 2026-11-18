@@ -6,6 +6,7 @@ import {
 } from "../../domain/presentation.ts";
 import type { SpinnerStyle } from "../../domain/spinner.ts";
 import type { WorkView } from "../../domain/status.ts";
+import { SIDEBAR_GEOMETRY } from "./tokens.ts";
 
 /** The row's gap (`gap-1.5`) between its status slot and its title. */
 export const STATUS_GAP_PX = 6;
@@ -85,9 +86,23 @@ export function childIndent(slotWidth: number): number {
 }
 
 /**
- * The left edge of a band control's text: the row's 6px inset, the slot and
- * its gap, or the folded slot's 2px remainder (see `.ws-status-slot`).
+ * The left edge of a row's title: the row's inset, then the slot and its
+ * gap, or the folded slot's 2px remainder (see `.ws-status-slot`).
  */
+function titleInset(rowInset: number, slotWidth: number): number {
+  return rowInset + STATUS_GAP_PX + (slotWidth > 0 ? slotWidth : 2);
+}
+
+/** The left edge of a band control's text: its rows' title edge. */
 export function bandTitleInset(slotWidth: number): number {
-  return 6 + STATUS_GAP_PX + (slotWidth > 0 ? slotWidth : 2);
+  return titleInset(SIDEBAR_GEOMETRY.row.overlayInset, slotWidth);
+}
+
+/**
+ * The left edge of a category heading: the title edge of its workstream's
+ * top-level threads, so the heading reads as a label over rows that sit
+ * where uncategorized rows do.
+ */
+export function categoryHeadingInset(slotWidth: number): number {
+  return titleInset(SIDEBAR_GEOMETRY.row.rootInset, slotWidth);
 }

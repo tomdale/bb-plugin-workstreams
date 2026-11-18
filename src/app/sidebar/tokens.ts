@@ -15,13 +15,10 @@ export const SIDEBAR_GEOMETRY = {
   },
   category: {
     height: 14,
-    indent: 20,
     firstTopGap: 4,
     /** Top margin for subsequent categories: 4px catGap + 9px categoryBetween = 13px. */
     betweenGap: 13,
     afterGap: 3,
-    /** A categorized thread's sortable tree container pads in by `pl-3`. */
-    treeInset: 12,
   },
   gaps: {
     item: 9,

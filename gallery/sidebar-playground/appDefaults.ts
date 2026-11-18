@@ -1,5 +1,9 @@
 import { SIDEBAR_GEOMETRY as geometry } from "../../src/app/sidebar/tokens.ts";
 import { rowGeometry } from "../../src/app/sidebar/rowGeometry.ts";
+import {
+  categoryHeadingInset,
+  FULL_SLOT_PX,
+} from "../../src/app/sidebar/statusSlot.ts";
 import { parsePrefs } from "../../src/domain/prefs.ts";
 import { clearComponents, mountThread } from "./components.tsx";
 
@@ -48,13 +52,11 @@ export function appSidebarDefaults(): Record<string, string> {
       title: "Thread",
       kind: "none",
       depth: 0,
-      categorized: false,
     });
     mountThread("app-defaults", host.querySelector('[data-sample="child"]')!, {
       title: "Child",
       kind: "none",
       depth: 1,
-      categorized: false,
     });
     const style = (selector: string) =>
       getComputedStyle(host.querySelector(selector)!);
@@ -71,11 +73,7 @@ export function appSidebarDefaults(): Record<string, string> {
       };
     };
     const root = rowGeometry({ depth: 0, inGroup: true }).paddingLeft;
-    const categorized = geometry.category.indent;
     const child = rowGeometry({ depth: 1, inGroup: true }).paddingLeft - root;
-    const childCategorized =
-      rowGeometry({ depth: 1, inGroup: true, categorized: true }).paddingLeft -
-      rowGeometry({ depth: 0, inGroup: true, categorized: true }).paddingLeft;
     const statusWidth = parseFloat(style(".ws-status-slot").width);
     const statusGap = parseFloat(style(".ws-row").columnGap);
     const sort = parsePrefs({}).sidebar.groupSort;
@@ -112,12 +110,14 @@ export function appSidebarDefaults(): Record<string, string> {
         headerGap: 6,
         rowInset: root,
         rowInsetReference: "content",
-        categoryIndent: category.indent,
+        // A category heading starts at its threads' title edge, and its
+        // threads sit where uncategorized ones do.
+        categoryIndent: categoryHeadingInset(FULL_SLOT_PX),
         categoryIndentReference: "content",
-        categoryRowIndent: categorized - category.indent,
-        categoryRowIndentReference: "relative",
+        categoryRowIndent: root,
+        categoryRowIndentReference: "content",
         childIndent: child,
-        categoryChildIndent: childCategorized,
+        categoryChildIndent: child,
         childIndentReference: "relative",
         categoryChildIndentReference: "relative",
         statusWidth,

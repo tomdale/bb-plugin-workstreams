@@ -6,11 +6,13 @@
 }
 /* A list's rows shift with its status slot (see `slotWidthOf`): a child's
    indent follows the slot, so it eases in step with the slot's width. */
-.ws-row {
+.ws-row,
+.ws-category-heading {
   transition: padding-left 180ms ease-out;
 }
 @media (prefers-reduced-motion: reduce) {
-  .ws-row {
+  .ws-row,
+  .ws-category-heading {
     transition: none;
   }
 }

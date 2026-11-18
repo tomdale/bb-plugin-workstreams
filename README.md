@@ -478,8 +478,9 @@ Select **Workstreams** as your sidebar thread list to organize threads into:
      Agent** Automations). The group's name reads in its own color, dimmed, so
      one group looks alike over every workstream in it, and the workstream name
      uses its own color. Categories are row headings inside that workstream, not
-     additional workstreams. Focus, ordering, and Dormant continue to apply to
-     workstreams.
+     additional workstreams: a heading starts where its threads' titles do, and
+     its threads sit where threads outside any category sit. Focus, ordering,
+     and Dormant continue to apply to workstreams.
    - **Small workstreams:** Every workstream with threads keeps its own header,
      regardless of its size.
    - **Indentation:** Child threads sit one step in from their parent thread.

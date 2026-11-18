@@ -28,7 +28,6 @@ export function rowGeometry(options: {
   /** The width of the list's status slot; children indent past it. */
   slotWidth?: number;
   inGroup?: boolean;
-  categorized?: boolean;
   hasSubtitle?: boolean;
 }): {
   paddingLeft: number;
@@ -36,15 +35,10 @@ export function rowGeometry(options: {
   leadingClass: string;
   compactActions: boolean;
 } {
-  // Inline groups: a top-level thread sits at the workstream header's title
-  // inset, and a categorized one indents to the category heading. The
-  // category's 20px indent less the sortable tree container's own inset
-  // (`treeInset`) leaves 8px here, so a categorized thread sits flush under its
-  // heading. Overlay bands give every row a fixed indent.
+  // A workstream's top-level threads share one inset whether or not a
+  // category heading sits over them; overlay bands have their own.
   const baseIndent = options.inGroup
-    ? options.categorized
-      ? SIDEBAR_GEOMETRY.category.indent - SIDEBAR_GEOMETRY.category.treeInset
-      : SIDEBAR_GEOMETRY.row.rootInset
+    ? SIDEBAR_GEOMETRY.row.rootInset
     : SIDEBAR_GEOMETRY.row.overlayInset;
   const paddingLeft =
     baseIndent +

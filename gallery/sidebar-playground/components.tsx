@@ -170,7 +170,6 @@ export function mountThread(
     title: string;
     kind: string;
     depth: number;
-    categorized: boolean;
     legacy?: boolean;
     expanded?: boolean;
     toggle?: () => void;
@@ -254,7 +253,6 @@ export function mountThread(
         thread,
         work,
         depth: options.depth,
-        categorized: options.categorized,
         placement: options.legacy ? "archived" : "group",
         active: false,
         snoozeAction,
